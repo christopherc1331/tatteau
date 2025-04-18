@@ -5,10 +5,20 @@ members = [
 ]
 resolver = "2"
 
-# Each crate maintains its own build and test configuration
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["Chris Cruz <christopherc1331@gmail.com>"]
+description = "A web application for visualizing and managing location data"
+license = "MIT OR Apache-2.0"  # Common Rust licensing
+repository = "https://github.com/christopherc1331/tatteau"
+keywords = ["web", "location", "data"]
+
+# Only truly shared dependencies
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.140"
+thiserror = "1.0"
 
 [profile.dev]
 opt-level = 0

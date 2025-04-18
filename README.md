@@ -24,7 +24,7 @@ cargo build -p data-ingestion
 The web crate requires both SSR and hydration features:
 
 ```bash
-cargo build -p fo --features "ssr hydrate"
+cargo build -p web --features "ssr hydrate"
 ```
 
 ### Running Tests
@@ -43,7 +43,7 @@ cargo test -p data-ingestion
 
 #### Web Crate
 ```bash
-cargo test -p fo --features "ssr hydrate"
+cargo test -p web --features "ssr hydrate"
 ```
 
 ### Development
@@ -58,5 +58,5 @@ cargo check
 cargo check -p data-ingestion
 
 # Check web crate
-cargo check -p fo --features "ssr hydrate"
+cargo check -p web --features "ssr hydrate"
 ``` 
