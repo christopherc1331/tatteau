@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection, Error};
 
-use crate::data_parser::LocationInfo;
+use shared_types::LocationInfo;
 
 pub fn upsert_locations(conn: &Connection, locations: &[LocationInfo]) -> Result<(), Error> {
     let mut stmt = conn.prepare_cached(

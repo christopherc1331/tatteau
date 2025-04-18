@@ -1,16 +1,24 @@
 use std::time::Duration;
 
-use leptos::prelude::*;
+use leptos::{
+    prelude::{set_interval_with_handle, Effect, ServerFnError, Update},
+    server::Resource,
+    *,
+};
 use leptos_leaflet::prelude::*;
+use shared_types::LocationInfo;
 use thaw::{Label, LabelSize};
 
 #[server]
-pub async fn fetch_locations() -> Result<(), ServerFnError> {
-    todo!()
+pub async fn fetch_locations() -> Result<Vec<LocationInfo>, ServerFnError> {
+    // TODO: Implement actual data fetching from your backend
+    Ok(Vec::new())
 }
 
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
+    let locations = Resource::new(|| (), |_| async move { fetch_locations().await });
+
     let (marker_position, set_marker_position) =
         JsRwSignal::new_local(Position::new(51.49, -0.08)).split();
 
