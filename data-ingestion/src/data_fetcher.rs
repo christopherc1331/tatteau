@@ -1,4 +1,4 @@
-use std::{env, fs::File, io::Write};
+use std::env;
 
 use reqwest::{header::HeaderMap, Client};
 use serde_json::{json, Value};
