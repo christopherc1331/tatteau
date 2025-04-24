@@ -13,7 +13,10 @@ axum = { version = "0.7", optional = true }
 console_error_panic_hook = "0.1"
 leptos_axum = { version = "0.7.0", optional = true }
 leptos_meta = { version = "0.7.0" }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"], optional = true }
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "macros",
+], optional = true }
 tower = { version = "0.4", optional = true }
 tower-http = { version = "0.5", features = ["fs"], optional = true }
 wasm-bindgen = { version = "=0.2.100", features = ["serde-serialize"] }
@@ -22,6 +25,7 @@ http = "1"
 thaw = { version = "0.4", features = ["nightly"] }
 leptos-leaflet = "0.9.3"
 shared-types = { path = "../shared-types" }
+rusqlite = { version = "0.34.0", features = ["bundled"], optional = true }
 
 [features]
 default = []
@@ -32,6 +36,7 @@ ssr = [
   "dep:tower",
   "dep:tower-http",
   "dep:leptos_axum",
+  "dep:rusqlite",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",

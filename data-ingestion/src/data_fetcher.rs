@@ -76,8 +76,4 @@ pub async fn fetch_data(
         .json::<Value>()
         .await
         .expect("Result is valid JSON")
-
-    // let file = File::create("foo.json").unwrap();
-    // serde_json::to_writer_pretty(file, &val).unwrap();
-    // val
 }
