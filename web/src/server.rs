@@ -1,10 +1,8 @@
-#[cfg(feature = "ssr")]
 use leptos::prelude::*;
 use leptos::server;
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
 use shared_types::LocationInfo;
-#[cfg(feature = "ssr")]
 use std::path::Path;
 
 #[server]
@@ -72,4 +70,3 @@ fn query_locations() -> SqliteResult<Vec<LocationInfo>> {
 
     Ok(result)
 }
-

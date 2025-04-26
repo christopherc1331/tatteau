@@ -1,5 +1,5 @@
 use crate::server::fetch_locations;
-use leptos::prelude::*;
+use leptos::{server::Resource, *};
 use leptos_leaflet::prelude::*;
 use shared_types::LocationInfo;
 use thaw::{Label, LabelSize};
