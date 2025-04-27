@@ -3,7 +3,7 @@ use leptos_leaflet::prelude::*;
 use shared_types::LocationInfo;
 use thaw::{Icon, Label, LabelSize, MessageBar, MessageBarIntent, Spinner, SpinnerSize};
 
-use crate::server::fetch_locations;
+use crate::server::{fetch_locations, get_cities};
 
 #[component]
 pub fn LoadingView(message: Option<String>) -> impl IntoView {
@@ -28,11 +28,17 @@ pub fn ErrorView(message: Option<String>) -> impl IntoView {
 
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
+    let (state, _) = signal("Texas".to_string());
     let (city, _) = signal("Dallas".to_string());
 
     let locations_resource = Resource::new(
         move || city.read().clone(),
         move |city| async move { fetch_locations(city).await },
+    );
+
+    let cities = Resource::new(
+        move || state.read().clone(),
+        move |state| async move { get_cities(state).await },
     );
 
     view! {
@@ -60,9 +66,12 @@ pub fn DiscoveryMap() -> impl IntoView {
                             }).collect_view()}
                         </MapContainer>
                     }.into_any(),
-                    Some(Err(err)) => view! {
-                        <ErrorView message=Some(err.to_string()) />
-                    }.into_any(),
+                    Some(Err(err)) => {
+                        println!("Error occurred while fetching locations: {}", err);
+                        view! {
+                            <ErrorView message=Some("Error fetching locations...".to_string()) />
+                        }.into_any()
+                    },
                     None => view! {
                         <LoadingView message=Some("Fetching locations...".to_string()) />
                     }.into_any(),
