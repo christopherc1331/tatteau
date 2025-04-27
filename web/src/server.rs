@@ -6,17 +6,19 @@ use shared_types::LocationInfo;
 use std::path::Path;
 
 #[server]
-pub async fn fetch_locations() -> Result<Vec<LocationInfo>, ServerFnError> {
+pub async fn fetch_locations(city: String) -> Result<Vec<LocationInfo>, ServerFnError> {
     // This function will be executed on the server
-    match query_locations() {
+    match query_locations(city) {
         Ok(locations) => Ok(locations),
         Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
     }
 }
 
 #[cfg(feature = "ssr")]
-fn query_locations() -> SqliteResult<Vec<LocationInfo>> {
+fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
     // Path to your SQLite database file
+
+    use rusqlite::params;
     let db_path = Path::new("web/tatteau.db");
 
     // Open a connection to the database
@@ -40,11 +42,12 @@ fn query_locations() -> SqliteResult<Vec<LocationInfo>> {
             category,
             website_uri
         FROM locations
+        WHERE LOWER(city) LIKE ?1
     ",
     )?;
 
     // Map the results to LocationInfo structs
-    let locations = stmt.query_map([], |row| {
+    let locations = stmt.query_map(params![format!("%{}%", city)], |row| {
         Ok(LocationInfo {
             id: row.get(0)?,
             name: row.get(1)?,

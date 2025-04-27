@@ -15,4 +15,5 @@ pub struct LocationInfo {
     pub website_uri: String,
     pub lat: f64,
     pub long: f64,
-} 
+}
+
