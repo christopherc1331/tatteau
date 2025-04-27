@@ -42,12 +42,14 @@ fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
             category,
             website_uri
         FROM locations
-        WHERE LOWER(city) LIKE ?1
+        WHERE 
+            city = ?1
+        AND (is_person IS NULL OR is_person != 1)
     ",
     )?;
 
     // Map the results to LocationInfo structs
-    let locations = stmt.query_map(params![format!("%{}%", city)], |row| {
+    let locations = stmt.query_map(params![city], |row| {
         Ok(LocationInfo {
             id: row.get(0)?,
             name: row.get(1)?,

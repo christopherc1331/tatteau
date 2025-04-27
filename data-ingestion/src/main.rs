@@ -14,7 +14,7 @@ pub mod geographical_location;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-    let location = USCounties::TXEllisCounty;
+    let location = USCounties::TXTarrantCounty;
     let limit_results_to: i8 = 20;
     let mut current_token: Option<String> = None;
     let mut max_iter: i8 = 5;

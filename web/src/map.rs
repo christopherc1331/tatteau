@@ -42,7 +42,7 @@ pub fn DiscoveryMap() -> impl IntoView {
             {move ||
                 match locations_resource.get() {
                     Some(Ok(locations)) => view! {
-                        <MapContainer style="height: 400px" center=Position::new(32.482209, -96.994499) zoom=12.0 set_view=true>
+                        <MapContainer style="height: 70vh" center=Position::new(32.482209, -96.994499) zoom=12.0 set_view=true>
                             <TileLayer
                                 url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                                 attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
