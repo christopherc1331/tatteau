@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use data_fetcher::fetch_data;
 use data_parser::{parse_data, ParsedLocationData};
 use data_persister::upsert_locations;
@@ -18,7 +20,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let limit_results_to: i8 = 20;
     let mut current_token: Option<String> = None;
     let mut max_iter: i8 = 5;
-    let conn: Connection = Connection::open("tatteau.db").expect("Database should load");
+    let db_path = Path::new("tatteau.db");
+    let conn: Connection = Connection::open(db_path).expect("Database should load");
 
     while max_iter > 0 {
         max_iter -= 1;

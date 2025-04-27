@@ -19,7 +19,7 @@ fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
     // Path to your SQLite database file
 
     use rusqlite::params;
-    let db_path = Path::new("web/tatteau.db");
+    let db_path = Path::new("tatteau.db");
 
     // Open a connection to the database
     let conn = Connection::open(db_path)?;

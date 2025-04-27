@@ -21,3 +21,5 @@ Thumbs.db
 /web/target/site/
 /web/target/wasm32-unknown-unknown/
 /web/pkg/ 
+
+*.db
