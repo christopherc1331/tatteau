@@ -1,9 +1,8 @@
 use leptos::prelude::*;
 use leptos_leaflet::prelude::*;
-use shared_types::LocationInfo;
-use thaw::{Icon, Label, LabelSize, MessageBar, MessageBarIntent, Spinner, SpinnerSize};
+use thaw::{Label, LabelSize, MessageBar, MessageBarIntent, Select, Spinner, SpinnerSize};
 
-use crate::server::{fetch_locations, get_cities};
+use crate::server::{fetch_locations, get_cities, get_states_list, CityCoords};
 
 #[component]
 pub fn LoadingView(message: Option<String>) -> impl IntoView {
@@ -28,16 +27,23 @@ pub fn ErrorView(message: Option<String>) -> impl IntoView {
 
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
-    let (state, _) = signal("Texas".to_string());
-    let (city, _) = signal("Dallas".to_string());
+    let state = RwSignal::new("Texas".to_string());
+    let city = RwSignal::new("Dallas".to_string());
+    // TODO: add create effect that searches for city coord record
+    // based on currently selected city and assigns found result to selected city signal
+    // with the selected city coord we can set the default position that the map centers on
+    //
+    // let city_model = Model
 
     let locations_resource = Resource::new(
-        move || city.read().clone(),
+        move || city.get(),
         move |city| async move { fetch_locations(city).await },
     );
 
-    let cities = Resource::new(
-        move || state.read().clone(),
+    let states_resource = OnceResource::new(async move { get_states_list().await });
+
+    let cities_resource = Resource::new(
+        move || state.get(),
         move |state| async move { get_cities(state).await },
     );
 
@@ -45,6 +51,50 @@ pub fn DiscoveryMap() -> impl IntoView {
         <Suspense fallback=move || view! {
                     <LoadingView message=Some("Fetching locations...".to_string()) />
                 }>
+            {move ||
+                match states_resource.get() {
+                    Some(Ok(states)) => view! {
+                        <Select >
+                            {states.into_iter().map(|state| {
+                                view! {
+                                    <option>{state}</option>
+                                }
+                            }).collect_view()}
+                        </Select>
+                    }.into_any(),
+                    Some(Err(err)) => {
+                        println!("Error occurred while fetching locations: {}", err);
+                        view! {
+                            <ErrorView message=Some("Error fetching locations...".to_string()) />
+                        }.into_any()
+                    },
+                    None => view! {
+                        <LoadingView message=Some("Fetching locations...".to_string()) />
+                    }.into_any(),
+                }
+            }
+            {move ||
+                match cities_resource.get() {
+                    Some(Ok(cities)) => view! {
+                        <Select>
+                            {cities.into_iter().map(|city| {
+                                view! {
+                                    <option>{city.city}</option>
+                                }
+                            }).collect_view()}
+                        </Select>
+                    }.into_any(),
+                    Some(Err(err)) => {
+                        println!("Error occurred while fetching locations: {}", err);
+                        view! {
+                            <ErrorView message=Some("Error fetching locations...".to_string()) />
+                        }.into_any()
+                    },
+                    None => view! {
+                        <LoadingView message=Some("Fetching locations...".to_string()) />
+                    }.into_any(),
+                }
+            }
             {move ||
                 match locations_resource.get() {
                     Some(Ok(locations)) => view! {

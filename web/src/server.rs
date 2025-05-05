@@ -25,7 +25,15 @@ pub async fn get_cities(state: String) -> Result<Vec<CityCoords>, ServerFnError>
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[server]
+pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
+    match get_states() {
+        Ok(states) => Ok(states),
+        Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct CityCoords {
     pub city: String,
     pub state: String,
@@ -123,6 +131,32 @@ fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
     let mut result = Vec::new();
     for location in locations {
         result.push(location?);
+    }
+
+    Ok(result)
+}
+
+#[cfg(feature = "ssr")]
+fn get_states() -> SqliteResult<Vec<String>> {
+    let db_path = Path::new("tatteau.db");
+
+    // Open a connection to the database
+    let conn = Connection::open(db_path)?;
+
+    // Prepare and execute the query
+    let mut stmt = conn.prepare(
+        "
+        SELECT DISTINCT state
+        FROM locations
+    ",
+    )?;
+
+    let mut result = Vec::new();
+    // Map the results to LocationInfo structs
+    let states = stmt.query_map([], |row| Ok(row.get(0)?))?;
+
+    for state in states {
+        result.push(state?);
     }
 
     Ok(result)
