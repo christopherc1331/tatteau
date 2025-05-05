@@ -30,6 +30,13 @@ pub fn ErrorView(message: Option<String>) -> impl IntoView {
 pub fn DiscoveryMap() -> impl IntoView {
     let state = RwSignal::new("Texas".to_string());
     let city = RwSignal::new("Dallas".to_string());
+    let default_city = CityCoords {
+        city: "Dallas".to_string(),
+        state: "Texas".to_string(),
+        lat: 32.855895000000004,
+        long: -96.8662097,
+    };
+    let selected_city = RwSignal::new(default_city.clone().city);
     // TODO: add create effect that searches for city coord record
     // based on currently selected city and assigns found result to selected city signal
     // with the selected city coord we can set the default position that the map centers on
