@@ -33,7 +33,7 @@ pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CityCoords {
     pub city: String,
     pub state: String,

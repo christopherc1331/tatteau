@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_leaflet::prelude::*;
+use leptos_leaflet::{leaflet::Map, prelude::*};
 use thaw::{Label, LabelSize, MessageBar, MessageBarIntent, Select, Spinner, SpinnerSize};
 use thaw_utils::Model;
 
@@ -55,16 +55,29 @@ pub fn DiscoveryMap() -> impl IntoView {
         move |state| async move { get_cities(state).await },
     );
 
-    Effect::new(move || {
-        if let Some(city_from_resources) = cities_resource.get() {
-            if let Ok(city_coords_list) = city_from_resources {
-                let matching_city = city_coords_list.into_iter().find(|c| c.city == city.get());
-                if let Some(found_city) = matching_city {
-                    selected_city_coords.set(found_city);
-                }
+    Effect::new(move |_| {
+        if let Some(Ok(city_coords_list)) = cities_resource.get() {
+            println!("Selected city coordinates list: {:?}", city_coords_list);
+            let matching_city = city_coords_list.into_iter().find(|c| c.city == city.get());
+            if let Some(found_city) = matching_city {
+                selected_city_coords.set(found_city);
             }
         }
     });
+
+    Effect::new(move |_| {
+        println!(
+            "Selected city coordinates: {:?}",
+            selected_city_coords.get()
+        )
+    });
+
+    Effect::new(move |_| println!("City changed: {:?}", city.get()));
+
+    // let center: Memo<Position> = Memo::new(move |_| {
+    //     let coords = selected_city_coords.get();
+    //     Position::new(coords.lat, coords.long)
+    // });
 
     view! {
         <Suspense fallback=move || view! {
@@ -95,7 +108,12 @@ pub fn DiscoveryMap() -> impl IntoView {
             {move ||
                 match cities_resource.get() {
                     Some(Ok(cities)) => view! {
-                        <Select>
+                        <Select
+                            on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                city.set(value);
+                            }
+                        >
                             {cities.into_iter().map(|city| {
                                 view! {
                                     <option>{city.city}</option>
@@ -114,38 +132,37 @@ pub fn DiscoveryMap() -> impl IntoView {
                     }.into_any(),
                 }
             }
-            {move ||
-                match locations_resource.get() {
-                    Some(Ok(locations)) => view! {
-                        <MapContainer style="height: 70vh" center=Position::new(32.482209, -96.994499) zoom=12.0 set_view=true>
-                            <TileLayer
-                                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
-                            />
-
-                            {locations.into_iter().map(|loc| {
-                                view! {
-                                    <Marker position=Position::new(loc.lat, loc.long) draggable=false>
-                                        <Popup>
-                                            <Label size=LabelSize::Large>{loc.name.clone()}</Label>
-                                            <p>{format!("Address: {}", loc.address)}</p>
-                                        </Popup>
-                                    </Marker>
-                                }
-                            }).collect_view()}
-                        </MapContainer>
-                    }.into_any(),
-                    Some(Err(err)) => {
-                        println!("Error occurred while fetching locations: {}", err);
-                        view! {
-                            <ErrorView message=Some("Error fetching locations...".to_string()) />
-                        }.into_any()
-                    },
-                    None => view! {
-                        <LoadingView message=Some("Fetching locations...".to_string()) />
-                    }.into_any(),
+            <MapContainer style="height: 70vh" center=Position::new(32.855895000000004, -96.8662097) zoom=12.0 set_view=true>
+                <TileLayer
+                    url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
+                />
+                {move ||
+                    match locations_resource.get() {
+                        Some(Ok(locations)) => view! {
+                                {locations.into_iter().map(|loc| {
+                                    view! {
+                                        <Marker position=Position::new(loc.lat, loc.long) draggable=false>
+                                            <Popup>
+                                                <Label size=LabelSize::Large>{loc.name.clone()}</Label>
+                                                <p>{format!("Address: {}", loc.address)}</p>
+                                            </Popup>
+                                        </Marker>
+                                    }
+                                }).collect_view()}
+                        }.into_any(),
+                        Some(Err(err)) => {
+                            println!("Error occurred while fetching locations: {}", err);
+                            view! {
+                                <ErrorView message=Some("Error fetching locations...".to_string()) />
+                            }.into_any()
+                        },
+                        None => view! {
+                            <LoadingView message=Some("Fetching locations...".to_string()) />
+                        }.into_any(),
+                    }
                 }
-            }
+            </MapContainer>
         </Suspense>
     }
 }
