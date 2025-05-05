@@ -29,14 +29,14 @@ pub fn ErrorView(message: Option<String>) -> impl IntoView {
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
     let state = RwSignal::new("Texas".to_string());
-    let city = RwSignal::new("Dallas".to_string());
     let default_city = CityCoords {
         city: "Dallas".to_string(),
         state: "Texas".to_string(),
         lat: 32.855895000000004,
         long: -96.8662097,
     };
-    let selected_city = RwSignal::new(default_city.clone().city);
+    let city = RwSignal::new(default_city.clone().city);
+    let selected_city_coords = RwSignal::new(default_city.clone());
     // TODO: add create effect that searches for city coord record
     // based on currently selected city and assigns found result to selected city signal
     // with the selected city coord we can set the default position that the map centers on
@@ -54,6 +54,17 @@ pub fn DiscoveryMap() -> impl IntoView {
         move || state.get(),
         move |state| async move { get_cities(state).await },
     );
+
+    Effect::new(move || {
+        if let Some(city_from_resources) = cities_resource.get() {
+            if let Ok(city_coords_list) = city_from_resources {
+                let matching_city = city_coords_list.into_iter().find(|c| c.city == city.get());
+                if let Some(found_city) = matching_city {
+                    selected_city_coords.set(found_city);
+                }
+            }
+        }
+    });
 
     view! {
         <Suspense fallback=move || view! {
