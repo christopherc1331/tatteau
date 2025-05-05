@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_leaflet::prelude::*;
 use thaw::{Label, LabelSize, MessageBar, MessageBarIntent, Select, Spinner, SpinnerSize};
+use thaw_utils::Model;
 
 use crate::server::{fetch_locations, get_cities, get_states_list, CityCoords};
 
@@ -33,7 +34,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     // based on currently selected city and assigns found result to selected city signal
     // with the selected city coord we can set the default position that the map centers on
     //
-    // let city_model = Model
+    let state_model: Model<String> = state.into();
 
     let locations_resource = Resource::new(
         move || city.get(),
@@ -54,7 +55,7 @@ pub fn DiscoveryMap() -> impl IntoView {
             {move ||
                 match states_resource.get() {
                     Some(Ok(states)) => view! {
-                        <Select >
+                        <Select value=state_model>
                             {states.into_iter().map(|state| {
                                 view! {
                                     <option>{state}</option>
