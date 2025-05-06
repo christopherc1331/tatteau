@@ -1,30 +1,12 @@
 use leptos::prelude::*;
 use leptos_leaflet::{leaflet::Map, prelude::*};
-use thaw::{Label, LabelSize, MessageBar, MessageBarIntent, Select, Spinner, SpinnerSize};
+use thaw::{Label, LabelSize, Select};
 use thaw_utils::Model;
 
-use crate::server::{fetch_locations, get_cities, get_states_list, CityCoords};
-
-#[component]
-pub fn LoadingView(message: Option<String>) -> impl IntoView {
-    view! {
-        <div class="flex flex-col items-center justify-center p-4">
-            <Spinner size=SpinnerSize::Large />
-            <p class="mt-2 text-gray-600">
-                {message.unwrap_or_else(|| "Loading, please wait...".to_string())}
-            </p>
-        </div>
-    }
-}
-
-#[component]
-pub fn ErrorView(message: Option<String>) -> impl IntoView {
-    view! {
-        <MessageBar intent=MessageBarIntent::Error>
-            {message.unwrap_or_else(|| "An error occurred. Please try again.".to_string())}
-        </MessageBar>
-    }
-}
+use crate::{
+    components::{error::ErrorView, loading::LoadingView},
+    server::{fetch_locations, get_cities, get_states_list, CityCoords},
+};
 
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
@@ -60,22 +42,12 @@ pub fn DiscoveryMap() -> impl IntoView {
 
     Effect::new(move |_| {
         if let Some(Ok(city_coords_list)) = cities_resource.get() {
-            println!("Selected city coordinates list: {:?}", city_coords_list);
             let matching_city = city_coords_list.into_iter().find(|c| c.city == city.get());
             if let Some(found_city) = matching_city {
                 selected_city_coords.set(found_city);
             }
         }
     });
-
-    Effect::new(move |_| {
-        println!(
-            "Selected city coordinates: {:?}",
-            selected_city_coords.get()
-        )
-    });
-
-    Effect::new(move |_| println!("City changed: {:?}", city.get()));
 
     let center: Memo<Position> = Memo::new(move |_| {
         let CityCoords { lat, long, .. } = selected_city_coords.get();
@@ -86,7 +58,6 @@ pub fn DiscoveryMap() -> impl IntoView {
     Effect::new(move |_| {
         let new_pos = center.get();
         if let Some(map) = map.get_untracked() {
-            println!("New position: {:?}", new_pos);
             map.set_view(&new_pos.as_lat_lng(), map.get_zoom());
         }
     });
