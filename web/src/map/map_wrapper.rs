@@ -1,10 +1,8 @@
 use leptos::prelude::*;
-use leptos_leaflet::{leaflet::Map, prelude::*};
-use thaw::{Label, LabelSize, Select};
 use thaw_utils::Model;
 
 use crate::{
-    components::{error::ErrorView, loading::LoadingView},
+    components::loading::LoadingView,
     map::{
         drop_down_cities::DropDownCities, drop_down_states::DropDownStates,
         map_renderer::MapRenderer,
