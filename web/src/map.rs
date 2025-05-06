@@ -37,10 +37,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     };
     let city = RwSignal::new(default_city.clone().city);
     let selected_city_coords = RwSignal::new(default_city.clone());
-    // TODO: add create effect that searches for city coord record
-    // based on currently selected city and assigns found result to selected city signal
-    // with the selected city coord we can set the default position that the map centers on
-    //
+
     let state_model: Model<String> = state.into();
 
     let locations_resource = Resource::new(
@@ -54,6 +51,12 @@ pub fn DiscoveryMap() -> impl IntoView {
         move || state.get(),
         move |state| async move { get_cities(state).await },
     );
+
+    Effect::new(move |_| {
+        if let Some(Ok(cities)) = cities_resource.get() {
+            city.set(cities[0].clone().city);
+        }
+    });
 
     Effect::new(move |_| {
         if let Some(Ok(city_coords_list)) = cities_resource.get() {
@@ -74,10 +77,19 @@ pub fn DiscoveryMap() -> impl IntoView {
 
     Effect::new(move |_| println!("City changed: {:?}", city.get()));
 
-    // let center: Memo<Position> = Memo::new(move |_| {
-    //     let coords = selected_city_coords.get();
-    //     Position::new(coords.lat, coords.long)
-    // });
+    let center: Memo<Position> = Memo::new(move |_| {
+        let CityCoords { lat, long, .. } = selected_city_coords.get();
+        Position::new(lat, long)
+    });
+
+    let map = JsRwSignal::new_local(None::<Map>);
+    Effect::new(move |_| {
+        let new_pos = center.get();
+        if let Some(map) = map.get_untracked() {
+            println!("New position: {:?}", new_pos);
+            map.set_view(&new_pos.as_lat_lng(), map.get_zoom());
+        }
+    });
 
     view! {
         <Suspense fallback=move || view! {
@@ -132,7 +144,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                     }.into_any(),
                 }
             }
-            <MapContainer style="height: 70vh" center=Position::new(32.855895000000004, -96.8662097) zoom=12.0 set_view=true>
+            <MapContainer style="height: 70vh" center=center.get() zoom=12.0 set_view=true map=map.write_only()>
                 <TileLayer
                     url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
