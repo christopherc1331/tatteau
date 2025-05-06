@@ -1,17 +1,24 @@
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
-    server::CityCoords,
+    server::{fetch_locations, CityCoords},
 };
 use leptos::prelude::*;
 use leptos_leaflet::{leaflet::Map, prelude::*};
-use shared_types::LocationInfo;
 use thaw::{Label, LabelSize};
 
 #[component]
 pub fn MapRenderer(
-    selected_city_coords: RwSignal<CityCoords>,
-    locations: Resource<Result<Vec<LocationInfo>, ServerFnError>>,
+    city: RwSignal<String>,
+    default_city: CityCoords,
+    cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
 ) -> impl IntoView {
+    let locations = Resource::new(
+        move || city.get(),
+        move |city| async move { fetch_locations(city).await },
+    );
+
+    let selected_city_coords = RwSignal::new(default_city.clone());
+
     let center: Memo<Position> = Memo::new(move |_| {
         let CityCoords { lat, long, .. } = selected_city_coords.get();
         Position::new(lat, long)
@@ -22,6 +29,15 @@ pub fn MapRenderer(
         let new_pos = center.get();
         if let Some(map) = map.get_untracked() {
             map.set_view(&new_pos.as_lat_lng(), map.get_zoom());
+        }
+    });
+
+    Effect::new(move |_| {
+        if let Some(Ok(city_coords_list)) = cities.get() {
+            let matching_city = city_coords_list.into_iter().find(|c| c.city == city.get());
+            if let Some(found_city) = matching_city {
+                selected_city_coords.set(found_city);
+            }
         }
     });
 

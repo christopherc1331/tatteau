@@ -153,7 +153,11 @@ fn get_states() -> SqliteResult<Vec<String>> {
 
     let mut result = Vec::new();
     // Map the results to LocationInfo structs
-    let states = stmt.query_map([], |row| Ok(row.get(0)?))?;
+    let states = stmt
+        .query_map([], |row| {
+            Ok(row.get(0).expect("Row should have a single column"))
+        })
+        .expect("Should fetch states successfully");
 
     for state in states {
         result.push(state?);

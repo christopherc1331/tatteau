@@ -8,9 +8,15 @@ use crate::{
 
 #[component]
 pub fn DropDownCities(
+    city: RwSignal<String>,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
-    selected_city: RwSignal<String>,
 ) -> impl IntoView {
+    Effect::new(move |_| {
+        if let Some(Ok(cities)) = cities.get() {
+            city.set(cities[0].clone().city);
+        }
+    });
+
     view! {
         {move ||
             match cities.get() {
@@ -18,7 +24,7 @@ pub fn DropDownCities(
                     <Select
                         on:change=move |ev| {
                             let value = event_target_value(&ev);
-                            selected_city.set(value);
+                            city.set(value);
                         }
                     >
                         {cities.into_iter().map(|city| {
@@ -41,4 +47,3 @@ pub fn DropDownCities(
         }
     }
 }
-

@@ -2,13 +2,16 @@ use leptos::prelude::*;
 use thaw::Select;
 use thaw_utils::Model;
 
-use crate::components::{error::ErrorView, loading::LoadingView};
+use crate::{
+    components::{error::ErrorView, loading::LoadingView},
+    server::get_states_list,
+};
 
 #[component]
-pub fn DropDownStates(
-    states: OnceResource<Result<Vec<String>, ServerFnError>>,
-    state_model: Model<String>,
-) -> impl IntoView {
+pub fn DropDownStates(state: RwSignal<String>) -> impl IntoView {
+    let states = OnceResource::new(async move { get_states_list().await });
+    let state_model: Model<String> = state.into();
+
     view! {
         {move ||
             match states.get() {
