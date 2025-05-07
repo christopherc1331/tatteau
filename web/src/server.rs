@@ -1,11 +1,12 @@
 use leptos::prelude::*;
 use leptos::server;
-#[cfg(feature = "ssr")]
-use rusqlite::{Connection, Result as SqliteResult};
-use serde::Deserialize;
-use serde::Serialize;
 use shared_types::LocationInfo;
-use std::path::Path;
+
+use crate::db::entities::CityCoords;
+#[cfg(feature = "ssr")]
+use crate::db::repository::{
+    get_cities_and_coords, get_city_coordinates, get_states, query_locations,
+};
 
 #[server]
 pub async fn fetch_locations(city: String) -> Result<Vec<LocationInfo>, ServerFnError> {
@@ -33,135 +34,50 @@ pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CityCoords {
-    pub city: String,
-    pub state: String,
-    pub lat: f64,
-    pub long: f64,
+#[server]
+pub async fn get_center_coordinates_for_cities(
+    cities: Vec<CityCoords>,
+) -> Result<CityCoords, ServerFnError> {
+    let city_name = &cities
+        .first()
+        .expect("At least one city should be passed")
+        .city;
+
+    match get_city_coordinates(city_name.to_string()) {
+        Ok(coords) => Ok(coords),
+        Err(_) => get_geographic_center(&cities)
+            .ok_or_else(|| ServerFnError::new("No coordinates found".to_string())),
+    }
 }
 
-#[cfg(feature = "ssr")]
-fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
-    use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
-
-    // Open a connection to the database
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
-        "
-            SELECT
-                city,
-                state,
-                lat,
-                long
-            FROM locations
-            WHERE
-                state = ?1
-            AND (is_person IS NULL OR is_person != 1)
-            GROUP BY city
-        ",
-    )?;
-
-    let city_coords = stmt.query_map(params![state], |row| {
-        Ok(CityCoords {
-            city: row.get(0)?,
-            state: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-        })
-    })?;
-
-    city_coords.into_iter().collect()
-}
-
-#[cfg(feature = "ssr")]
-fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
-    use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
-
-    // Open a connection to the database
-    let conn = Connection::open(db_path)?;
-
-    // Prepare and execute the query
-    let mut stmt = conn.prepare(
-        "
-        SELECT 
-            id,
-            name,
-            lat,
-            long,
-            city,
-            county,
-            state,
-            country_code,
-            postal_code,
-            is_open,
-            address,
-            category,
-            website_uri
-        FROM locations
-        WHERE 
-            city = ?1
-        AND (is_person IS NULL OR is_person != 1)
-    ",
-    )?;
-
-    // Map the results to LocationInfo structs
-    let locations = stmt.query_map(params![city], |row| {
-        Ok(LocationInfo {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-            city: row.get(4)?,
-            county: row.get(5)?,
-            state: row.get(6)?,
-            country_code: row.get(7)?,
-            postal_code: row.get(8)?,
-            is_open: row.get(9)?,
-            address: row.get(10)?,
-            category: row.get(11)?,
-            website_uri: row.get(12)?,
-        })
-    })?;
-
-    // Collect all results into a vector
-    let mut result = Vec::new();
-    for location in locations {
-        result.push(location?);
+fn get_geographic_center(cities: &[CityCoords]) -> Option<CityCoords> {
+    if cities.is_empty() {
+        return None;
     }
 
-    Ok(result)
-}
+    let (mut x_total, mut y_total, mut z_total) = (0.0, 0.0, 0.0);
+    cities.iter().for_each(|city| {
+        let lat_rad = city.lat.to_radians();
+        let long_rad = city.long.to_radians();
 
-#[cfg(feature = "ssr")]
-fn get_states() -> SqliteResult<Vec<String>> {
-    let db_path = Path::new("tatteau.db");
+        x_total += lat_rad.cos() * long_rad.cos();
+        y_total += lat_rad.cos() * long_rad.sin();
+        z_total += lat_rad.sin();
+    });
 
-    // Open a connection to the database
-    let conn = Connection::open(db_path)?;
+    let count = cities.len() as f64;
+    let x_avg = x_total / count;
+    let y_avg = y_total / count;
+    let z_avg = z_total / count;
 
-    // Prepare and execute the query
-    let mut stmt = conn.prepare(
-        "
-        SELECT DISTINCT state
-        FROM locations
-    ",
-    )?;
+    let long = y_avg.atan2(x_avg).to_degrees();
+    let hyp = (x_avg.powi(2) + y_avg.powi(2)).sqrt();
+    let lat = z_avg.atan2(hyp).to_degrees();
 
-    let mut result = Vec::new();
-    // Map the results to LocationInfo structs
-    let states = stmt
-        .query_map([], |row| {
-            Ok(row.get(0).expect("Row should have a single column"))
-        })
-        .expect("Should fetch states successfully");
-
-    for state in states {
-        result.push(state?);
-    }
-
-    Ok(result)
+    cities.first().map(|first_city| CityCoords {
+        city: first_city.clone().city,
+        state: first_city.clone().state,
+        lat,
+        long,
+    })
 }

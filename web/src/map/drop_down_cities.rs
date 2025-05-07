@@ -3,7 +3,7 @@ use thaw::Select;
 
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
-    server::CityCoords,
+    db::entities::CityCoords,
 };
 
 #[component]

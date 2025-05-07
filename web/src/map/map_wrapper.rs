@@ -2,11 +2,12 @@ use leptos::prelude::*;
 
 use crate::{
     components::loading::LoadingView,
+    db::entities::CityCoords,
     map::{
         drop_down_cities::DropDownCities, drop_down_states::DropDownStates,
         map_renderer::MapRenderer,
     },
-    server::{get_cities, CityCoords},
+    server::get_cities,
 };
 
 #[component]

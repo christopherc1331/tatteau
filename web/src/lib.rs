@@ -1,5 +1,6 @@
 pub mod app;
 pub mod components;
+pub mod db;
 pub mod map;
 pub mod server;
 
