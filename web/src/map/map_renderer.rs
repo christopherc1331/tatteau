@@ -1,6 +1,6 @@
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
-    server::CityCoords,
+    db::entities::CityCoords,
 };
 use leptos::prelude::*;
 use leptos_leaflet::{leaflet::Map, prelude::*};

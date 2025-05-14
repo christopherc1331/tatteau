@@ -3,11 +3,12 @@ use thaw_utils::Model;
 
 use crate::{
     components::loading::LoadingView,
+    db::entities::CityCoords,
     map::{
         drop_down_cities::DropDownCities, drop_down_states::DropDownStates,
         map_renderer::MapRenderer,
     },
-    server::{fetch_locations, get_cities, get_states_list, CityCoords},
+    server::{fetch_locations, get_cities, get_states_list},
 };
 
 #[component]

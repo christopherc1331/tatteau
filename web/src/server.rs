@@ -1,9 +1,8 @@
+use crate::db::entities::CityCoords;
 use leptos::prelude::*;
 use leptos::server;
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
-use serde::Deserialize;
-use serde::Serialize;
 use shared_types::LocationInfo;
 use std::path::Path;
 
@@ -33,17 +32,10 @@ pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct CityCoords {
-    pub city: String,
-    pub state: String,
-    pub lat: f64,
-    pub long: f64,
-}
-
 #[cfg(feature = "ssr")]
 fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
     use rusqlite::params;
+
     let db_path = Path::new("tatteau.db");
 
     // Open a connection to the database
