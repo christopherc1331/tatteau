@@ -20,22 +20,6 @@ pub fn MapRenderer(
 
     let selected_city_coords = RwSignal::new(default_city.clone());
 
-    let default_city_clone = default_city.clone();
-
-    // TODO: figure out hydration bug when starting server
-    let center_coordinates = Resource::new(
-        move || cities.get(),
-        move |cities| {
-            let fallback = default_city_clone.clone(); // clone here
-            async move {
-                if let Some(cities) = cities {
-                    get_center_coordinates_for_cities(cities.unwrap_or(vec![fallback])).await
-                } else {
-                    Err(ServerFnError::new("No coordinates found".to_string()))
-                }
-            }
-        },
-    );
     let center: Memo<Position> = Memo::new(move |_| {
         let CityCoords { lat, long, .. } = selected_city_coords.get();
         Position::new(lat, long)
