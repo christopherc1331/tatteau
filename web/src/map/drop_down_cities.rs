@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use thaw::Select;
+use thaw::{Flex, FlexAlign, Label, Select};
 
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
@@ -21,18 +21,21 @@ pub fn DropDownCities(
         {move ||
             match cities.get() {
                 Some(Ok(cities)) => view! {
-                    <Select
-                        on:change=move |ev| {
-                            let value = event_target_value(&ev);
-                            city.set(value);
-                        }
-                    >
-                        {cities.into_iter().map(|city| {
-                            view! {
-                                <option>{city.city}</option>
+                    <Flex vertical=true align=FlexAlign::Start>
+                        <Label>"City"</Label>
+                        <Select
+                            on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                city.set(value);
                             }
-                        }).collect_view()}
-                    </Select>
+                        >
+                            {cities.into_iter().map(|city| {
+                                view! {
+                                    <option>{city.city}</option>
+                                }
+                            }).collect_view()}
+                        </Select>
+                    </Flex>
                 }.into_any(),
                 Some(Err(err)) => {
                     println!("Error occurred while fetching locations: {}", err);

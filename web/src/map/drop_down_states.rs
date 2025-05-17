@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use thaw::Select;
+use thaw::{Flex, FlexAlign, Label, Select};
 use thaw_utils::Model;
 
 use crate::{
@@ -16,13 +16,16 @@ pub fn DropDownStates(state: RwSignal<String>) -> impl IntoView {
         {move ||
             match states.get() {
                 Some(Ok(states)) => view! {
-                    <Select value=state_model>
-                        {states.into_iter().map(|state| {
-                            view! {
-                                <option>{state}</option>
-                            }
-                        }).collect_view()}
-                    </Select>
+                    <Flex vertical=true align=FlexAlign::Start>
+                        <Label>"State"</Label>
+                        <Select value=state_model>
+                            {states.into_iter().map(|state| {
+                                view! {
+                                    <option>{state}</option>
+                                }
+                            }).collect_view()}
+                        </Select>
+                    </Flex>
                 }.into_any(),
                 Some(Err(err)) => {
                     println!("Error occurred while fetching locations: {}", err);

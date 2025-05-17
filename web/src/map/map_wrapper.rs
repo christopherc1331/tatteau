@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use thaw::Flex;
 
 use crate::{
     components::loading::LoadingView,
@@ -29,8 +30,10 @@ pub fn DiscoveryMap() -> impl IntoView {
         <Suspense fallback=|| view! {
             <LoadingView message=Some("Fetching locations...".to_string()) />
         }>
-            <DropDownStates state=state/>
-            <DropDownCities city=city cities=cities/>
+            <Flex attr:style="padding-bottom: 8px">
+                <DropDownStates state=state/>
+                <DropDownCities city=city cities=cities/>
+            </Flex>
             <MapRenderer city=city default_city=default_city cities=cities/>
         </Suspense>
     }

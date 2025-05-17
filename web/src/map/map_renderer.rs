@@ -1,7 +1,7 @@
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
     db::entities::CityCoords,
-    server::{fetch_locations, get_center_coordinates_for_cities},
+    server::fetch_locations,
 };
 use leptos::prelude::*;
 use leptos_leaflet::{leaflet::Map, prelude::*};
