@@ -57,6 +57,7 @@ pub fn MapRenderer(
                                         <Popup>
                                             <Label size=LabelSize::Large>{loc.name.clone()}</Label>
                                             <p>{format!("Address: {}", loc.address)}</p>
+                                            <a href=loc.website_uri>{loc.website_uri.clone()}</a>
                                         </Popup>
                                     </Marker>
                                 }
