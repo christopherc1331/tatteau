@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for county_boundary in county_boundaries {
         println!("Processing county: {}", county_boundary.name);
 
-        if let Err(e) = process_county(&conn, &county_boundary, limit_results_to, &max_iter).await {
+        if let Err(e) = process_county(&conn, &county_boundary, limit_results_to, max_iter).await {
             println!("Error processing county {}: {}", county_boundary.name, e);
         }
 
@@ -47,11 +47,11 @@ async fn process_county(
     conn: &Connection,
     county_boundary: &CountyBoundary,
     limit_results_to: i8,
-    max_iter: &i8,
+    max_iter: i8,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut current_token: Option<String> = None;
     let mut curr_iter = 0;
-    while curr_iter < *max_iter {
+    while curr_iter < max_iter {
         curr_iter += 1;
 
         let res: Value = fetch_data(county_boundary, limit_results_to, &current_token).await;
