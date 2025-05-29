@@ -18,7 +18,7 @@ fn extract_f64(val: &Value) -> f64 {
     val.as_f64().unwrap_or(0.0)
 }
 
-fn extract_component<'a>(components: &'a [Value], type_name: &str) -> Option<String> {
+fn extract_component(components: &[Value], type_name: &str) -> Option<String> {
     components.iter().find_map(|ac| {
         let types = ac.get("types")?.as_array()?;
         if types.iter().any(|t| t == type_name) {

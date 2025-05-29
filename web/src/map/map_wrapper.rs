@@ -27,16 +27,14 @@ pub fn DiscoveryMap() -> impl IntoView {
     );
 
     view! {
-        <div class="pa-4">
-            <Suspense fallback=|| view! {
-                <LoadingView message=Some("Fetching locations...".to_string()) />
-            }>
-                <Flex attr:style="padding-bottom: 8px">
-                    <DropDownStates state=state/>
-                    <DropDownCities city=city cities=cities/>
-                </Flex>
-                <MapRenderer city=city default_city=default_city cities=cities/>
-            </Suspense>
-        </div>
+        <Suspense fallback=|| view! {
+            <LoadingView message=Some("Fetching locations...".to_string()) />
+        }>
+            <Flex attr:style="padding-bottom: 8px">
+                <DropDownStates state=state/>
+                <DropDownCities city=city cities=cities/>
+            </Flex>
+            <MapRenderer city=city default_city=default_city cities=cities/>
+        </Suspense>
     }
 }

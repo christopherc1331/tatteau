@@ -17,3 +17,12 @@ pub struct LocationInfo {
     pub long: f64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CountyBoundary {
+    pub name: String,
+    pub low_lat: f64,
+    pub low_long: f64,
+    pub high_lat: f64,
+    pub high_long: f64,
+    pub date_utc_last_ingested: Option<i64>,
+}

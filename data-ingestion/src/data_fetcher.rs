@@ -2,16 +2,16 @@ use std::env;
 
 use reqwest::{header::HeaderMap, Client};
 use serde_json::{json, Value};
+use shared_types::CountyBoundary;
 
-use crate::geographical_location::{Coordinates, USCounties};
-
-fn make_body(coords: Coordinates, page_size: i8, page_token: Option<&str>) -> Value {
-    let Coordinates {
+fn make_body(county_boundary: &CountyBoundary, page_size: i8, page_token: Option<&str>) -> Value {
+    let CountyBoundary {
         low_lat,
         low_long,
         high_lat,
         high_long,
-    } = coords;
+        ..
+    } = *county_boundary;
     let mut body = json!({
         "pageSize": page_size,
         "textQuery": "Tattoo",
@@ -56,7 +56,7 @@ fn make_headers() -> HeaderMap {
 }
 
 pub async fn fetch_data(
-    location: &USCounties,
+    county_boundary: &CountyBoundary,
     limit_results_to: i8,
     current_token: &Option<String>,
 ) -> Value {
@@ -65,7 +65,7 @@ pub async fn fetch_data(
     client
         .post(url)
         .json(&make_body(
-            location.get_coords(),
+            county_boundary,
             limit_results_to,
             current_token.as_deref(),
         ))
