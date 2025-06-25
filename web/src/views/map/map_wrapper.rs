@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_leaflet::{leaflet::LatLngBounds, prelude::JsRwSignal};
 use thaw::Flex;
 
 use crate::{
@@ -34,7 +35,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                 <DropDownStates state=state />
                 <DropDownCities city=city cities=cities/>
             </Flex>
-            <MapRenderer city=city default_city=default_city cities=cities/>
+            <MapRenderer state=state city=city default_city=default_city cities=cities/>
         </Suspense>
     }
 }

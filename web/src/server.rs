@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 use leptos::server;
+use leptos_leaflet::leaflet::LatLngBounds;
 use shared_types::LocationInfo;
+use shared_types::MapBounds;
 
 use crate::db::entities::CityCoords;
 #[cfg(feature = "ssr")]
@@ -9,8 +11,12 @@ use crate::db::repository::{
 };
 
 #[server]
-pub async fn fetch_locations(city: String) -> Result<Vec<LocationInfo>, ServerFnError> {
-    match query_locations(city) {
+pub async fn fetch_locations(
+    state: String,
+    city: String,
+    bounds: MapBounds,
+) -> Result<Vec<LocationInfo>, ServerFnError> {
+    match query_locations(state, city, bounds) {
         Ok(locations) => Ok(locations),
         Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
     }

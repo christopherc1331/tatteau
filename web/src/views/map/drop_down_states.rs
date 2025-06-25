@@ -2,9 +2,7 @@ use leptos::prelude::*;
 use thaw::{Flex, FlexAlign, Label, Select};
 use thaw_utils::Model;
 
-use crate::components::{error::ErrorView, loading::LoadingView};
-
-const STATES: [&str; 50] = [
+pub const STATES: [&str; 50] = [
     "Alabama",
     "Alaska",
     "Arizona",
@@ -62,15 +60,15 @@ pub fn DropDownStates(state: RwSignal<String>) -> impl IntoView {
     let state_model: Model<String> = state.into();
 
     view! {
-                <Flex vertical=true align=FlexAlign::Start>
-                    <Label>"State"</Label>
-                    <Select value=state_model>
-                        {STATES.into_iter().map(|state| {
-                            view! {
-                                <option>{state}</option>
-                            }
-                        }).collect_view()}
-                    </Select>
-                </Flex>
+        <Flex vertical=true align=FlexAlign::Start>
+            <Label>"State"</Label>
+            <Select value=state_model>
+                {STATES.into_iter().map(|state| {
+                    view! {
+                        <option>{state}</option>
+                    }
+                }).collect_view()}
+            </Select>
+        </Flex>
     }
 }

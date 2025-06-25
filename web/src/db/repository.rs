@@ -1,7 +1,7 @@
 use super::entities::CityCoords;
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
-use shared_types::LocationInfo;
+use shared_types::{LocationInfo, MapBounds};
 use std::path::Path;
 
 #[cfg(feature = "ssr")]
@@ -44,7 +44,11 @@ pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
 }
 
 #[cfg(feature = "ssr")]
-pub fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
+pub fn query_locations(
+    state: String,
+    city: String,
+    bounds: MapBounds,
+) -> SqliteResult<Vec<LocationInfo>> {
     use rusqlite::params;
     let db_path = Path::new("tatteau.db");
 
@@ -70,29 +74,38 @@ pub fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
             website_uri
         FROM locations
         WHERE 
-            city = ?1
+            lat BETWEEN ?1 AND ?2
+            AND long BETWEEN ?3 AND ?4
         AND (is_person IS NULL OR is_person != 1)
     ",
     )?;
 
     // Map the results to LocationInfo structs
-    let locations = stmt.query_map(params![city], |row| {
-        Ok(LocationInfo {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-            city: row.get(4)?,
-            county: row.get(5)?,
-            state: row.get(6)?,
-            country_code: row.get(7)?,
-            postal_code: row.get(8)?,
-            is_open: row.get(9)?,
-            address: row.get(10)?,
-            category: row.get(11)?,
-            website_uri: row.get(12)?,
-        })
-    })?;
+    let locations = stmt.query_map(
+        params![
+            bounds.south_west.lat,
+            bounds.north_east.lat,
+            bounds.south_west.long,
+            bounds.north_east.long
+        ],
+        |row| {
+            Ok(LocationInfo {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                lat: row.get(2)?,
+                long: row.get(3)?,
+                city: row.get(4)?,
+                county: row.get(5)?,
+                state: row.get(6)?,
+                country_code: row.get(7)?,
+                postal_code: row.get(8)?,
+                is_open: row.get(9)?,
+                address: row.get(10)?,
+                category: row.get(11)?,
+                website_uri: row.get(12)?,
+            })
+        },
+    )?;
 
     // Collect all results into a vector
     let mut result = Vec::new();

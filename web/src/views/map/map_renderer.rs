@@ -4,20 +4,20 @@ use crate::{
     server::fetch_locations,
 };
 use leptos::prelude::*;
-use leptos_leaflet::{leaflet::Map, prelude::*};
+use leptos_leaflet::{
+    leaflet::{LatLng, LatLngBounds, Map},
+    prelude::*,
+};
+use shared_types::{LatLong, MapBounds};
 use thaw::{Label, LabelSize};
 
 #[component]
 pub fn MapRenderer(
+    state: RwSignal<String>,
     city: RwSignal<String>,
     default_city: CityCoords,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
 ) -> impl IntoView {
-    let locations = Resource::new(
-        move || city.get(),
-        move |city| async move { fetch_locations(city).await },
-    );
-
     let selected_city_coords = RwSignal::new(default_city.clone());
 
     let center: Memo<Position> = Memo::new(move |_| {
@@ -25,13 +25,32 @@ pub fn MapRenderer(
         Position::new(lat, long)
     });
 
-    let map = JsRwSignal::new_local(None::<Map>);
+    let bounds: RwSignal<MapBounds> = RwSignal::new(MapBounds::default());
+    let map: JsRwSignal<Option<Map>> = JsRwSignal::new_local(None::<Map>);
     Effect::new(move |_| {
         let new_pos = center.get();
         if let Some(map) = map.get_untracked() {
             map.set_view(&new_pos.as_lat_lng(), map.get_zoom());
+            let map_bounds: LatLngBounds = map.get_bounds();
+            let north_east: LatLng = map_bounds.get_north_east();
+            let south_west: LatLng = map_bounds.get_south_west();
+            bounds.set(MapBounds {
+                north_east: LatLong {
+                    lat: north_east.lat(),
+                    long: north_east.lng(),
+                },
+                south_west: LatLong {
+                    lat: south_west.lat(),
+                    long: south_west.lng(),
+                },
+            })
         }
     });
+
+    let locations = Resource::new(
+        move || (state.get(), city.get(), bounds.get()),
+        move |(state, city, bounds)| async move { fetch_locations(state, city, bounds).await },
+    );
 
     Effect::new(move |_| {
         if let Some(Ok(city_coords_list)) = cities.get() {

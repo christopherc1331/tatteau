@@ -26,3 +26,15 @@ pub struct CountyBoundary {
     pub high_long: f64,
     pub date_utc_last_ingested: Option<i64>,
 }
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct LatLong {
+    pub lat: f64,
+    pub long: f64,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct MapBounds {
+    pub north_east: LatLong,
+    pub south_west: LatLong,
+}
