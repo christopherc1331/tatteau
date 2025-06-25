@@ -10,6 +10,9 @@ use leptos_leaflet::{
 };
 use shared_types::{LatLong, MapBounds};
 use thaw::{Label, LabelSize};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
+use web_sys::{Event, EventTarget};
 
 #[component]
 pub fn MapRenderer(
@@ -27,10 +30,8 @@ pub fn MapRenderer(
 
     let bounds: RwSignal<MapBounds> = RwSignal::new(MapBounds::default());
     let map: JsRwSignal<Option<Map>> = JsRwSignal::new_local(None::<Map>);
-    Effect::new(move |_| {
-        let new_pos = center.get();
+    let update_bounds = move |_| {
         if let Some(map) = map.get_untracked() {
-            map.set_view(&new_pos.as_lat_lng(), map.get_zoom());
             let map_bounds: LatLngBounds = map.get_bounds();
             let north_east: LatLng = map_bounds.get_north_east();
             let south_west: LatLng = map_bounds.get_south_west();
@@ -45,6 +46,31 @@ pub fn MapRenderer(
                 },
             })
         }
+    };
+
+    Effect::new(move |_| {
+        let new_pos = center.get();
+        if let Some(map) = map.get_untracked() {
+            map.set_view(&new_pos.as_lat_lng(), map.get_zoom());
+            update_bounds(());
+        }
+    });
+
+    Effect::new(move |_| {
+        let Some(map_instance) = map.get() else {
+            return;
+        };
+
+        let cb: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_event| {
+            update_bounds(());
+        }));
+
+        let raw_map: &EventTarget = map_instance.unchecked_ref();
+        raw_map
+            .add_event_listener_with_callback("moveend", cb.as_ref().unchecked_ref())
+            .expect("Failed to attach");
+
+        cb.forget();
     });
 
     let locations = Resource::new(
