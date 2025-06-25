@@ -10,7 +10,6 @@ use crate::db::repository::{
 
 #[server]
 pub async fn fetch_locations(city: String) -> Result<Vec<LocationInfo>, ServerFnError> {
-    // This function will be executed on the server
     match query_locations(city) {
         Ok(locations) => Ok(locations),
         Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
@@ -19,7 +18,6 @@ pub async fn fetch_locations(city: String) -> Result<Vec<LocationInfo>, ServerFn
 
 #[server]
 pub async fn get_cities(state: String) -> Result<Vec<CityCoords>, ServerFnError> {
-    // This function will be executed on the server
     match get_cities_and_coords(state) {
         Ok(cities) => Ok(cities),
         Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
@@ -29,9 +27,14 @@ pub async fn get_cities(state: String) -> Result<Vec<CityCoords>, ServerFnError>
 #[server]
 pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
     match get_states() {
-        Ok(states) => Ok(states),
+        Ok(states) => Ok(states.into_iter().map(|s| s.state).collect()),
         Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
     }
+    // Ok(vec![
+    //     "Texas".to_string(),
+    //     "California".to_string(),
+    //     "New York".to_string(),
+    // ])
 }
 
 #[server]

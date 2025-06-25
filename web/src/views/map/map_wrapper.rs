@@ -4,11 +4,11 @@ use thaw::Flex;
 use crate::{
     components::loading::LoadingView,
     db::entities::CityCoords,
-    map::{
+    server::get_cities,
+    views::map::{
         drop_down_cities::DropDownCities, drop_down_states::DropDownStates,
         map_renderer::MapRenderer,
     },
-    server::get_cities,
 };
 
 #[component]
@@ -31,7 +31,7 @@ pub fn DiscoveryMap() -> impl IntoView {
             <LoadingView message=Some("Fetching locations...".to_string()) />
         }>
             <Flex attr:style="padding-bottom: 8px">
-                <DropDownStates state=state/>
+                <DropDownStates state=state />
                 <DropDownCities city=city cities=cities/>
             </Flex>
             <MapRenderer city=city default_city=default_city cities=cities/>

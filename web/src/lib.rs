@@ -1,8 +1,8 @@
 pub mod app;
 pub mod components;
 pub mod db;
-pub mod map;
 pub mod server;
+pub mod views;
 
 #[cfg(feature = "hydrate")]
 #[wasm_bindgen::prelude::wasm_bindgen]

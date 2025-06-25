@@ -7,7 +7,7 @@ use leptos_router::{
 use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
-use crate::map::map_wrapper::DiscoveryMap;
+use crate::views::map::map_wrapper::DiscoveryMap;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {

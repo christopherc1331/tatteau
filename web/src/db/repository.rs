@@ -1,10 +1,6 @@
 use super::entities::CityCoords;
-use leptos::prelude::*;
-use leptos::server;
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
-use serde::Deserialize;
-use serde::Serialize;
 use shared_types::LocationInfo;
 use std::path::Path;
 
@@ -41,7 +37,10 @@ pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
         })
     })?;
 
-    city_coords.into_iter().collect()
+    city_coords
+        .into_iter()
+        .filter(|c| c.as_ref().unwrap().city.parse::<f64>().is_err())
+        .collect()
 }
 
 #[cfg(feature = "ssr")]
@@ -104,34 +103,107 @@ pub fn query_locations(city: String) -> SqliteResult<Vec<LocationInfo>> {
     Ok(result)
 }
 
+pub struct LocationState {
+    pub state: String,
+}
 #[cfg(feature = "ssr")]
-pub fn get_states() -> SqliteResult<Vec<String>> {
+pub fn get_states() -> SqliteResult<Vec<LocationState>> {
+    use std::error::Error;
+
+    use rusqlite::MappedRows;
+
     let db_path = Path::new("tatteau.db");
-
-    // Open a connection to the database
     let conn = Connection::open(db_path)?;
-
-    // Prepare and execute the query
     let mut stmt = conn.prepare(
         "
         SELECT DISTINCT state
         FROM locations
+        WHERE country_code = 'United States'
+        ORDER BY state ASC
     ",
     )?;
 
-    let mut result = Vec::new();
-    // Map the results to LocationInfo structs
-    let states = stmt
-        .query_map([], |row| {
-            Ok(row.get(0).expect("Row should have a single column"))
-        })
-        .expect("Should fetch states successfully");
+    // let mut result = Vec::new();
 
-    for state in states {
-        result.push(state?);
-    }
+    let res = stmt.query_map([], |r| Ok(LocationState { state: r.get(0)? }))?;
 
-    Ok(result)
+    res.into_iter().collect()
+
+    // println!("row length: {:?}", rows.size_hint());
+    // let mut i = 1;
+    // while let Some(row) = rows.next()? {
+    //     // println!("Processing row: {}", i);
+    //     // i += 1;
+    //     let s: String = row.get(0)?;
+    //     if s.is_empty() {
+    //         continue;
+    //     }
+    //     result.push(s);
+    // }
+    // println!("row length: {:?}", result.len());
+    // println!("rows: {:?}", result);
+    // Ok(result)
+
+    // Ok(vec![
+    //     "Texas".to_string(),
+    //     "California".to_string(),
+    //     "New York".to_string(),
+    // ])
+    // Ok(vec![
+    //     "Wyoming".to_string(),
+    //     "Wisconsin".to_string(),
+    //     "West Virginia".to_string(),
+    //     "Washington".to_string(),
+    //     "Virginia".to_string(),
+    //     "Vermont".to_string(),
+    //     "Utah".to_string(),
+    //     "Texas".to_string(),
+    //     "Tennessee".to_string(),
+    //     "South Dakota".to_string(),
+    //     "South Carolina".to_string(),
+    //     "Rhode Island".to_string(),
+    //     "Pennsylvania".to_string(),
+    //     "Oregon".to_string(),
+    //     "Oklahoma".to_string(),
+    //     "Ohio".to_string(),
+    //     "North Dakota".to_string(),
+    //     "North Carolina".to_string(),
+    //     "New York".to_string(),
+    //     "New Mexico".to_string(),
+    //     "New Jersey".to_string(),
+    //     "New Hampshire".to_string(),
+    //     "Nevada".to_string(),
+    //     "Nebraska".to_string(),
+    //     "Montana".to_string(),
+    //     "Missouri".to_string(),
+    //     "Mississippi".to_string(),
+    //     "Minnesota".to_string(),
+    //     "Michigan".to_string(),
+    //     "Massachusetts".to_string(),
+    //     "Maryland".to_string(),
+    //     "Maine".to_string(),
+    //     "MI".to_string(),
+    //     "Louisiana".to_string(),
+    //     "Kentucky".to_string(),
+    //     "Kansas".to_string(),
+    //     "Iowa".to_string(),
+    //     "Indiana".to_string(),
+    //     "Illinois".to_string(),
+    //     "Idaho".to_string(),
+    //     "IL".to_string(),
+    //     "Hawaii".to_string(),
+    //     "Georgia".to_string(),
+    //     "Florida".to_string(),
+    //     "District of Columbia".to_string(),
+    //     "Delaware".to_string(),
+    //     "Connecticut".to_string(),
+    //     "Colorado".to_string(),
+    //     "California".to_string(),
+    //     "Arkansas".to_string(),
+    //     "Arizona".to_string(),
+    //     "Alaska".to_string(),
+    //     "Alabama".to_string(),
+    // ])
 }
 
 #[cfg(feature = "ssr")]

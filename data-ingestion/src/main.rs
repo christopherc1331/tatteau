@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = Path::new("tatteau.db");
     let conn: Connection = Connection::open(db_path).expect("Database should load");
 
-    let county_limit: i16 = 10;
+    let county_limit: i16 = 2000;
     let days_till_refetch: i16 = 160;
     let county_boundaries: Vec<CountyBoundary> =
         fetch_county_boundaries(&conn, county_limit, days_till_refetch)
