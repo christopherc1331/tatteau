@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use thaw::{Flex, FlexAlign, Label, Select};
+use thaw::{Combobox, ComboboxOption, Flex, FlexAlign, Label};
 
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
@@ -17,24 +17,29 @@ pub fn DropDownCities(
         }
     });
 
+    let selected_options = RwSignal::new(None::<String>);
+    Effect::new(move || {
+        if let Some(selected_opt) = selected_options.get() {
+            city.set(selected_opt);
+        }
+    });
+
     view! {
         {move ||
             match cities.get() {
                 Some(Ok(cities)) => view! {
                     <Flex vertical=true align=FlexAlign::Start>
                         <Label>"City"</Label>
-                        <Select
-                            on:change=move |ev| {
-                                let value = event_target_value(&ev);
-                                city.set(value);
-                            }
+                        <Combobox
+                            selected_options
                         >
                             {cities.into_iter().map(|city| {
+                                let city_ref = &city.clone().city;
                                 view! {
-                                    <option>{city.city}</option>
+                                    <ComboboxOption value=city_ref text=city_ref />
                                 }
                             }).collect_view()}
-                        </Select>
+                        </Combobox>
                     </Flex>
                 }.into_any(),
                 Some(Err(err)) => {

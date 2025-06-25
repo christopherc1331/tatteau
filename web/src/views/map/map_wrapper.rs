@@ -15,13 +15,13 @@ use crate::{
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
     let state = RwSignal::new("Texas".to_string());
-    let default_city = CityCoords {
+    let default_location = CityCoords {
         city: "Dallas".to_string(),
         state: "Texas".to_string(),
         lat: 32.855895000000004,
         long: -96.8662097,
     };
-    let city = RwSignal::new(default_city.clone().city);
+    let city = RwSignal::new(default_location.clone().city);
     let cities = Resource::new(
         move || state.get(),
         move |state| async move { get_cities(state).await },
@@ -35,7 +35,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                 <DropDownStates state=state />
                 <DropDownCities city=city cities=cities/>
             </Flex>
-            <MapRenderer state=state city=city default_city=default_city cities=cities/>
+            <MapRenderer state=state city=city default_location=default_location cities=cities/>
         </Suspense>
     }
 }

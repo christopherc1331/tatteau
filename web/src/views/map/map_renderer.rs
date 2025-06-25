@@ -18,10 +18,10 @@ use web_sys::{Event, EventTarget};
 pub fn MapRenderer(
     state: RwSignal<String>,
     city: RwSignal<String>,
-    default_city: CityCoords,
+    default_location: CityCoords,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
 ) -> impl IntoView {
-    let selected_city_coords = RwSignal::new(default_city.clone());
+    let selected_city_coords = RwSignal::new(default_location.clone());
 
     let center: Memo<Position> = Memo::new(move |_| {
         let CityCoords { lat, long, .. } = selected_city_coords.get();
