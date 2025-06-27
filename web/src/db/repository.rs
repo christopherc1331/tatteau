@@ -90,7 +90,7 @@ pub fn query_locations(
         ],
         |row| {
             Ok(LocationInfo {
-                id: row.get(0)?,
+                _id: row.get(0)?,
                 name: row.get(1)?,
                 lat: row.get(2)?,
                 long: row.get(3)?,

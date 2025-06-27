@@ -13,7 +13,7 @@ pub fn upsert_locations(conn: &Connection, locations: &[LocationInfo]) -> Result
                         postal_code,
                         is_open,
                         address,
-                        id,
+                        _id,
                         category,
                         name,
                         website_uri,
@@ -32,7 +32,7 @@ pub fn upsert_locations(conn: &Connection, locations: &[LocationInfo]) -> Result
             li.postal_code,
             li.is_open,
             li.address,
-            li.id,
+            li._id,
             li.category,
             li.name,
             li.website_uri,
@@ -87,6 +87,22 @@ pub fn mark_county_ingested(
     conn: &Connection,
     county_boundary: &CountyBoundary,
 ) -> Result<(), Error> {
+    let now: DateTime<Utc> = Utc::now();
+    let now_timestamp: i64 = now.timestamp();
+    let mut stmt = conn.prepare(
+        "
+            UPDATE county_boundaries
+            SET date_utc_last_ingested = ?1
+            WHERE name = ?2;
+        ",
+    )?;
+
+    stmt.execute(params![now_timestamp, county_boundary.name])?;
+
+    Ok(())
+}
+
+pub fn get_locations(conn: &Connection, county_boundary: &CountyBoundary) -> Result<(), Error> {
     let now: DateTime<Utc> = Utc::now();
     let now_timestamp: i64 = now.timestamp();
     let mut stmt = conn.prepare(

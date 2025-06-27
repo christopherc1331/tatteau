@@ -9,7 +9,7 @@ pub struct LocationInfo {
     pub postal_code: String,
     pub is_open: bool,
     pub address: String,
-    pub id: String,
+    pub _id: String,
     pub category: String,
     pub name: String,
     pub website_uri: String,

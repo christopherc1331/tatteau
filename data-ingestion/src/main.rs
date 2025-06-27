@@ -11,6 +11,7 @@ use shared_types::CountyBoundary;
 pub mod data_fetcher;
 pub mod data_parser;
 pub mod repository;
+pub mod scraper;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

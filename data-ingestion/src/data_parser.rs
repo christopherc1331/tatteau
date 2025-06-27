@@ -65,7 +65,7 @@ fn convert_val_obj_to_location_info(val: &Value) -> LocationInfo {
         }),
         is_open: extract_string(&val["businessStatus"]) == "OPERATIONAL",
         address: extract_string(&val["formattedAddress"]),
-        id: extract_string(&val["id"]),
+        _id: extract_string(&val["id"]),
         category: extract_string(&val["primaryType"]),
         name: extract_string(&val["displayName"]["text"]),
         website_uri: extract_string(&val["websiteUri"]),
