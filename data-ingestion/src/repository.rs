@@ -102,18 +102,49 @@ pub fn mark_county_ingested(
     Ok(())
 }
 
-pub fn get_locations(conn: &Connection, county_boundary: &CountyBoundary) -> Result<(), Error> {
-    let now: DateTime<Utc> = Utc::now();
-    let now_timestamp: i64 = now.timestamp();
+pub fn mark_locations_scraped(conn: &Connection, ids: Vec<i64>) -> Result<(), Error> {
     let mut stmt = conn.prepare(
         "
-            UPDATE county_boundaries
-            SET date_utc_last_ingested = ?1
-            WHERE name = ?2;
+            UPDATE locations
+            SET scraped_html = 1
+            WHERE id IN (?2);
         ",
     )?;
 
-    stmt.execute(params![now_timestamp, county_boundary.name])?;
+    stmt.execute(params![ids
+        .iter()
+        .map(|i| i.to_string())
+        .collect::<Vec<String>>()
+        .join(",")])?;
 
     Ok(())
+}
+
+pub struct LocationUris {
+    pub id: i64,
+    website_uri: String,
+}
+
+pub fn get_locations_to_scrape(conn: &Connection, limit: i16) -> Result<Vec<LocationUris>, Error> {
+    let mut stmt = conn.prepare(
+        "
+            SELECT id, website_uri
+            FROM locations
+            WHERE website_uri IS NOT NULL
+              AND TRIM(website_uri) != ''
+              AND scraped_html = 0
+            LIMIT ?1
+        ",
+    )?;
+
+    let location_uris = stmt.query_map(params![limit], |row| {
+        Ok(LocationUris {
+            id: row.get(0)?,
+            website_uri: row.get(1)?,
+        })
+    });
+
+    location_uris
+        .map(|res| res.collect::<Result<Vec<LocationUris>, Error>>())
+        .expect("County boundaries to be fetched")
 }
