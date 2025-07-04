@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{env, path::Path};
 
 use data_fetcher::fetch_data;
 use data_parser::{parse_data, ParsedLocationData};
@@ -16,6 +16,15 @@ pub mod scraper;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
+    let action: String = env::var("ACTION").expect("Action to be set");
+
+    match action == "SCRAPE_HTML" {
+        true => scraper::scrape().await,
+        false => ingest_google().await,
+    }
+}
+
+async fn ingest_google() -> Result<(), Box<dyn std::error::Error>> {
     let limit_results_to: i8 = 20;
     let max_iter: i8 = 10;
     let db_path = Path::new("tatteau.db");
@@ -43,7 +52,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
-
 async fn process_county(
     conn: &Connection,
     county_boundary: &CountyBoundary,

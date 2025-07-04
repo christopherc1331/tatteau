@@ -71,6 +71,7 @@ fn convert_val_obj_to_location_info(val: &Value) -> LocationInfo {
         website_uri: extract_string(&val["websiteUri"]),
         lat: extract_f64(&val["location"]["latitude"]),
         long: extract_f64(&val["location"]["longitude"]),
+        id: -1,
     }
 }
 
@@ -93,13 +94,9 @@ static EXCLUDE_CATEGORIES: Lazy<HashSet<String>> = Lazy::new(|| {
 pub fn parse_data(value: &Value) -> Option<ParsedLocationData> {
     let places = value.get("places")?.as_array()?;
 
-    let locations: Vec<LocationInfo> = places
+    let filtered_locations: Vec<LocationInfo> = places
         .iter()
         .map(convert_val_obj_to_location_info)
-        .collect();
-
-    let filtered_locations: Vec<_> = locations
-        .into_iter()
         .filter(|l| !EXCLUDE_CATEGORIES.contains(&l.category))
         .collect();
 
