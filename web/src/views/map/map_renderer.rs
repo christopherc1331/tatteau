@@ -3,7 +3,7 @@ use crate::{
     db::entities::CityCoords,
     server::fetch_locations,
 };
-use leptos::prelude::*;
+use leptos::{leptos_dom::logging::console_log, prelude::*};
 use leptos_leaflet::{
     leaflet::{LatLng, LatLngBounds, Map},
     prelude::*,

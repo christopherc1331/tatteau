@@ -1,3 +1,4 @@
+use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos::server;
 use leptos_leaflet::leaflet::LatLngBounds;

@@ -71,7 +71,8 @@ pub fn query_locations(
             is_open,
             address,
             category,
-            website_uri
+            website_uri,
+            _id
         FROM locations
         WHERE 
             lat BETWEEN ?1 AND ?2
@@ -90,7 +91,7 @@ pub fn query_locations(
         ],
         |row| {
             Ok(LocationInfo {
-                _id: row.get(0)?,
+                id: row.get(0)?,
                 name: row.get(1)?,
                 lat: row.get(2)?,
                 long: row.get(3)?,
@@ -103,6 +104,7 @@ pub fn query_locations(
                 address: row.get(10)?,
                 category: row.get(11)?,
                 website_uri: row.get(12)?,
+                _id: row.get(13)?,
             })
         },
     )?;
