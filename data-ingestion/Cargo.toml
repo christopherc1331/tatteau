@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 reqwest = { version = "0.12.15", features = ["json", "rustls-tls"] }
 tokio = { version = "1.44.1", features = ["full"] }
+serde = { version = "*", features = ["derive"] }
 serde_json = "1.0.140"
 tokio-macros = "2.5.0"
 urlencoding = "2.1.3"
@@ -14,3 +15,11 @@ rusqlite = { version = "0.34.0", features = ["bundled"] }
 once_cell = "1.21.3"
 shared-types = { path = "../shared-types" }
 chrono = "0.4.41"
+anyhow = "1.0.98"
+playwright = "0.0.20"
+async-openai = "0.29.0"
+scraper = "0.23.1"
+ammonia = "4.1.1"
+regex = "1.11.1"
+futures = "0.3.31"
+indicatif = "0.18.0"
