@@ -19,7 +19,6 @@ use std::sync::{
 };
 use tokio;
 
-// Autonomous Tattoo Artist Scraper Agent (Rust) with GPT-3.5 for navigation, GPT-4 for extraction, and SQLite queue
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 #[serde(tag = "action")]
@@ -190,7 +189,7 @@ async fn call_gpt_action(
 
             Respond with a JSON object in the following format:
             {{
-            "action": "CLICK" | "NAVIGATE" | "EXTRACT" | "DONE",
+            "action": "Click" | "Navigate" | "Extract" | "Done",
             ...depending on the action
             }}"#,
             url, cleaned_html
