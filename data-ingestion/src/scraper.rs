@@ -18,6 +18,7 @@ use std::sync::{
     Arc, Mutex,
 };
 use tokio;
+use url::Url;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -63,6 +64,11 @@ fn preprocess_html(raw_html: &str) -> String {
 fn normalize_style(style: &str) -> String {
     let re = Regex::new(r"[^a-zA-Z0-9]+").unwrap();
     re.replace_all(style.to_lowercase().trim(), " ").to_string()
+}
+
+fn get_domain(url_str: &str) -> anyhow::Result<String> {
+    let url = Url::parse(url_str)?;
+    Ok(url.host_str().unwrap_or("").to_string())
 }
 
 fn persist_artist_and_styles(
@@ -114,6 +120,7 @@ async fn handle_gpt_decision(
     client: &Client<OpenAIConfig>,
     cleaned_html: &str,
     location_id: i64,
+    base_url: &str,
 ) -> anyhow::Result<bool> {
     match decision {
         GptAction::Click { selector } => {
@@ -127,6 +134,18 @@ async fn handle_gpt_decision(
             .await?;
         }
         GptAction::Navigate { url } => {
+            // Validate that navigation stays within the same domain
+            let base_domain = get_domain(base_url)?;
+            let nav_domain = get_domain(url)?;
+
+            if base_domain != nav_domain {
+                println!(
+                    "Navigation rejected: {} not in same domain as {}",
+                    url, base_url
+                );
+                return Ok(false);
+            }
+
             println!("Navigating to: {}", url);
             page.goto_builder(url).goto().await?;
         }
@@ -172,7 +191,19 @@ async fn call_gpt_action(
     cleaned_html: &str,
 ) -> anyhow::Result<GptAction> {
     let sys_msg = ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-        content: ChatCompletionRequestSystemMessageContent::Text("You're an autonomous web agent that navigates tattoo shop websites to find artist data. Decide what to do next based on the HTML and URL.".to_string()),
+        content: ChatCompletionRequestSystemMessageContent::Text("You're an autonomous web agent that navigates tattoo shop websites to find artist data. 
+        
+        CLICK RESTRICTIONS:
+        - Only click elements that will change page state or navigate to new content
+        - Examples: buttons, form submits, navigation links, tabs, dropdowns
+        - Do NOT click generic elements based only on CSS classes like '.item' or '.card'
+        - Focus on elements with meaningful actions: 'a[href]', 'button', '[role=button]', form elements
+        
+        NAVIGATION RESTRICTIONS:
+        - Only navigate to URLs within the same domain as the current page
+        - Do not navigate to external domains, social media, or third-party sites
+        
+        Decide what to do next based on the HTML and URL.".to_string()),
         name: None,
     });
 
@@ -182,11 +213,19 @@ async fn call_gpt_action(
             HTML:
             {}
 
-            Respond with a JSON object in the following format:
-            {{
-            "action": "Click" | "Navigate" | "Extract" | "Done",
-            ...depending on the action
-            }}"#,
+            Respond with a JSON object in one of the following formats:
+            
+            To click an element (only for state-changing elements like buttons, links, tabs):
+            {{ "action": "CLICK", "selector": "css-selector-string" }}
+            
+            To navigate to a new page (must be same domain):
+            {{ "action": "NAVIGATE", "url": "https://example.com/path" }}
+            
+            To extract artist data from current page:
+            {{ "action": "EXTRACT" }}
+            
+            When finished with this location:
+            {{ "action": "DONE" }}"#,
             url, cleaned_html
         )),
         name: None,
@@ -290,7 +329,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     let conn_guard = conn.lock().unwrap();
                     let mut stmt = conn_guard
                         .prepare(
-                            "SELECT id, website_uri FROM locations WHERE scraped_html = 0 LIMIT 1",
+                            "SELECT id, website_uri FROM locations WHERE scraped_html = 0 AND website_uri NOT LIKE '%facebook%' LIMIT 1",
                         )
                         .unwrap();
                     let mut rows = stmt.query([]).unwrap();
@@ -335,6 +374,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         &client,
                                         &cleaned_html,
                                         id,
+                                        &url,
                                     )
                                     .await
                                     .unwrap();
