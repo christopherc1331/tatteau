@@ -150,7 +150,7 @@ async fn handle_gpt_decision(
             }
         }
         GptAction::Done => {
-            println!("✅ Completed processing location ID: {}", location_id);
+            println!("✅ Completed processing location ID: {} (marked as done)", location_id);
             let conn_guard = conn.lock().unwrap();
             conn_guard.execute(
                 "UPDATE locations SET is_scraped = 1 WHERE id = ?",
@@ -188,8 +188,13 @@ async fn call_gpt_action(
     let sys_msg = ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
         content: ChatCompletionRequestSystemMessageContent::Text("You're an autonomous web agent that analyzes tattoo shop websites to find artist data.
 
-        EXTRACTION PRIORITY:
-        1. FIRST: Look for artist information on the current page (names, styles, contact info)
+        BUSINESS TYPE VALIDATION:
+        - FIRST: Determine if this appears to be a tattoo shop/parlor website
+        - Look for tattoo-related keywords: 'tattoo', 'ink', 'tattoo artist', 'body art', 'custom tattoos'
+        - If this doesn't appear to be a tattoo-related business, respond with DONE immediately
+        
+        EXTRACTION PRIORITY (only for tattoo shops):
+        1. Look for artist information on the current page (names, styles, contact info)
         2. If you find artist data, choose EXTRACT
         3. If no artist data found, look for navigation links that might lead to artist info
         
@@ -199,7 +204,7 @@ async fn call_gpt_action(
         - Consider link context and surrounding text when choosing navigation
         - Do not navigate to external domains, social media, or third-party sites
         
-        Always prioritize extraction over navigation.".to_string()),
+        Always validate business type first, then prioritize extraction over navigation.".to_string()),
         name: None,
     });
 
