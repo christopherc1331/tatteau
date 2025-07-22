@@ -7,8 +7,8 @@ use async_openai::types::{
 use async_openai::{config::OpenAIConfig, Client};
 use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
-use reqwest::Client as HttpClient;
 use regex::Regex;
+use reqwest::Client as HttpClient;
 use rusqlite::{params, Connection};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
@@ -150,7 +150,10 @@ async fn handle_gpt_decision(
             }
         }
         GptAction::Done => {
-            println!("✅ Completed processing location ID: {} (marked as done)", location_id);
+            println!(
+                "✅ Completed processing location ID: {} (marked as done)",
+                location_id
+            );
             let conn_guard = conn.lock().unwrap();
             conn_guard.execute(
                 "UPDATE locations SET is_scraped = 1 WHERE id = ?",
@@ -170,11 +173,11 @@ async fn fetch_html(http_client: &HttpClient, url: &str) -> anyhow::Result<Strin
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await?;
-    
+
     if !response.status().is_success() {
         return Err(anyhow::anyhow!("HTTP error: {}", response.status()));
     }
-    
+
     let html = response.text().await?;
     Ok(html)
 }
@@ -317,38 +320,63 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
             .progress_chars("##-"),
     );
 
+    // Fetch and claim all locations upfront
+    let locations: Vec<(i64, String)> = {
+        let conn_guard = conn.lock().unwrap();
+        let mut stmt = conn_guard
+            .prepare(
+                "UPDATE locations SET is_scraped = -2 WHERE id IN (
+                    SELECT id FROM locations 
+                    WHERE is_scraped = 0 
+                    AND website_uri IS NOT NULL 
+                    AND website_uri != '' 
+                    AND website_uri NOT LIKE '%facebook%' 
+                    AND website_uri NOT LIKE '%instagram%' 
+                    LIMIT ?
+                ) RETURNING id, website_uri",
+            )
+            .unwrap();
+        let rows = stmt
+            .query_map([max_scrapes], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap();
+
+        rows.collect::<Result<Vec<_>, _>>().unwrap()
+    };
+
+    println!("📍 Claimed {} locations for processing", locations.len());
+
+    // Create a channel to distribute work
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let rx = Arc::new(tokio::sync::Mutex::new(rx));
+
+    // Send all locations to the channel
+    for location in locations {
+        tx.send(location).unwrap();
+    }
+    drop(tx); // Close the channel
+
     let mut tasks = FuturesUnordered::new();
-    for _ in 0..num_threads {
+    for thread_id in 0..num_threads {
         let conn = Arc::clone(&conn);
         let client = Arc::clone(&client);
         let http_client = Arc::clone(&http_client);
         let scrape_counter = Arc::clone(&scrape_limit);
         let pb: Arc<ProgressBar> = Arc::clone(&progress);
+        let rx = Arc::clone(&rx);
 
         tasks.push(tokio::spawn(async move {
             loop {
-                if scrape_counter.load(Ordering::SeqCst) >= max_scrapes {
-                    break;
-                }
-
-                let (id, url) = {
-                    let conn_guard = conn.lock().unwrap();
-                    let mut stmt = conn_guard
-                        .prepare(
-                            "SELECT id, website_uri FROM locations WHERE is_scraped = 0 AND website_uri IS NOT NULL AND website_uri != '' AND website_uri NOT LIKE '%facebook%' AND website_uri NOT LIKE '%instagram%' LIMIT 1",
-                        )
-                        .unwrap();
-                    let mut rows = stmt.query([]).unwrap();
-                    if let Some(row) = rows.next().unwrap() {
-                        let id: i64 = row.get(0).unwrap();
-                        let url: String = row.get(1).unwrap();
-                        (id, url)
-                    } else {
-                        break;
-                    }
+                let (id, url) = match rx.lock().await.recv().await {
+                    Some(location) => location,
+                    None => break, // No more work
                 };
 
-                println!("🏪 Processing location ID: {} - {}", id, url);
+                println!(
+                    "🏪 Thread {} processing location ID: {} - {}",
+                    thread_id, id, url
+                );
 
                 let url = if !url.starts_with("http://") && !url.starts_with("https://") {
                     format!("https://{}", url)
@@ -358,7 +386,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
 
                 let mut current_url = url;
                 let base_url = current_url.clone();
-                
+
                 for _ in 0..max_page_visits {
                     match fetch_html(&http_client, &current_url).await {
                         Ok(raw_html) => {
@@ -372,7 +400,9 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         &cleaned_html,
                                         id,
                                         &base_url,
-                                    ).await {
+                                    )
+                                    .await
+                                    {
                                         Ok((should_break, next_url)) => {
                                             if should_break {
                                                 break;
@@ -396,7 +426,10 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                             }
                         }
                         Err(err) => {
-                            println!("❌ Failed to fetch '{}' (ID: {}): {:?}", current_url, id, err);
+                            println!(
+                                "❌ Failed to fetch '{}' (ID: {}): {:?}",
+                                current_url, id, err
+                            );
                             conn.lock()
                                 .unwrap()
                                 .execute(
@@ -418,24 +451,24 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
     while (tasks.next().await).is_some() {}
 
     progress.finish_with_message("🎉 Scraping complete!");
-    
+
     // Final statistics
     let conn_guard = conn.lock().unwrap();
-    let total_processed: i64 = conn_guard.query_row(
-        "SELECT COUNT(*) FROM locations WHERE is_scraped != 0", 
-        [], 
-        |row| row.get(0)
-    ).unwrap_or(0);
-    
-    let total_artists: i64 = conn_guard.query_row(
-        "SELECT COUNT(*) FROM artists", 
-        [], 
-        |row| row.get(0)
-    ).unwrap_or(0);
-    
+    let total_processed: i64 = conn_guard
+        .query_row(
+            "SELECT COUNT(*) FROM locations WHERE is_scraped != 0",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+
+    let total_artists: i64 = conn_guard
+        .query_row("SELECT COUNT(*) FROM artists", [], |row| row.get(0))
+        .unwrap_or(0);
+
     println!("📈 Final Results:");
     println!("   • Locations processed: {}", total_processed);
     println!("   • Total artists found: {}", total_artists);
-    
+
     Ok(())
 }
