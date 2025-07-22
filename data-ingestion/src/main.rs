@@ -13,27 +13,42 @@ pub mod data_parser;
 pub mod repository;
 pub mod scraper;
 
+enum IngestAction {
+    Scrape,
+    GoogleApi,
+}
+
+impl IngestAction {
+    fn new(action: &str) -> Self {
+        match action {
+            "SCRAPE_HTML" => IngestAction::Scrape,
+            "GOOGLE_API" => IngestAction::GoogleApi,
+            _ => panic!("Invalid action"),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     let action: String = env::var("ACTION").expect("Action to be set");
+    let db_path = Path::new("tatteau.db");
+    let conn: Connection = Connection::open(db_path).expect("Database should load");
 
-    match action == "SCRAPE_HTML" {
-        true => scraper::scrape().await,
-        false => ingest_google().await,
+    match IngestAction::new(&action) {
+        IngestAction::Scrape => scraper::scrape(conn).await,
+        IngestAction::GoogleApi => ingest_google(&conn).await,
     }
 }
 
-async fn ingest_google() -> Result<(), Box<dyn std::error::Error>> {
+async fn ingest_google(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     let limit_results_to: i8 = 20;
     let max_iter: i8 = 10;
-    let db_path = Path::new("tatteau.db");
-    let conn: Connection = Connection::open(db_path).expect("Database should load");
 
     let county_limit: i16 = 3500;
     let days_till_refetch: i16 = 160;
     let county_boundaries: Vec<CountyBoundary> =
-        fetch_county_boundaries(&conn, county_limit, days_till_refetch)
+        fetch_county_boundaries(conn, county_limit, days_till_refetch)
             .expect("County boundaries should be fetched");
 
     if county_boundaries.is_empty() {
@@ -44,11 +59,11 @@ async fn ingest_google() -> Result<(), Box<dyn std::error::Error>> {
     for county_boundary in county_boundaries {
         println!("Processing county: {}", county_boundary.name);
 
-        if let Err(e) = process_county(&conn, &county_boundary, limit_results_to, max_iter).await {
+        if let Err(e) = process_county(conn, &county_boundary, limit_results_to, max_iter).await {
             println!("Error processing county {}: {}", county_boundary.name, e);
         }
 
-        mark_county_ingested(&conn, &county_boundary)?;
+        mark_county_ingested(conn, &county_boundary)?;
     }
     Ok(())
 }

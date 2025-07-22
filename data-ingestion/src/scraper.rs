@@ -109,7 +109,7 @@ fn persist_artist_and_styles(
 
 async fn handle_gpt_decision(
     decision: &GptAction,
-    conn: Arc<Mutex<Connection>>,
+    conn: &Arc<Mutex<Connection>>,
     page: &Page,
     client: &Client<OpenAIConfig>,
     cleaned_html: &str,
@@ -151,11 +151,6 @@ async fn handle_gpt_decision(
         }
     }
     Ok(false)
-}
-
-fn setup_database() -> anyhow::Result<Connection> {
-    let conn = Connection::open("./locations.db")?;
-    Ok(conn)
 }
 
 async fn setup_playwright_page() -> anyhow::Result<Page> {
@@ -254,8 +249,9 @@ async fn call_gpt_extract(
     let artists: Vec<Artist> = serde_json::from_str(text.trim())?;
     Ok(artists)
 }
-pub async fn scrape() -> Result<(), Box<dyn std::error::Error>> {
-    let conn = Arc::new(Mutex::new(setup_database()?));
+
+pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+    let conn = Arc::new(Mutex::new(conn));
 
     let openai_key = env::var("OPENAI_API_KEY")?;
     let num_threads: usize = env::var("NUM_THREADS").unwrap_or("12".into()).parse()?;
@@ -334,7 +330,7 @@ pub async fn scrape() -> Result<(), Box<dyn std::error::Error>> {
 
                                     let should_break = handle_gpt_decision(
                                         &decision,
-                                        Arc::clone(&conn),
+                                        &conn,
                                         &page,
                                         &client,
                                         &cleaned_html,
