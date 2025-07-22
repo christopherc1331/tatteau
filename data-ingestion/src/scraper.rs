@@ -83,7 +83,7 @@ fn persist_artist_and_styles(
         let years_experience = artist.years_experience.unwrap_or(0);
 
         conn.execute(
-            "INSERT INTO artist (name, social_links, email, phone, years_experience, location_id) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO artists (name, social_links, email, phone, years_experience, location_id) VALUES (?, ?, ?, ?, ?, ?)",
             params![name, socials, email, phone, years_experience, location_id],
         )?;
         let artist_id = conn.last_insert_rowid();
@@ -92,13 +92,13 @@ fn persist_artist_and_styles(
             for raw_style in styles {
                 let style_name = normalize_style(raw_style);
                 let style_id = match conn.query_row(
-                    "SELECT id FROM style WHERE name = ?",
+                    "SELECT id FROM styles WHERE LOWER(name) = LOWER(?)",
                     params![style_name],
                     |row| row.get(0),
                 ) {
                     Ok(id) => id,
                     Err(_) => {
-                        conn.execute("INSERT INTO style (name) VALUES (?)", params![style_name])?;
+                        conn.execute("INSERT INTO styles (name) VALUES (?)", params![style_name])?;
                         conn.last_insert_rowid()
                     }
                 };
@@ -163,7 +163,7 @@ async fn handle_gpt_decision(
             println!("Agent decided it is done.");
             let conn_guard = conn.lock().unwrap();
             conn_guard.execute(
-                "UPDATE locations SET scraped_html = 1 WHERE id = ?",
+                "UPDATE locations SET is_scraped = 1 WHERE id = ?",
                 params![location_id],
             )?;
             return Ok(true);
@@ -329,7 +329,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     let conn_guard = conn.lock().unwrap();
                     let mut stmt = conn_guard
                         .prepare(
-                            "SELECT id, website_uri FROM locations WHERE scraped_html = 0 AND website_uri NOT LIKE '%facebook%' LIMIT 1",
+                            "SELECT id, website_uri FROM locations WHERE is_scraped = 0 AND website_uri NOT LIKE '%facebook%' LIMIT 1",
                         )
                         .unwrap();
                     let mut rows = stmt.query([]).unwrap();
@@ -351,7 +351,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                 conn.lock()
                                     .unwrap()
                                     .execute(
-                                        "UPDATE locations SET scraped_html = -1 WHERE id = ?",
+                                        "UPDATE locations SET is_scraped = -1 WHERE id = ?",
                                         params![id],
                                     )
                                     .unwrap();
@@ -390,7 +390,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                         conn.lock()
                             .unwrap()
                             .execute(
-                                "UPDATE locations SET scraped_html = -1 WHERE id = ?",
+                                "UPDATE locations SET is_scraped = -1 WHERE id = ?",
                                 params![id],
                             )
                             .unwrap();
