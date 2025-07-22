@@ -119,6 +119,7 @@ async fn handle_gpt_decision(
     cleaned_html: &str,
     location_id: i64,
     base_url: &str,
+    artists_counter: &Arc<AtomicUsize>,
 ) -> anyhow::Result<(bool, Option<String>)> {
     match decision {
         GptAction::Navigate { url } => {
@@ -143,6 +144,7 @@ async fn handle_gpt_decision(
                 println!("⚠️  No artists found on this page");
             } else {
                 println!("💾 Saving {} artist(s) to database", artists.len());
+                artists_counter.fetch_add(artists.len(), Ordering::SeqCst);
                 for artist in &artists {
                     let conn_guard = conn.lock().unwrap();
                     persist_artist_and_styles(&conn_guard, artist, location_id)?;
@@ -310,6 +312,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
     let http_client = Arc::new(HttpClient::new());
 
     let scrape_limit = Arc::new(AtomicUsize::new(0));
+    let artists_added = Arc::new(AtomicUsize::new(0));
     let progress = Arc::new(ProgressBar::new(max_scrapes as u64));
     progress.set_style(
         ProgressStyle::default_bar()
@@ -363,6 +366,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
         let client = Arc::clone(&client);
         let http_client = Arc::clone(&http_client);
         let scrape_counter = Arc::clone(&scrape_limit);
+        let artists_counter = Arc::clone(&artists_added);
         let pb: Arc<ProgressBar> = Arc::clone(&progress);
         let rx = Arc::clone(&rx);
 
@@ -400,6 +404,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         &cleaned_html,
                                         id,
                                         &base_url,
+                                        &artists_counter,
                                     )
                                     .await
                                     {
@@ -453,22 +458,12 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
     progress.finish_with_message("🎉 Scraping complete!");
 
     // Final statistics
-    let conn_guard = conn.lock().unwrap();
-    let total_processed: i64 = conn_guard
-        .query_row(
-            "SELECT COUNT(*) FROM locations WHERE is_scraped != 0",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-
-    let total_artists: i64 = conn_guard
-        .query_row("SELECT COUNT(*) FROM artists", [], |row| row.get(0))
-        .unwrap_or(0);
+    let locations_processed = scrape_counter.load(Ordering::SeqCst);
+    let artists_found = artists_added.load(Ordering::SeqCst);
 
     println!("📈 Final Results:");
-    println!("   • Locations processed: {}", total_processed);
-    println!("   • Total artists found: {}", total_artists);
+    println!("   • Locations processed: {}", locations_processed);
+    println!("   • Artists added this run: {}", artists_found);
 
     Ok(())
 }
