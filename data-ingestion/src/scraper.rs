@@ -103,7 +103,7 @@ fn persist_artist_and_styles(
                 };
 
                 conn.execute(
-                    "INSERT INTO artist_style (artist_id, style_id) VALUES (?, ?)",
+                    "INSERT INTO artists_styles (artist_id, style_id) VALUES (?, ?)",
                     params![artist_id, style_id],
                 )?;
             }
@@ -227,8 +227,7 @@ async fn call_gpt_action(
     let req = CreateChatCompletionRequestArgs::default()
         .model("o4-mini")
         .messages([sys_msg, user_msg])
-        .temperature(0.2)
-        .max_tokens(1000u32)
+        .max_completion_tokens(1000u32)
         .build()?;
 
     let res = client.chat().create(req).await?;
@@ -273,8 +272,7 @@ async fn call_gpt_extract(
     let req = CreateChatCompletionRequestArgs::default()
         .model("o4-mini")
         .messages([sys_msg, user_msg])
-        .temperature(0.2)
-        .max_tokens(1500u32)
+        .max_completion_tokens(1500u32)
         .build()?;
 
     let res = client.chat().create(req).await?;
