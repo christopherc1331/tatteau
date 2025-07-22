@@ -458,7 +458,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
     progress.finish_with_message("🎉 Scraping complete!");
 
     // Final statistics
-    let locations_processed = scrape_counter.load(Ordering::SeqCst);
+    let locations_processed = scrape_limit.load(Ordering::SeqCst);
     let artists_found = artists_added.load(Ordering::SeqCst);
 
     println!("📈 Final Results:");
