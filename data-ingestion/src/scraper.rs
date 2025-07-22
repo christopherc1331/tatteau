@@ -10,6 +10,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
 use reqwest::Client as HttpClient;
 use rusqlite::{params, Connection};
+use chrono::{DateTime, Utc};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -68,6 +69,15 @@ fn normalize_style(style: &str) -> String {
 fn get_domain(url_str: &str) -> anyhow::Result<String> {
     let url = Url::parse(url_str)?;
     Ok(url.host_str().unwrap_or("").to_string())
+}
+
+fn log_scrape_action(conn: &Connection, location_id: i64, action: &str) -> anyhow::Result<()> {
+    let timestamp = Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO scrape_actions (location_id, action, timestamp) VALUES (?, ?, ?)",
+        params![location_id, action, timestamp],
+    )?;
+    Ok(())
 }
 
 fn persist_artist_and_styles(
@@ -136,12 +146,16 @@ async fn handle_gpt_decision(
             }
 
             println!("Navigating to: {}", url);
+            let conn_guard = conn.lock().unwrap();
+            let _ = log_scrape_action(&conn_guard, location_id, &format!("navigate:{}", url));
             return Ok((false, Some(url.clone())));
         }
         GptAction::Extract => {
             let artists = call_gpt_extract(gpt_client, base_url, cleaned_html).await?;
             if artists.is_empty() {
                 println!("⚠️  No artists found on this page");
+                let conn_guard = conn.lock().unwrap();
+                let _ = log_scrape_action(&conn_guard, location_id, "extract:no_artists");
             } else {
                 println!("💾 Saving {} artist(s) to database", artists.len());
                 artists_counter.fetch_add(artists.len(), Ordering::SeqCst);
@@ -149,6 +163,8 @@ async fn handle_gpt_decision(
                     let conn_guard = conn.lock().unwrap();
                     persist_artist_and_styles(&conn_guard, artist, location_id)?;
                 }
+                let conn_guard = conn.lock().unwrap();
+                let _ = log_scrape_action(&conn_guard, location_id, &format!("extract:artists_found:{}", artists.len()));
             }
         }
         GptAction::Done => {
@@ -157,6 +173,7 @@ async fn handle_gpt_decision(
                 location_id
             );
             let conn_guard = conn.lock().unwrap();
+            let _ = log_scrape_action(&conn_guard, location_id, "done");
             conn_guard.execute(
                 "UPDATE locations SET is_scraped = 1 WHERE id = ?",
                 params![location_id],
@@ -381,6 +398,12 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     "🏪 Thread {} processing location ID: {} - {}",
                     thread_id, id, url
                 );
+                
+                // Log start of processing
+                {
+                    let conn_guard = conn.lock().unwrap();
+                    let _ = log_scrape_action(&conn_guard, id, &format!("start:{}", url));
+                }
 
                 let url = if !url.starts_with("http://") && !url.starts_with("https://") {
                     format!("https://{}", url)
@@ -435,8 +458,9 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                 "❌ Failed to fetch '{}' (ID: {}): {:?}",
                                 current_url, id, err
                             );
-                            conn.lock()
-                                .unwrap()
+                            let conn_guard = conn.lock().unwrap();
+                            let _ = log_scrape_action(&conn_guard, id, &format!("error:fetch_failed:{}", err));
+                            conn_guard
                                 .execute(
                                     "UPDATE locations SET is_scraped = -1 WHERE id = ?",
                                     params![id],
