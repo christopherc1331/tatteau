@@ -232,7 +232,7 @@ async fn call_gpt_action(
     });
 
     let req = CreateChatCompletionRequestArgs::default()
-        .model("gpt-3.5-turbo")
+        .model("gpt-4")
         .messages([sys_msg, user_msg])
         .temperature(0.2)
         .max_tokens(1000u32)
