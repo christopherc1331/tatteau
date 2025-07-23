@@ -81,6 +81,17 @@ fn log_scrape_action(conn: &Connection, location_id: i64, action: &str) -> anyho
     Ok(())
 }
 
+fn get_existing_artists(conn: &Connection, location_id: i64) -> anyhow::Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT name FROM artists WHERE location_id = ?")?;
+    let rows = stmt.query_map(params![location_id], |row| Ok(row.get::<_, String>(0)?))?;
+
+    let mut artists = Vec::new();
+    for row in rows {
+        artists.push(row?);
+    }
+    Ok(artists)
+}
+
 fn persist_artist_and_styles(
     conn: &Connection,
     artist: &Artist,
@@ -153,13 +164,19 @@ async fn handle_gpt_decision(
             return Ok((false, Some(url.clone())));
         }
         GptAction::Extract => {
-            let artists = call_gpt_extract(gpt_client, base_url, cleaned_html).await?;
-            if artists.is_empty() {
-                println!("⚠️  No artists found on this page");
+            let existing_artists = {
                 let conn_guard = conn.lock().unwrap();
-                let _ = log_scrape_action(&conn_guard, location_id, "extract:no_artists");
+                get_existing_artists(&conn_guard, location_id).unwrap_or_default()
+            };
+
+            let artists =
+                call_gpt_extract(gpt_client, base_url, cleaned_html, &existing_artists).await?;
+            if artists.is_empty() {
+                println!("⚠️  No new artists found on this page");
+                let conn_guard = conn.lock().unwrap();
+                let _ = log_scrape_action(&conn_guard, location_id, "extract:no_new_artists");
             } else {
-                println!("💾 Saving {} artist(s) to database", artists.len());
+                println!("💾 Saving {} new artist(s) to database", artists.len());
                 artists_counter.fetch_add(artists.len(), Ordering::SeqCst);
                 for artist in &artists {
                     let conn_guard = conn.lock().unwrap();
@@ -169,7 +186,7 @@ async fn handle_gpt_decision(
                 let _ = log_scrape_action(
                     &conn_guard,
                     location_id,
-                    &format!("extract:artists_found:{}", artists.len()),
+                    &format!("extract:new_artists_found:{}", artists.len()),
                 );
             }
         }
@@ -290,6 +307,7 @@ async fn call_gpt_extract(
     client: &Client<OpenAIConfig>,
     url: &str,
     cleaned_html: &str,
+    existing_artists: &[String],
 ) -> anyhow::Result<Vec<Artist>> {
     println!("🎯 Extracting artist data from: {}", url);
     let sys_msg = ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
@@ -297,11 +315,19 @@ async fn call_gpt_extract(
         name: None,
     });
 
+    let existing_artists_text = if existing_artists.is_empty() {
+        "None".to_string()
+    } else {
+        existing_artists.join(", ")
+    };
+
     let user_msg = ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
         content: ChatCompletionRequestUserMessageContent::Text(format!(
             r#"URL: {}
             HTML:
             {}
+
+            EXISTING ARTISTS FOR THIS LOCATION: {}
 
             Extract artist data with fields:
             - name (string)
@@ -311,8 +337,11 @@ async fn call_gpt_extract(
             - social_links (optional string, comma-delimited)
             - years_experience (optional number)
 
+            IMPORTANT: Only return artists that are NOT already in the existing artists list above. 
+            Skip any artists whose names are already present.
+
             Respond with a JSON array of artist objects."#,
-            url, cleaned_html
+            url, cleaned_html, existing_artists_text
         )),
         name: None,
     });
