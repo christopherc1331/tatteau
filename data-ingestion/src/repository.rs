@@ -5,7 +5,8 @@ use shared_types::{CountyBoundary, LocationInfo};
 
 pub fn upsert_locations(conn: &Connection, locations: &[LocationInfo]) -> Result<(), Error> {
     let mut stmt = conn.prepare_cached(
-        "INSERT OR REPLACE INTO locations (
+        "
+            INSERT INTO locations (
                         city,
                         county,
                         state,
@@ -20,7 +21,22 @@ pub fn upsert_locations(conn: &Connection, locations: &[LocationInfo]) -> Result
                         lat,
                         long
                     )
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+            ON CONFLICT DO UPDATE
+            SET 
+                city = excluded.city,
+                county = excluded.county,
+                state = excluded.state,
+                country_code = excluded.country_code,
+                postal_code = excluded.postal_code,
+                is_open = excluded.is_open,
+                address = excluded.address,
+                category = excluded.category,
+                name = excluded.name,
+                website_uri = excluded.website_uri,
+                lat = excluded.lat,
+                long = excluded.long
+        ",
     )?;
     let t = conn.unchecked_transaction()?;
     locations.iter().for_each(|li| {
