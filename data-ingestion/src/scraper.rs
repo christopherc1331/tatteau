@@ -5,7 +5,7 @@ use async_openai::types::{
     ChatCompletionRequestUserMessageContent, CreateChatCompletionRequestArgs,
 };
 use async_openai::{config::OpenAIConfig, Client};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
@@ -232,9 +232,15 @@ async fn call_gpt_action(
         - Look for links like 'Artists', 'Our Team', 'Meet the Staff', 'Gallery', 'About Us'
         - Consider link context and surrounding text when choosing navigation
         - Do not navigate to external domains, social media, or third-party sites
-        - Do not revisit urls that have already been visited. 
+        - Do not revisit urls that have already been visited
         
-        Always validate business type first, then prioritize extraction over navigation.".to_string()),
+        WHEN TO CHOOSE DONE:
+        - If you've visited 3+ pages without finding clear artist profiles or contact information
+        - If the current page has no promising navigation links to artist-related content
+        - If you've extracted artist data from previous pages and current page adds nothing new
+        - If the site structure suggests no dedicated artist information exists
+        
+        Always validate business type first, then prioritize extraction over navigation, and be decisive about finishing.".to_string()),
         name: None,
     });
 
@@ -430,6 +436,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                 let base_url = current_url.clone();
 
                 let mut visited: HashSet<String> = HashSet::new();
+                let mut location_completed = false;
                 for _ in 0..max_page_visits {
                     match fetch_html(&http_client, &current_url).await {
                         Ok(raw_html) => {
@@ -453,6 +460,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                     {
                                         Ok((should_break, next_url)) => {
                                             if should_break {
+                                                location_completed = true;
                                                 break;
                                             }
                                             if let Some(next) = next_url {
@@ -463,12 +471,24 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         }
                                         Err(e) => {
                                             println!("Error handling decision: {:?}", e);
+                                            let conn_guard = conn.lock().unwrap();
+                                            let _ = log_scrape_action(
+                                                &conn_guard,
+                                                id,
+                                                &format!("error:decision_handling:{}", e),
+                                            );
                                             break;
                                         }
                                     }
                                 }
                                 Err(e) => {
                                     println!("Error calling GPT: {:?}", e);
+                                    let conn_guard = conn.lock().unwrap();
+                                    let _ = log_scrape_action(
+                                        &conn_guard,
+                                        id,
+                                        &format!("error:gpt_call:{}", e),
+                                    );
                                     break;
                                 }
                             }
@@ -493,6 +513,22 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                             break;
                         }
                     }
+                }
+
+                // Fallback: mark location as complete if max page visits reached without explicit DONE
+                if !location_completed {
+                    println!(
+                        "⏰ Max page visits reached for location ID: {} - marking as complete",
+                        id
+                    );
+                    let conn_guard = conn.lock().unwrap();
+                    let _ = log_scrape_action(&conn_guard, id, "done:max_visits_reached");
+                    conn_guard
+                        .execute(
+                            "UPDATE locations SET is_scraped = 1 WHERE id = ?",
+                            params![id],
+                        )
+                        .unwrap();
                 }
 
                 let current = scrape_counter.fetch_add(1, Ordering::SeqCst);
