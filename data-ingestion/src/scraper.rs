@@ -5,14 +5,15 @@ use async_openai::types::{
     ChatCompletionRequestUserMessageContent, CreateChatCompletionRequestArgs,
 };
 use async_openai::{config::OpenAIConfig, Client};
+use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
 use reqwest::Client as HttpClient;
 use rusqlite::{params, Connection};
-use chrono::{DateTime, Utc};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::env;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -130,6 +131,7 @@ async fn handle_gpt_decision(
     location_id: i64,
     base_url: &str,
     artists_counter: &Arc<AtomicUsize>,
+    visited: &HashSet<String>,
 ) -> anyhow::Result<(bool, Option<String>)> {
     match decision {
         GptAction::Navigate { url } => {
@@ -164,7 +166,11 @@ async fn handle_gpt_decision(
                     persist_artist_and_styles(&conn_guard, artist, location_id)?;
                 }
                 let conn_guard = conn.lock().unwrap();
-                let _ = log_scrape_action(&conn_guard, location_id, &format!("extract:artists_found:{}", artists.len()));
+                let _ = log_scrape_action(
+                    &conn_guard,
+                    location_id,
+                    &format!("extract:artists_found:{}", artists.len()),
+                );
             }
         }
         GptAction::Done => {
@@ -205,6 +211,7 @@ async fn call_gpt_action(
     client: &Client<OpenAIConfig>,
     url: &str,
     cleaned_html: &str,
+    visited: &HashSet<String>,
 ) -> anyhow::Result<GptAction> {
     println!("🤖 Calling GPT for action decision on: {}", url);
     let sys_msg = ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
@@ -225,6 +232,7 @@ async fn call_gpt_action(
         - Look for links like 'Artists', 'Our Team', 'Meet the Staff', 'Gallery', 'About Us'
         - Consider link context and surrounding text when choosing navigation
         - Do not navigate to external domains, social media, or third-party sites
+        - Do not revisit urls that have already been visited. 
         
         Always validate business type first, then prioritize extraction over navigation.".to_string()),
         name: None,
@@ -235,6 +243,7 @@ async fn call_gpt_action(
             r#"URL: {}
             HTML:
             {}
+            Visited urls: {}
 
             Respond with a JSON object in one of the following formats:
             
@@ -246,7 +255,13 @@ async fn call_gpt_action(
             
             When finished with this location:
             {{ "action": "DONE" }}"#,
-            url, cleaned_html
+            url,
+            cleaned_html,
+            visited
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<&str>>()
+                .join(",")
         )),
         name: None,
     });
@@ -398,7 +413,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     "🏪 Thread {} processing location ID: {} - {}",
                     thread_id, id, url
                 );
-                
+
                 // Log start of processing
                 {
                     let conn_guard = conn.lock().unwrap();
@@ -414,11 +429,15 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                 let mut current_url = url;
                 let base_url = current_url.clone();
 
+                let mut visited: HashSet<String> = HashSet::new();
                 for _ in 0..max_page_visits {
                     match fetch_html(&http_client, &current_url).await {
                         Ok(raw_html) => {
+                            visited.insert(current_url.clone());
                             let cleaned_html = preprocess_html(&raw_html);
-                            match call_gpt_action(&client, &current_url, &cleaned_html).await {
+                            match call_gpt_action(&client, &current_url, &cleaned_html, &visited)
+                                .await
+                            {
                                 Ok(decision) => {
                                     match handle_gpt_decision(
                                         &decision,
@@ -428,6 +447,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         id,
                                         &base_url,
                                         &artists_counter,
+                                        &visited,
                                     )
                                     .await
                                     {
@@ -459,7 +479,11 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                 current_url, id, err
                             );
                             let conn_guard = conn.lock().unwrap();
-                            let _ = log_scrape_action(&conn_guard, id, &format!("error:fetch_failed:{}", err));
+                            let _ = log_scrape_action(
+                                &conn_guard,
+                                id,
+                                &format!("error:fetch_failed:{}", err),
+                            );
                             conn_guard
                                 .execute(
                                     "UPDATE locations SET is_scraped = -1 WHERE id = ?",
