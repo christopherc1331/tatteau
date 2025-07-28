@@ -338,7 +338,9 @@ async fn call_gpt_extract(
             - years_experience (optional number)
 
             IMPORTANT: Only return artists that are NOT already in the existing artists list above. 
-            Skip any artists whose names are already present.
+            Skip any artists whose names are already present. 
+            SUPER IMPORTANT:
+            ONLY ASSIGN STYLES TO THE ARTIST THAT DOES THAT STYLE, DO NOT ASSIGN ALL STYLES TO THE PAGE TO ALL ARTISTS ON THE PAGE. IF YOU CANNOT TELL WHICH STYLE BELONGS TO WHICH ARTIST, THEN PUT NO STYLES FOR SAID ARTIST. NO STYLES ARE BETTER THAN INCORRECT ONES.
 
             Respond with a JSON array of artist objects."#,
             url, cleaned_html, existing_artists_text
