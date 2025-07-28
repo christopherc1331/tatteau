@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use thaw::Flex;
+use thaw::{Flex, FlexAlign};
 
 use crate::{
     components::loading::LoadingView,
@@ -30,11 +30,20 @@ pub fn DiscoveryMap() -> impl IntoView {
         <Suspense fallback=|| view! {
             <LoadingView message=Some("Fetching locations...".to_string()) />
         }>
-            <Flex attr:style="padding-bottom: 8px">
-                <DropDownStates state=state />
-                <DropDownCities city=city cities=cities/>
+            <Flex style="height: 98vh">
+                <Flex vertical=true align=FlexAlign::Start>
+                    <DropDownStates state=state />
+                    <DropDownCities city=city cities=cities/>
+                </Flex>
+                <div style="flex: 1; min-height: 0; min-width: 0; display: flex;">
+                    <MapRenderer
+                        state=state
+                        city=city
+                        default_location=default_location
+                        cities=cities
+                    />
+                </div>
             </Flex>
-            <MapRenderer state=state city=city default_location=default_location cities=cities/>
         </Suspense>
     }
 }

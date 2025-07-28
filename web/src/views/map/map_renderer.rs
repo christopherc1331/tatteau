@@ -88,7 +88,13 @@ pub fn MapRenderer(
     });
 
     view! {
-        <MapContainer style="height: 70vh" center=center.get() zoom=12.0 set_view=true map=map.write_only()>
+        <MapContainer
+            style="height: 100%; width: 100%; flex: 1"
+            center=center.get()
+            zoom=12.0
+            set_view=true
+            map=map.write_only()
+        >
             <TileLayer
                 url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
