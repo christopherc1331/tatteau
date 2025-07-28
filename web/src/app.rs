@@ -48,7 +48,7 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/web.css"/>
 
         // sets the document title
-        <Title text="Welcome to Leptos"/>
+        <Title text="tatteau"/>
 
         // content for this welcome page
         <ConfigProvider>

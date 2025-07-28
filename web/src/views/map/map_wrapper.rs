@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use leptos_leaflet::{leaflet::LatLngBounds, prelude::JsRwSignal};
 use thaw::Flex;
 
 use crate::{
@@ -14,12 +13,12 @@ use crate::{
 
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
-    let state = RwSignal::new("Texas".to_string());
+    let state = RwSignal::new("Washington".to_string());
     let default_location = CityCoords {
-        city: "Dallas".to_string(),
-        state: "Texas".to_string(),
-        lat: 32.855895000000004,
-        long: -96.8662097,
+        city: "Spokane".to_string(),
+        state: "Washington".to_string(),
+        lat: 47.6578118,
+        long: -117.4186315,
     };
     let city = RwSignal::new(default_location.clone().city);
     let cities = Resource::new(

@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use thaw::{Combobox, ComboboxOption, Flex, FlexAlign, Label};
+use thaw_utils::Model;
 
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
@@ -17,12 +18,7 @@ pub fn DropDownCities(
         }
     });
 
-    let selected_options = RwSignal::new(None::<String>);
-    Effect::new(move || {
-        if let Some(selected_opt) = selected_options.get() {
-            city.set(selected_opt);
-        }
-    });
+    let model: Model<String> = Model::from(city);
 
     view! {
         {move ||
@@ -31,7 +27,7 @@ pub fn DropDownCities(
                     <Flex vertical=true align=FlexAlign::Start>
                         <Label>"City"</Label>
                         <Combobox
-                            selected_options
+                            value=model
                         >
                             {cities.into_iter().map(|city| {
                                 let city_ref = &city.clone().city;
