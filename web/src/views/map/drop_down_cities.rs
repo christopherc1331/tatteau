@@ -1,6 +1,5 @@
 use leptos::prelude::*;
 use thaw::{Combobox, ComboboxOption, Flex, FlexAlign, Label};
-use thaw_utils::Model;
 
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
@@ -12,12 +11,7 @@ pub fn DropDownCities(
     city: RwSignal<String>,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
 ) -> impl IntoView {
-    let selected_options = RwSignal::new(Some(city.get_untracked()));
-    Effect::new(move |_| {
-        if let Some(Ok(cities)) = cities.get() {
-            selected_options.set(Some(cities[0].clone().city));
-        }
-    });
+    let selected_options: RwSignal<Option<String>> = RwSignal::new(Some(city.get_untracked()));
     Effect::new(move |_| {
         if let Some(val) = selected_options.get() {
             city.set(val);

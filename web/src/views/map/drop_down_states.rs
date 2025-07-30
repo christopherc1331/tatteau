@@ -1,6 +1,6 @@
-use leptos::{leptos_dom::logging::console_log, prelude::*};
+use leptos::prelude::*;
 use thaw::{Combobox, ComboboxOption, Flex, FlexAlign, Label};
-use thaw_utils::Model;
+use thaw_utils::VecModel;
 
 pub const STATES: [&str; 50] = [
     "Alabama",
@@ -57,12 +57,18 @@ pub const STATES: [&str; 50] = [
 
 #[component]
 pub fn DropDownStates(state: RwSignal<String>) -> impl IntoView {
-    let model: Model<String> = Model::from(state);
+    let selected_options: RwSignal<Option<String>> = RwSignal::new(Some(state.get_untracked()));
+
+    Effect::new(move |_| {
+        if let Some(s) = selected_options.get() {
+            state.set(s);
+        }
+    });
 
     view! {
         <Flex vertical=true align=FlexAlign::Start>
             <Label>"State"</Label>
-            <Combobox value=model>
+            <Combobox selected_options=selected_options placeholder="Select a state">
                 {STATES.into_iter().map(|state| {
                     view! {
                         <ComboboxOption value=state text=state />
