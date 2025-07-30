@@ -12,13 +12,17 @@ pub fn DropDownCities(
     city: RwSignal<String>,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
 ) -> impl IntoView {
+    let selected_options = RwSignal::new(Some(city.get_untracked()));
     Effect::new(move |_| {
         if let Some(Ok(cities)) = cities.get() {
-            city.set(cities[0].clone().city);
+            selected_options.set(Some(cities[0].clone().city));
         }
     });
-
-    let model: Model<String> = Model::from(city);
+    Effect::new(move |_| {
+        if let Some(val) = selected_options.get() {
+            city.set(val);
+        }
+    });
 
     view! {
         {move ||
@@ -26,13 +30,11 @@ pub fn DropDownCities(
                 Some(Ok(cities)) => view! {
                     <Flex vertical=true align=FlexAlign::Start>
                         <Label>"City"</Label>
-                        <Combobox
-                            value=model
-                        >
+                        <Combobox selected_options placeholder="Select a city">
                             {cities.into_iter().map(|city| {
-                                let city_ref = &city.clone().city;
+                                let city_name = city.city.clone();
                                 view! {
-                                    <ComboboxOption value=city_ref text=city_ref />
+                                    <ComboboxOption value=city_name.clone() text=city_name />
                                 }
                             }).collect_view()}
                         </Combobox>
