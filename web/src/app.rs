@@ -7,6 +7,7 @@ use leptos_router::{
 use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
+use crate::components::masonry_gallery::MasonryGallery;
 use crate::views::map::map_wrapper::DiscoveryMap;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -56,6 +57,7 @@ pub fn App() -> impl IntoView {
                 <main>
                     <Routes fallback=|| "Page not found.".into_view()>
                         <Route path=StaticSegment("") view=HomePage/>
+                        <Route path=StaticSegment("gallery") view=GalleryPage/>
                     </Routes>
                 </main>
             </Router>
@@ -68,5 +70,13 @@ pub fn App() -> impl IntoView {
 fn HomePage() -> impl IntoView {
     view! {
         <DiscoveryMap/>
+    }
+}
+
+/// Renders the gallery page of your application.
+#[component]
+fn GalleryPage() -> impl IntoView {
+    view! {
+        <MasonryGallery/>
     }
 }
