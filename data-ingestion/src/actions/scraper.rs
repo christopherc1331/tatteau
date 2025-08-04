@@ -52,7 +52,7 @@ fn extract_body_html(raw_html: &str) -> String {
 
 fn sanitize_html(html: &str) -> String {
     Builder::new()
-        .tags(["p", "a", "h1", "h2", "h3", "ul", "li", "div", "span", "img"].into()) // adjust as needed
+        .tags(["p", "a", "h1", "h2", "h3", "ul", "li", "div", "span", "img"].into())
         .clean(html)
         .to_string()
 }
@@ -142,11 +142,9 @@ async fn handle_gpt_decision(
     location_id: i64,
     base_url: &str,
     artists_counter: &Arc<AtomicUsize>,
-    visited: &HashSet<String>,
 ) -> anyhow::Result<(bool, Option<String>)> {
     match decision {
         GptAction::Navigate { url } => {
-            // Validate that navigation stays within the same domain
             let base_domain = get_domain(base_url)?;
             let nav_domain = get_domain(url)?;
 
@@ -392,7 +390,6 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
             .progress_chars("##-"),
     );
 
-    // Fetch and claim all locations upfront
     let locations: Vec<(i64, String)> = {
         let conn_guard = conn.lock().unwrap();
         let mut stmt = conn_guard
@@ -419,15 +416,13 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
 
     println!("📍 Claimed {} locations for processing", locations.len());
 
-    // Create a channel to distribute work
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let rx = Arc::new(tokio::sync::Mutex::new(rx));
 
-    // Send all locations to the channel
     for location in locations {
         tx.send(location).unwrap();
     }
-    drop(tx); // Close the channel
+    drop(tx);
 
     let mut tasks = FuturesUnordered::new();
     for thread_id in 0..num_threads {
@@ -443,7 +438,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
             loop {
                 let (id, url) = match rx.lock().await.recv().await {
                     Some(location) => location,
-                    None => break, // No more work
+                    None => break,
                 };
 
                 println!(
@@ -451,7 +446,6 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     thread_id, id, url
                 );
 
-                // Log start of processing
                 {
                     let conn_guard = conn.lock().unwrap();
                     let _ = log_scrape_action(&conn_guard, id, &format!("start:{}", url));
@@ -485,7 +479,6 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         id,
                                         &base_url,
                                         &artists_counter,
-                                        &visited,
                                     )
                                     .await
                                     {
@@ -546,7 +539,6 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     }
                 }
 
-                // Fallback: mark location as complete if max page visits reached without explicit DONE
                 if !location_completed {
                     println!(
                         "⏰ Max page visits reached for location ID: {} - marking as complete",
@@ -572,7 +564,6 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
 
     progress.finish_with_message("🎉 Scraping complete!");
 
-    // Final statistics
     let locations_processed = scrape_limit.load(Ordering::SeqCst);
     let artists_found = artists_added.load(Ordering::SeqCst);
 
