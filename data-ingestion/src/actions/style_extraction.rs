@@ -58,6 +58,11 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
     let images_dir = env::var("IMAGES_DIR").expect("IMAGES_DIR environment variable must be set");
     env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY environment variable must be set");
 
+    let confidence_threshold: f64 = env::var("STYLE_CONFIDENCE_THRESHOLD")
+        .unwrap_or_else(|_| "0.9".to_string())
+        .parse()
+        .expect("STYLE_CONFIDENCE_THRESHOLD must be a valid number between 0 and 1");
+
     let client = Arc::new(Client::new());
     let images_path = Path::new(&images_dir);
 
@@ -93,6 +98,7 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
     for (i, image_path) in image_files.into_iter().enumerate() {
         let client = Arc::clone(&client);
         let semaphore = Arc::clone(&semaphore);
+        let threshold = confidence_threshold;
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
@@ -133,7 +139,7 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                     content: ChatCompletionRequestUserMessageContent::Array(vec![
                         ChatCompletionRequestUserMessageContentPart::Text(
                             ChatCompletionRequestMessageContentPartText {
-                                text: "First, determine if this image shows a tattoo. If it is NOT a tattoo, respond with exactly 'NOT_TATTOO'. If it IS a tattoo, analyze the tattoo and identify ALL the specific artistic styles present with confidence scores. Only include styles where you have high confidence (above 0.80). Your response must ONLY contain the style:confidence pairs in this exact format: 'style1:0.95,style2:0.87,style3:0.92' with NO additional text, explanations, or commentary. If you are not confident (above 0.80) about any styles, return completely empty (no text at all).".to_string(),
+                                text: format!("First, determine if this image shows a tattoo. If it is NOT a tattoo, respond with exactly 'NOT_TATTOO'. If it IS a tattoo, analyze the tattoo and identify ALL the specific artistic styles present with confidence scores. Only include styles where you have high confidence (above {}). Your response must ONLY contain the style:confidence pairs in this exact format: 'style1:0.95,style2:0.97,style3:0.96' with NO additional text, explanations, or commentary. If you are not confident (above {}) about any styles, return completely empty (no text at all).", threshold, threshold),
                             }
                         ),
                         ChatCompletionRequestUserMessageContentPart::ImageUrl(
@@ -216,7 +222,7 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                                                 all_styles_with_confidence
                                                     .push(format!("{}:{:.2}", style, confidence));
 
-                                                if confidence > 0.80 {
+                                                if confidence > threshold {
                                                     high_confidence_styles.push(style);
                                                 }
                                             } else {
@@ -248,12 +254,14 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
 
                             if high_confidence_styles.is_empty() {
                                 println!(
-                                    "No styles with confidence > 0.80 for {:?}",
+                                    "No styles with confidence > {} for {:?}",
+                                    threshold,
                                     image_path.file_name()
                                 );
                             } else {
                                 println!(
-                                    "High-confidence styles (>0.80) for {:?}: {}",
+                                    "High-confidence styles (>{}) for {:?}: {}",
+                                    threshold,
                                     image_path.file_name(),
                                     high_confidence_styles.join(", ")
                                 );
@@ -311,8 +319,8 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== PROCESSING SUMMARY ===");
     println!("Total images processed: {}", total_files);
     println!(
-        "Images with high-confidence tattoo styles (>0.80): {}",
-        tattoo_with_styles_count
+        "Images with high-confidence tattoo styles (>{}): {}",
+        confidence_threshold, tattoo_with_styles_count
     );
     println!(
         "Images with no confident styles or non-tattoos: {}",
@@ -337,4 +345,3 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
