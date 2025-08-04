@@ -136,6 +136,13 @@ pub fn mark_locations_scraped(conn: &Connection, ids: Vec<i64>) -> Result<(), Er
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct Artist {
+    pub id: i64,
+    pub name: String,
+    pub images_dir: String,
+}
+
 pub struct LocationUris {
     pub id: i64,
     website_uri: String,
@@ -162,5 +169,74 @@ pub fn get_locations_to_scrape(conn: &Connection, limit: i16) -> Result<Vec<Loca
 
     location_uris
         .map(|res| res.collect::<Result<Vec<LocationUris>, Error>>())
-        .expect("County boundaries to be fetched")
+        .expect("Location URIs to be fetched")
+}
+
+pub fn get_artists_for_style_extraction(conn: &Connection, limit: i16) -> Result<Vec<Artist>, Error> {
+    let mut stmt = conn.prepare(
+        "
+            SELECT id, name, images_dir
+            FROM artists 
+            WHERE images_dir IS NOT NULL 
+              AND TRIM(images_dir) != ''
+              AND (styles_extracted IS NULL OR styles_extracted != 1)
+            LIMIT ?1
+        ",
+    )?;
+
+    let artists = stmt.query_map(params![limit], |row| {
+        Ok(Artist {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            images_dir: row.get(2)?,
+        })
+    });
+
+    artists
+        .map(|res| res.collect::<Result<Vec<Artist>, Error>>())
+        .expect("Artists to be fetched")
+}
+
+pub fn get_or_create_style_ids(conn: &Connection, style_names: &[String]) -> Result<Vec<i64>, Error> {
+    let mut style_ids = Vec::new();
+    
+    for style_name in style_names {
+        // First try to find existing style
+        let mut stmt = conn.prepare("SELECT id FROM styles WHERE name = ?1")?;
+        let existing_id: Result<i64, Error> = stmt.query_row(params![style_name], |row| {
+            Ok(row.get(0)?)
+        });
+        
+        match existing_id {
+            Ok(id) => style_ids.push(id),
+            Err(_) => {
+                // Style doesn't exist, create it
+                let mut insert_stmt = conn.prepare("INSERT INTO styles (name) VALUES (?1)")?;
+                insert_stmt.execute(params![style_name])?;
+                style_ids.push(conn.last_insert_rowid());
+            }
+        }
+    }
+    
+    Ok(style_ids)
+}
+
+pub fn upsert_artist_styles(conn: &Connection, artist_id: i64, style_ids: &[i64]) -> Result<(), Error> {
+    // First, delete existing styles for this artist to avoid duplicates
+    let mut delete_stmt = conn.prepare("DELETE FROM artists_styles WHERE artist_id = ?1")?;
+    delete_stmt.execute(params![artist_id])?;
+    
+    // Then insert all the new styles
+    let mut insert_stmt = conn.prepare("INSERT INTO artists_styles (artist_id, style_id) VALUES (?1, ?2)")?;
+    for style_id in style_ids {
+        insert_stmt.execute(params![artist_id, style_id])?;
+    }
+    
+    Ok(())
+}
+
+pub fn mark_artist_styles_extracted(conn: &Connection, artist_id: i64) -> Result<(), Error> {
+    let mut stmt = conn.prepare("UPDATE artists SET styles_extracted = 1 WHERE id = ?1")?;
+    stmt.execute(params![artist_id])?;
+    Ok(())
 }

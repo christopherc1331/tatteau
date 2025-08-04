@@ -35,6 +35,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match IngestAction::new(&action) {
         IngestAction::Scrape => actions::scraper::scrape(conn).await,
         IngestAction::GoogleApi => actions::google_api_ingestion::ingest_google(&conn).await,
-        IngestAction::ExtractStyles => actions::style_extraction::extract_styles().await,
+        IngestAction::ExtractStyles => actions::style_extraction::extract_styles(&conn).await,
     }
 }

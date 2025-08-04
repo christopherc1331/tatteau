@@ -1,9 +1,11 @@
 use base64::Engine;
+use rusqlite::Connection;
 use serde_json::Value;
-use std::{env, fs, path::Path, sync::Arc};
+use std::{collections::HashMap, env, fs, path::Path, sync::Arc};
 use tokio::sync::Semaphore;
 
 use async_openai::{
+    config::OpenAIConfig,
     types::{
         ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
         ChatCompletionRequestMessageContentPartText, ChatCompletionRequestUserMessage,
@@ -11,6 +13,11 @@ use async_openai::{
         CreateChatCompletionRequestArgs, ImageUrl,
     },
     Client,
+};
+
+use crate::repository::{
+    get_artists_for_style_extraction, get_or_create_style_ids, mark_artist_styles_extracted,
+    upsert_artist_styles, Artist,
 };
 
 fn is_valid_style_name(style: &str) -> bool {
@@ -55,8 +62,7 @@ fn is_valid_style_name(style: &str) -> bool {
     valid_chars
 }
 
-pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
-    let images_dir = env::var("IMAGES_DIR").expect("IMAGES_DIR environment variable must be set");
+pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY environment variable must be set");
 
     let confidence_threshold: f64 = env::var("STYLE_CONFIDENCE_THRESHOLD")
@@ -65,15 +71,97 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
         .expect("STYLE_CONFIDENCE_THRESHOLD must be a valid number between 0 and 1");
 
     let batch_size: usize = env::var("VISION_BATCH_SIZE")
-        .unwrap_or_else(|_| "8".to_string())
+        .unwrap_or_else(|_| "16".to_string())
         .parse()
-        .expect("VISION_BATCH_SIZE must be a valid number between 1 and 10");
+        .expect("VISION_BATCH_SIZE must be a valid number between 1 and 16");
+
+    let artist_limit: i16 = env::var("ARTIST_BATCH_LIMIT")
+        .unwrap_or_else(|_| "10".to_string())
+        .parse()
+        .expect("ARTIST_BATCH_LIMIT must be a valid number");
+
+    let artists = get_artists_for_style_extraction(conn, artist_limit)?;
+
+    if artists.is_empty() {
+        println!("No artists found that need style extraction.");
+        return Ok(());
+    }
+
+    println!(
+        "Found {} artists to process for style extraction",
+        artists.len()
+    );
 
     let client = Arc::new(Client::new());
-    let images_path = Path::new(&images_dir);
+
+    for artist in artists {
+        println!(
+            "\n=== Processing Artist: {} (ID: {}) ===",
+            artist.name, artist.id
+        );
+
+        match process_artist_styles(&client, &artist, batch_size, confidence_threshold).await {
+            Ok(extracted_styles) => {
+                if extracted_styles.is_empty() {
+                    println!("No styles extracted for artist: {}", artist.name);
+                } else {
+                    println!(
+                        "Extracted {} unique styles for artist: {}",
+                        extracted_styles.len(),
+                        artist.name
+                    );
+
+                    match get_or_create_style_ids(conn, &extracted_styles) {
+                        Ok(style_ids) => {
+                            if let Err(e) = upsert_artist_styles(conn, artist.id, &style_ids) {
+                                println!("Error saving styles for artist {}: {}", artist.name, e);
+                            } else {
+                                println!(
+                                    "Successfully saved {} styles for artist: {}",
+                                    style_ids.len(),
+                                    artist.name
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            println!(
+                                "Error mapping styles to IDs for artist {}: {}",
+                                artist.name, e
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Error processing styles for artist {}: {}", artist.name, e);
+            }
+        }
+
+        if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
+            println!("Error marking artist {} as processed: {}", artist.name, e);
+        } else {
+            println!("Marked artist {} as styles_extracted", artist.name);
+        }
+    }
+
+    println!("\n=== Style Extraction Complete ===");
+    Ok(())
+}
+
+async fn process_artist_styles(
+    client: &Arc<Client<OpenAIConfig>>,
+    artist: &Artist,
+    batch_size: usize,
+    confidence_threshold: f64,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let images_path = Path::new(&artist.images_dir);
 
     if !images_path.exists() {
-        return Err(format!("Images directory does not exist: {}", images_dir).into());
+        println!(
+            "Images directory does not exist for artist {}: {}",
+            artist.name, artist.images_dir
+        );
+        return Ok(Vec::new());
     }
 
     let entries = fs::read_dir(images_path)?;
@@ -91,33 +179,35 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if image_files.is_empty() {
-        println!("No image files found in directory: {}", images_dir);
-        return Ok(());
+        println!("No image files found for artist: {}", artist.name);
+        return Ok(Vec::new());
     }
 
     println!(
-        "Found {} image files, processing in batches of {}",
+        "Found {} image files for artist: {}, processing in batches of {}",
         image_files.len(),
+        artist.name,
         batch_size
     );
 
     let semaphore = Arc::new(Semaphore::new(3));
     let mut handles = Vec::new();
-    let total_files = image_files.len();
 
     for (batch_idx, batch) in image_files.chunks(batch_size).enumerate() {
-        let client = Arc::clone(&client);
+        let client = Arc::clone(client);
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
         let batch_paths: Vec<_> = batch.to_vec();
+        let artist_name = artist.name.clone();
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
 
             println!(
-                "Processing batch {} with {} images",
+                "  Processing batch {} of {} images for artist: {}",
                 batch_idx + 1,
-                batch_paths.len()
+                batch_paths.len(),
+                artist_name
             );
 
             let mut content_parts = vec![
@@ -126,14 +216,14 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                         text: format!(
                             "Analyze these {} images. For each image, determine if it shows a tattoo. If it is NOT a tattoo, respond with 'NOT_TATTOO'. If it IS a tattoo, identify the artistic styles with confidence scores above {}.
 
-Format your response as a JSON array with one object per image (in order):
-[
-  {{\"image\": 1, \"result\": \"NOT_TATTOO\"}},
-  {{\"image\": 2, \"result\": \"style1:0.95,style2:0.97\"}},
-  {{\"image\": 3, \"result\": \"\"}}
-]
+                              Format your response as a JSON array with one object per image (in order):
+                              [
+                                {{\"image\": 1, \"result\": \"NOT_TATTOO\"}},
+                                {{\"image\": 2, \"result\": \"style1:0.95,style2:0.97\"}},
+                                {{\"image\": 3, \"result\": \"\"}}
+                              ]
 
-Only include styles with confidence > {}. If no confident styles, use empty string for result.",
+                              Only include styles with confidence > {}. If no confident styles, use empty string for result.",
                             batch_paths.len(), threshold, threshold
                         ),
                     }
@@ -144,7 +234,7 @@ Only include styles with confidence > {}. If no confident styles, use empty stri
                 let image_data = match fs::read(image_path) {
                     Ok(data) => data,
                     Err(e) => {
-                        println!("Error reading image {:?}: {}", image_path.file_name(), e);
+                        println!("  Error reading image {:?}: {}", image_path.file_name(), e);
                         continue;
                     }
                 };
@@ -181,18 +271,22 @@ Only include styles with confidence > {}. If no confident styles, use empty stri
 
             let request = match CreateChatCompletionRequestArgs::default()
                 .model("gpt-4o")
-                .max_tokens(300u32)
+                .max_tokens(500u32)
                 .messages([user_message])
                 .build()
             {
                 Ok(req) => req,
                 Err(e) => {
-                    println!("Error building request for batch {}: {}", batch_idx + 1, e);
+                    println!(
+                        "  Error building request for batch {}: {}",
+                        batch_idx + 1,
+                        e
+                    );
                     return Vec::new();
                 }
             };
 
-            let timeout_duration = tokio::time::Duration::from_secs(60);
+            let timeout_duration = tokio::time::Duration::from_secs(90);
 
             match tokio::time::timeout(timeout_duration, client.chat().create(request)).await {
                 Ok(Ok(response)) => {
@@ -201,7 +295,7 @@ Only include styles with confidence > {}. If no confident styles, use empty stri
                             let content_trimmed = content.trim();
 
                             println!(
-                                "Raw GPT response for batch {}: '{}'",
+                                "  Raw GPT response for batch {}: '{}'",
                                 batch_idx + 1,
                                 content_trimmed
                             );
@@ -239,11 +333,11 @@ Only include styles with confidence > {}. If no confident styles, use empty stri
                                         {
                                             if result_str == "NOT_TATTOO" {
                                                 println!(
-                                                    "Image {:?} is not a tattoo",
+                                                    "    Image {:?} is not a tattoo",
                                                     image_path.file_name()
                                                 );
                                             } else if result_str.is_empty() {
-                                                println!("Image {:?} is a tattoo but no confident styles", image_path.file_name());
+                                                println!("    Image {:?} is a tattoo but no confident styles", image_path.file_name());
                                             } else {
                                                 let mut image_styles = Vec::new();
                                                 for style_entry in result_str.split(',') {
@@ -259,51 +353,45 @@ Only include styles with confidence > {}. If no confident styles, use empty stri
                                                             if let Ok(confidence) =
                                                                 confidence_str.trim().parse::<f64>()
                                                             {
-                                                                println!("  Style '{}' confidence: {} (threshold: {})", style, confidence, threshold);
                                                                 if confidence > threshold {
                                                                     image_styles.push(style);
-                                                                } else {
-                                                                    println!("  Rejected '{}' - confidence {} <= threshold {}", style, confidence, threshold);
                                                                 }
-                                                            } else {
-                                                                println!("  Failed to parse confidence for '{}': '{}'", style, confidence_str.trim());
                                                             }
-                                                        } else {
-                                                            println!("  Rejected invalid style name: '{}'", style);
                                                         }
-                                                    } else {
-                                                        println!(
-                                                            "  Malformed entry (no colon): '{}'",
-                                                            style_entry
-                                                        );
                                                     }
                                                 }
 
-                                                println!(
-                                                    "High-confidence styles for {:?}: {}",
-                                                    image_path.file_name(),
-                                                    image_styles.join(", ")
-                                                );
-                                                batch_styles.extend(image_styles);
+                                                if !image_styles.is_empty() {
+                                                    println!(
+                                                        "    High-confidence styles for {:?}: {}",
+                                                        image_path.file_name(),
+                                                        image_styles.join(", ")
+                                                    );
+                                                    batch_styles.extend(image_styles);
+                                                }
                                             }
                                         }
                                     }
                                 }
-                                Err(_) => {
-                                    println!("Failed to parse JSON response for batch {}, falling back to old format", batch_idx + 1);
+                                Err(e) => {
+                                    println!(
+                                        "  Failed to parse JSON response for batch {}: {}",
+                                        batch_idx + 1,
+                                        e
+                                    );
                                 }
                             }
 
                             return batch_styles;
                         }
                     }
-                    println!("No content in response for batch {}", batch_idx + 1);
+                    println!("  No content in response for batch {}", batch_idx + 1);
                 }
                 Ok(Err(e)) => {
-                    println!("API error processing batch {}: {}", batch_idx + 1, e);
+                    println!("  API error processing batch {}: {}", batch_idx + 1, e);
                 }
                 Err(_) => {
-                    println!("Timeout processing batch {}", batch_idx + 1);
+                    println!("  Timeout processing batch {}", batch_idx + 1);
                 }
             }
 
@@ -315,54 +403,32 @@ Only include styles with confidence > {}. If no confident styles, use empty stri
     }
 
     let mut all_styles = Vec::new();
-    let mut tattoo_with_styles_count = 0;
-    let mut non_tattoo_count = 0;
-    let mut error_count = 0;
-
     for handle in handles {
         match handle.await {
             Ok(styles) => {
-                if !styles.is_empty() {
-                    all_styles.extend(styles);
-                }
+                all_styles.extend(styles);
             }
             Err(e) => {
-                println!("Task failed: {}", e);
-                error_count += 1;
+                println!("  Task failed: {}", e);
             }
         }
     }
 
-    tattoo_with_styles_count = all_styles.len();
-    non_tattoo_count = total_files - tattoo_with_styles_count;
-
-    println!("\n=== PROCESSING SUMMARY ===");
-    println!("Total images processed: {}", total_files);
-    println!(
-        "Images with high-confidence tattoo styles (>{}): {}",
-        confidence_threshold, tattoo_with_styles_count
-    );
-    println!(
-        "Images with no confident styles or non-tattoos: {}",
-        non_tattoo_count
-    );
-    if error_count > 0 {
-        println!("Images with processing errors: {}", error_count);
-    }
-
-    let mut style_counts = std::collections::HashMap::new();
+    let mut unique_styles = HashMap::new();
     for style in all_styles {
-        *style_counts.entry(style).or_insert(0) += 1;
+        *unique_styles.entry(style).or_insert(0) += 1;
     }
 
-    println!("\n=== TATTOO STYLE ANALYSIS RESULTS ===");
-    let mut sorted_styles: Vec<_> = style_counts.iter().collect();
-    sorted_styles.sort_by(|a, b| b.1.cmp(a.1));
+    let style_names: Vec<String> = unique_styles.keys().cloned().collect();
 
-    for (style, count) in sorted_styles {
-        println!("{}: {} occurrences", style, count);
+    if !style_names.is_empty() {
+        println!(
+            "  Unique styles found for {}: {}",
+            artist.name,
+            style_names.join(", ")
+        );
     }
 
-    Ok(())
+    Ok(style_names)
 }
 
