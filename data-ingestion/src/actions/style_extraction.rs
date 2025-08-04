@@ -1,4 +1,5 @@
 use base64::Engine;
+use serde_json::Value;
 use std::{env, fs, path::Path, sync::Arc};
 use tokio::sync::Semaphore;
 
@@ -63,6 +64,11 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
         .parse()
         .expect("STYLE_CONFIDENCE_THRESHOLD must be a valid number between 0 and 1");
 
+    let batch_size: usize = env::var("VISION_BATCH_SIZE")
+        .unwrap_or_else(|_| "8".to_string())
+        .parse()
+        .expect("VISION_BATCH_SIZE must be a valid number between 1 and 10");
+
     let client = Arc::new(Client::new());
     let images_path = Path::new(&images_dir);
 
@@ -89,90 +95,104 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    println!("Found {} image files", image_files.len());
+    println!(
+        "Found {} image files, processing in batches of {}",
+        image_files.len(),
+        batch_size
+    );
 
-    let semaphore = Arc::new(Semaphore::new(5));
+    let semaphore = Arc::new(Semaphore::new(3));
     let mut handles = Vec::new();
     let total_files = image_files.len();
 
-    for (i, image_path) in image_files.into_iter().enumerate() {
+    for (batch_idx, batch) in image_files.chunks(batch_size).enumerate() {
         let client = Arc::clone(&client);
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
+        let batch_paths: Vec<_> = batch.to_vec();
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
 
             println!(
-                "Processing image {}/{}: {:?}",
-                i + 1,
-                total_files,
-                image_path.file_name()
+                "Processing batch {} with {} images",
+                batch_idx + 1,
+                batch_paths.len()
             );
 
-            let image_data = match fs::read(&image_path) {
-                Ok(data) => data,
-                Err(e) => {
-                    println!("Error reading image {:?}: {}", image_path.file_name(), e);
-                    return Vec::new();
-                }
-            };
+            let mut content_parts = vec![
+                ChatCompletionRequestUserMessageContentPart::Text(
+                    ChatCompletionRequestMessageContentPartText {
+                        text: format!(
+                            "Analyze these {} images. For each image, determine if it shows a tattoo. If it is NOT a tattoo, respond with 'NOT_TATTOO'. If it IS a tattoo, identify the artistic styles with confidence scores above {}.
 
-            let base64_image = base64::engine::general_purpose::STANDARD.encode(&image_data);
+Format your response as a JSON array with one object per image (in order):
+[
+  {{\"image\": 1, \"result\": \"NOT_TATTOO\"}},
+  {{\"image\": 2, \"result\": \"style1:0.95,style2:0.97\"}},
+  {{\"image\": 3, \"result\": \"\"}}
+]
 
-            let mime_type = match image_path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| ext.to_lowercase())
-            {
-                Some(ext) if ext == "jpg" || ext == "jpeg" => "image/jpeg",
-                Some(ext) if ext == "png" => "image/png",
-                Some(ext) if ext == "webp" => "image/webp",
-                Some(ext) if ext == "gif" => "image/gif",
-                _ => "image/jpeg",
-            };
-
-            let data_url = format!("data:{};base64,{}", mime_type, base64_image);
-
-            let user_message = ChatCompletionRequestMessage::User(
-                ChatCompletionRequestUserMessage {
-                    content: ChatCompletionRequestUserMessageContent::Array(vec![
-                        ChatCompletionRequestUserMessageContentPart::Text(
-                            ChatCompletionRequestMessageContentPartText {
-                                text: format!("First, determine if this image shows a tattoo. If it is NOT a tattoo, respond with exactly 'NOT_TATTOO'. If it IS a tattoo, analyze the tattoo and identify ALL the specific artistic styles present with confidence scores. Only include styles where you have high confidence (above {}). Your response must ONLY contain the style:confidence pairs in this exact format: 'style1:0.95,style2:0.97,style3:0.96' with NO additional text, explanations, or commentary. If you are not confident (above {}) about any styles, return completely empty (no text at all).", threshold, threshold),
-                            }
+Only include styles with confidence > {}. If no confident styles, use empty string for result.",
+                            batch_paths.len(), threshold, threshold
                         ),
-                        ChatCompletionRequestUserMessageContentPart::ImageUrl(
-                            ChatCompletionRequestMessageContentPartImage {
-                                image_url: ImageUrl {
-                                    url: data_url,
-                                    detail: None,
-                                }
-                            }
-                        )
-                    ]),
+                    }
+                )
+            ];
+
+            for image_path in &batch_paths {
+                let image_data = match fs::read(image_path) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        println!("Error reading image {:?}: {}", image_path.file_name(), e);
+                        continue;
+                    }
+                };
+
+                let base64_image = base64::engine::general_purpose::STANDARD.encode(&image_data);
+                let mime_type = match image_path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext.to_lowercase())
+                {
+                    Some(ext) if ext == "jpg" || ext == "jpeg" => "image/jpeg",
+                    Some(ext) if ext == "png" => "image/png",
+                    Some(ext) if ext == "webp" => "image/webp",
+                    Some(ext) if ext == "gif" => "image/gif",
+                    _ => "image/jpeg",
+                };
+
+                let data_url = format!("data:{};base64,{}", mime_type, base64_image);
+                content_parts.push(ChatCompletionRequestUserMessageContentPart::ImageUrl(
+                    ChatCompletionRequestMessageContentPartImage {
+                        image_url: ImageUrl {
+                            url: data_url,
+                            detail: None,
+                        },
+                    },
+                ));
+            }
+
+            let user_message =
+                ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
+                    content: ChatCompletionRequestUserMessageContent::Array(content_parts),
                     name: None,
-                }
-            );
+                });
 
             let request = match CreateChatCompletionRequestArgs::default()
                 .model("gpt-4o")
-                .max_tokens(150u32)
+                .max_tokens(300u32)
                 .messages([user_message])
                 .build()
             {
                 Ok(req) => req,
                 Err(e) => {
-                    println!(
-                        "Error building request for {:?}: {}",
-                        image_path.file_name(),
-                        e
-                    );
+                    println!("Error building request for batch {}: {}", batch_idx + 1, e);
                     return Vec::new();
                 }
             };
 
-            let timeout_duration = tokio::time::Duration::from_secs(30);
+            let timeout_duration = tokio::time::Duration::from_secs(60);
 
             match tokio::time::timeout(timeout_duration, client.chat().create(request)).await {
                 Ok(Ok(response)) => {
@@ -181,110 +201,113 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                             let content_trimmed = content.trim();
 
                             println!(
-                                "Raw GPT response for {:?}: '{}'",
-                                image_path.file_name(),
+                                "Raw GPT response for batch {}: '{}'",
+                                batch_idx + 1,
                                 content_trimmed
                             );
 
-                            if content_trimmed == "NOT_TATTOO" {
-                                println!(
-                                    "Image {:?} is not a tattoo - skipping style analysis",
-                                    image_path.file_name()
-                                );
-                                return Vec::new();
-                            }
+                            let mut batch_styles = Vec::new();
 
-                            if content_trimmed.is_empty() {
-                                println!(
-                                    "Image {:?} is a tattoo but no styles identified with sufficient confidence",
-                                    image_path.file_name()
-                                );
-                                return Vec::new();
-                            }
-
-                            let mut high_confidence_styles = Vec::new();
-                            let mut all_styles_with_confidence = Vec::new();
-
-                            for style_entry in content_trimmed.split(',') {
-                                let style_entry = style_entry.trim();
-
-                                if style_entry.is_empty() {
-                                    continue;
-                                }
-
-                                if let Some((style, confidence_str)) = style_entry.split_once(':') {
-                                    let style = style.trim().to_lowercase();
-
-                                    if is_valid_style_name(&style) {
-                                        if let Ok(confidence) = confidence_str.trim().parse::<f64>()
-                                        {
-                                            if confidence >= 0.0 && confidence <= 1.0 {
-                                                all_styles_with_confidence
-                                                    .push(format!("{}:{:.2}", style, confidence));
-
-                                                if confidence > threshold {
-                                                    high_confidence_styles.push(style);
-                                                }
-                                            } else {
-                                                println!("Rejected invalid confidence range for '{}': {}", style, confidence);
-                                            }
-                                        } else {
-                                            println!(
-                                                "Rejected invalid confidence format for '{}': '{}'",
-                                                style,
-                                                confidence_str.trim()
-                                            );
-                                        }
-                                    } else {
-                                        println!("Rejected invalid style name: '{}'", style);
-                                    }
+                            let json_content = if content_trimmed.starts_with("```json") {
+                                content_trimmed
+                                    .strip_prefix("```json")
+                                    .and_then(|s| s.strip_suffix("```"))
+                                    .unwrap_or(content_trimmed)
+                                    .trim()
+                                    .to_string()
+                            } else if content_trimmed.starts_with("```") {
+                                let lines: Vec<&str> = content_trimmed.lines().collect();
+                                if lines.len() > 2 {
+                                    lines[1..lines.len() - 1].join("\n")
                                 } else {
-                                    println!(
-                                        "Rejected malformed entry (no colon): '{}'",
-                                        style_entry
-                                    );
+                                    content_trimmed.to_string()
+                                }
+                            } else {
+                                content_trimmed.to_string()
+                            };
+
+                            match serde_json::from_str::<Vec<Value>>(&json_content) {
+                                Ok(results) => {
+                                    for (img_idx, result) in results.iter().enumerate() {
+                                        if img_idx >= batch_paths.len() {
+                                            break;
+                                        }
+
+                                        let image_path = &batch_paths[img_idx];
+                                        if let Some(result_str) =
+                                            result.get("result").and_then(|r| r.as_str())
+                                        {
+                                            if result_str == "NOT_TATTOO" {
+                                                println!(
+                                                    "Image {:?} is not a tattoo",
+                                                    image_path.file_name()
+                                                );
+                                            } else if result_str.is_empty() {
+                                                println!("Image {:?} is a tattoo but no confident styles", image_path.file_name());
+                                            } else {
+                                                let mut image_styles = Vec::new();
+                                                for style_entry in result_str.split(',') {
+                                                    let style_entry = style_entry.trim();
+                                                    if let Some((style, confidence_str)) =
+                                                        style_entry.split_once(':')
+                                                    {
+                                                        let style = style
+                                                            .trim()
+                                                            .replace('_', " ")
+                                                            .to_lowercase();
+                                                        if is_valid_style_name(&style) {
+                                                            if let Ok(confidence) =
+                                                                confidence_str.trim().parse::<f64>()
+                                                            {
+                                                                println!("  Style '{}' confidence: {} (threshold: {})", style, confidence, threshold);
+                                                                if confidence > threshold {
+                                                                    image_styles.push(style);
+                                                                } else {
+                                                                    println!("  Rejected '{}' - confidence {} <= threshold {}", style, confidence, threshold);
+                                                                }
+                                                            } else {
+                                                                println!("  Failed to parse confidence for '{}': '{}'", style, confidence_str.trim());
+                                                            }
+                                                        } else {
+                                                            println!("  Rejected invalid style name: '{}'", style);
+                                                        }
+                                                    } else {
+                                                        println!(
+                                                            "  Malformed entry (no colon): '{}'",
+                                                            style_entry
+                                                        );
+                                                    }
+                                                }
+
+                                                println!(
+                                                    "High-confidence styles for {:?}: {}",
+                                                    image_path.file_name(),
+                                                    image_styles.join(", ")
+                                                );
+                                                batch_styles.extend(image_styles);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    println!("Failed to parse JSON response for batch {}, falling back to old format", batch_idx + 1);
                                 }
                             }
 
-                            println!(
-                                "All identified styles for {:?}: {}",
-                                image_path.file_name(),
-                                all_styles_with_confidence.join(", ")
-                            );
-
-                            if high_confidence_styles.is_empty() {
-                                println!(
-                                    "No styles with confidence > {} for {:?}",
-                                    threshold,
-                                    image_path.file_name()
-                                );
-                            } else {
-                                println!(
-                                    "High-confidence styles (>{}) for {:?}: {}",
-                                    threshold,
-                                    image_path.file_name(),
-                                    high_confidence_styles.join(", ")
-                                );
-                            }
-
-                            return high_confidence_styles;
+                            return batch_styles;
                         }
                     }
-                    println!("No content in response for {:?}", image_path.file_name());
+                    println!("No content in response for batch {}", batch_idx + 1);
                 }
                 Ok(Err(e)) => {
-                    println!(
-                        "API error processing image {:?}: {}",
-                        image_path.file_name(),
-                        e
-                    );
+                    println!("API error processing batch {}: {}", batch_idx + 1, e);
                 }
                 Err(_) => {
-                    println!("Timeout processing image {:?}", image_path.file_name());
+                    println!("Timeout processing batch {}", batch_idx + 1);
                 }
             }
 
-            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
             Vec::new()
         });
 
@@ -299,13 +322,7 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
     for handle in handles {
         match handle.await {
             Ok(styles) => {
-                if styles.is_empty() {
-                    // This could be either non-tattoo or tattoo with no confident styles
-                    // We'll track this as part of the processing, but the actual categorization
-                    // happens in the individual tasks based on the response content
-                    non_tattoo_count += 1;
-                } else {
-                    tattoo_with_styles_count += 1;
+                if !styles.is_empty() {
                     all_styles.extend(styles);
                 }
             }
@@ -315,6 +332,9 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    tattoo_with_styles_count = all_styles.len();
+    non_tattoo_count = total_files - tattoo_with_styles_count;
 
     println!("\n=== PROCESSING SUMMARY ===");
     println!("Total images processed: {}", total_files);
@@ -345,3 +365,4 @@ pub async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
