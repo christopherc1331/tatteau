@@ -19,6 +19,48 @@ use rusqlite::Connection;
 use serde_json::Value;
 use shared_types::CountyBoundary;
 
+fn is_valid_style_name(style: &str) -> bool {
+    if style.is_empty() || style.len() > 50 {
+        return false;
+    }
+
+    let invalid_phrases = [
+        "this image",
+        "shows",
+        "tattoo",
+        "image",
+        "appears",
+        "seems",
+        "contains",
+        "displays",
+        "depicts",
+        "features",
+        "has",
+        "is",
+        "the style",
+        "the tattoo",
+        "analysis",
+        "identified",
+        "present",
+    ];
+
+    for phrase in &invalid_phrases {
+        if style.contains(phrase) {
+            return false;
+        }
+    }
+
+    if style.contains('.') || style.contains('!') || style.contains('?') {
+        return false;
+    }
+
+    let valid_chars = style.chars().all(|c| {
+        c.is_alphabetic() || c.is_whitespace() || c == '-' || c == '&' || c.is_ascii_digit()
+    });
+
+    valid_chars
+}
+
 pub mod data_fetcher;
 pub mod data_parser;
 pub mod repository;
@@ -199,7 +241,7 @@ async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                     content: ChatCompletionRequestUserMessageContent::Array(vec![
                         ChatCompletionRequestUserMessageContentPart::Text(
                             ChatCompletionRequestMessageContentPartText {
-                                text: "First, determine if this image shows a tattoo. If it is NOT a tattoo, respond with exactly 'NOT_TATTOO'. If it IS a tattoo, analyze the tattoo and identify ALL the specific artistic styles present. Don't limit yourself to common styles - identify any and all tattoo styles you can see, including but not limited to: traditional, neo-traditional, realism, black and grey, watercolor, geometric, minimalist, tribal, Japanese, biomechanical, dotwork, linework, portrait, abstract, surreal, fine line, sketch, blackwork, color realism, photorealism, new school, old school, Celtic, mandala, script, lettering, illustrative, ornamental, or any other style. Be comprehensive and identify all styles you observe. Return only a comma-separated list of the styles you can identify.".to_string(),
+                                text: "First, determine if this image shows a tattoo. If it is NOT a tattoo, respond with exactly 'NOT_TATTOO'. If it IS a tattoo, analyze the tattoo and identify ALL the specific artistic styles present with confidence scores. Only include styles where you have high confidence (above 0.80). Your response must ONLY contain the style:confidence pairs in this exact format: 'style1:0.95,style2:0.87,style3:0.92' with NO additional text, explanations, or commentary. If you are not confident (above 0.80) about any styles, return completely empty (no text at all).".to_string(),
                             }
                         ),
                         ChatCompletionRequestUserMessageContentPart::ImageUrl(
@@ -240,6 +282,12 @@ async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(content) = &choice.message.content {
                             let content_trimmed = content.trim();
 
+                            println!(
+                                "Raw GPT response for {:?}: '{}'",
+                                image_path.file_name(),
+                                content_trimmed
+                            );
+
                             if content_trimmed == "NOT_TATTOO" {
                                 println!(
                                     "Image {:?} is not a tattoo - skipping style analysis",
@@ -248,17 +296,78 @@ async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
                                 return Vec::new();
                             }
 
-                            let styles: Vec<String> = content_trimmed
-                                .split(',')
-                                .map(|s| s.trim().to_lowercase())
-                                .filter(|s| !s.is_empty())
-                                .collect();
+                            if content_trimmed.is_empty() {
+                                println!(
+                                    "Image {:?} is a tattoo but no styles identified with sufficient confidence",
+                                    image_path.file_name()
+                                );
+                                return Vec::new();
+                            }
+
+                            let mut high_confidence_styles = Vec::new();
+                            let mut all_styles_with_confidence = Vec::new();
+
+                            for style_entry in content_trimmed.split(',') {
+                                let style_entry = style_entry.trim();
+
+                                if style_entry.is_empty() {
+                                    continue;
+                                }
+
+                                if let Some((style, confidence_str)) = style_entry.split_once(':') {
+                                    let style = style.trim().to_lowercase();
+
+                                    if is_valid_style_name(&style) {
+                                        if let Ok(confidence) = confidence_str.trim().parse::<f64>()
+                                        {
+                                            if confidence >= 0.0 && confidence <= 1.0 {
+                                                all_styles_with_confidence
+                                                    .push(format!("{}:{:.2}", style, confidence));
+
+                                                if confidence > 0.80 {
+                                                    high_confidence_styles.push(style);
+                                                }
+                                            } else {
+                                                println!("Rejected invalid confidence range for '{}': {}", style, confidence);
+                                            }
+                                        } else {
+                                            println!(
+                                                "Rejected invalid confidence format for '{}': '{}'",
+                                                style,
+                                                confidence_str.trim()
+                                            );
+                                        }
+                                    } else {
+                                        println!("Rejected invalid style name: '{}'", style);
+                                    }
+                                } else {
+                                    println!(
+                                        "Rejected malformed entry (no colon): '{}'",
+                                        style_entry
+                                    );
+                                }
+                            }
+
                             println!(
-                                "Identified styles for {:?}: {}",
+                                "All identified styles for {:?}: {}",
                                 image_path.file_name(),
-                                content
+                                all_styles_with_confidence.join(", ")
                             );
-                            return styles;
+
+                            if high_confidence_styles.is_empty() {
+                                println!(
+                                    "No styles with confidence > 0.80 for {:?}",
+                                    image_path.file_name()
+                                );
+                            } else {
+                                println!(
+                                    "High-confidence styles (>0.80) for {:?}: {}",
+                                    image_path.file_name(),
+                                    high_confidence_styles.join(", ")
+                                );
+                            }
+
+                            return high_confidence_styles;
                         }
                     }
                     println!("No content in response for {:?}", image_path.file_name());
@@ -283,7 +392,7 @@ async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut all_styles = Vec::new();
-    let mut tattoo_count = 0;
+    let mut tattoo_with_styles_count = 0;
     let mut non_tattoo_count = 0;
     let mut error_count = 0;
 
@@ -291,9 +400,12 @@ async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
         match handle.await {
             Ok(styles) => {
                 if styles.is_empty() {
+                    // This could be either non-tattoo or tattoo with no confident styles
+                    // We'll track this as part of the processing, but the actual categorization
+                    // happens in the individual tasks based on the response content
                     non_tattoo_count += 1;
                 } else {
-                    tattoo_count += 1;
+                    tattoo_with_styles_count += 1;
                     all_styles.extend(styles);
                 }
             }
@@ -306,8 +418,14 @@ async fn extract_styles() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== PROCESSING SUMMARY ===");
     println!("Total images processed: {}", total_files);
-    println!("Images identified as tattoos: {}", tattoo_count);
-    println!("Images identified as non-tattoos: {}", non_tattoo_count);
+    println!(
+        "Images with high-confidence tattoo styles (>0.80): {}",
+        tattoo_with_styles_count
+    );
+    println!(
+        "Images with no confident styles or non-tattoos: {}",
+        non_tattoo_count
+    );
     if error_count > 0 {
         println!("Images with processing errors: {}", error_count);
     }
