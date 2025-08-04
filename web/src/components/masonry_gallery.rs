@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::window;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,7 +29,7 @@ impl MasonryLayout {
     pub fn calculate(images: &[ImageItem], columns: u32, gap: u32, column_width: u32) -> Self {
         let mut column_heights = vec![1u32; columns as usize];
         let mut items = Vec::new();
-        
+
         for image in images {
             // Find the shortest column
             let shortest_col = column_heights
@@ -37,30 +38,30 @@ impl MasonryLayout {
                 .min_by_key(|(_, &height)| height)
                 .map(|(idx, _)| idx)
                 .unwrap_or(0);
-            
+
             // Calculate aspect ratio and height for this column width
             let aspect_ratio = image.height as f64 / image.width as f64;
             let display_height = (column_width as f64 * aspect_ratio) as u32;
-            
+
             // Convert to grid units (assuming each grid unit = 5px for tighter packing)
             let grid_height = (display_height / 5).max(1);
-            
+
             let row_start = column_heights[shortest_col];
             let row_span = grid_height + (gap / 5); // Adjust gap for 5px units
-            
+
             items.push(MasonryItem {
                 image: image.clone(),
                 row_start,
-                row_end: row_span, // Now using this as span instead
+                row_end: row_span,               // Now using this as span instead
                 column: shortest_col as u32 + 1, // CSS Grid is 1-indexed
             });
-            
+
             // Update column height
             column_heights[shortest_col] = row_start + row_span;
         }
-        
+
         let total_rows = column_heights.into_iter().max().unwrap_or(1);
-        
+
         Self { items, total_rows }
     }
 }
@@ -159,7 +160,7 @@ pub fn generate_sample_images() -> Vec<ImageItem> {
 pub fn MasonryGallery() -> impl IntoView {
     let (screen_width, set_screen_width) = signal(1200u32);
     let images = generate_sample_images();
-    
+
     // Calculate responsive columns
     let column_count = Memo::new(move |_| {
         let width = screen_width.get();
@@ -173,19 +174,29 @@ pub fn MasonryGallery() -> impl IntoView {
             1
         }
     });
-    
-    // Set initial width
+
     Effect::new(move |_| {
-        if let Some(window) = window() {
-            let width = window.inner_width().unwrap().as_f64().unwrap() as u32;
+        if let Some(win) = window() {
+            let width = win.inner_width().unwrap().as_f64().unwrap() as u32;
             set_screen_width.set(width);
+
+            let resize_closure = Closure::wrap(Box::new(move |_: web_sys::Event| {
+                if let Some(win) = window() {
+                    let width = win.inner_width().unwrap().as_f64().unwrap() as u32;
+                    set_screen_width.set(width);
+                }
+            }) as Box<dyn FnMut(_)>);
+
+            win.add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
+                .unwrap();
+            resize_closure.forget();
         }
     });
-    
+
     view! {
         <div class="masonry-gallery">
             <h1>"Masonry Gallery"</h1>
-            <div 
+            <div
                 class="masonry-grid"
                 style:column-count=move || column_count.get().to_string()
             >
@@ -195,7 +206,7 @@ pub fn MasonryGallery() -> impl IntoView {
                     children=move |item: ImageItem| {
                         view! {
                             <div class="masonry-item">
-                                <img 
+                                <img
                                     src=item.url
                                     alt=item.alt
                                     loading="lazy"
@@ -208,3 +219,4 @@ pub fn MasonryGallery() -> impl IntoView {
         </div>
     }
 }
+
