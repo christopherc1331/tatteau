@@ -157,9 +157,17 @@ pub fn generate_sample_images() -> Vec<ImageItem> {
 }
 
 #[component]
-pub fn MasonryGallery() -> impl IntoView {
+pub fn MasonryGallery(
+    #[prop(optional, default = Vec::new())] images: Vec<ImageItem>,
+) -> impl IntoView {
     let (screen_width, set_screen_width) = signal(1200u32);
-    let images = generate_sample_images();
+
+    // Use provided images or fall back to sample images
+    let gallery_images = if images.is_empty() {
+        generate_sample_images()
+    } else {
+        images
+    };
 
     // Calculate responsive columns
     let column_count = Memo::new(move |_| {
@@ -201,7 +209,7 @@ pub fn MasonryGallery() -> impl IntoView {
                 style:column-count=move || column_count.get().to_string()
             >
                 <For
-                    each=move || images.clone()
+                    each=move || gallery_images.clone()
                     key=|item| item.id.clone()
                     children=move |item: ImageItem| {
                         view! {
@@ -219,4 +227,3 @@ pub fn MasonryGallery() -> impl IntoView {
         </div>
     }
 }
-
