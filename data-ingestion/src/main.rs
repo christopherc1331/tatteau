@@ -15,9 +15,9 @@ enum IngestAction {
 impl IngestAction {
     fn new(action: &str) -> Self {
         match action {
-            "SCRAPE_HTML" => IngestAction::Scrape,
-            "GOOGLE_API" => IngestAction::GoogleApi,
-            "EXTRACT_STYLES" => IngestAction::ExtractStyles,
+            "SCRAPE_HTML" => Self::Scrape,
+            "GOOGLE_API" => Self::GoogleApi,
+            "EXTRACT_STYLES" => Self::ExtractStyles,
             _ => panic!("Invalid action"),
         }
     }
