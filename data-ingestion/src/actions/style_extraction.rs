@@ -253,12 +253,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
                                                 "Error saving styles for image {}: {}",
                                                 result.shortcode, e
                                             );
-                                        } else {
-                                            println!(
-                                                "Saved {} styles for shortcode {}",
-                                                style_ids.len(),
-                                                result.shortcode
-                                            );
                                         }
 
                                         for (name, id) in style_names.iter().zip(style_ids.iter()) {
@@ -455,20 +449,31 @@ async fn process_artist_posts(
                 ChatCompletionRequestUserMessageContentPart::Text(
                     ChatCompletionRequestMessageContentPartText {
                         text: format!(
-                            "Analyze these {} tattoo images. For each image, identify the artistic styles and provide confidence scores (0.0 to 1.0).
+                            "Analyze these {} images. For each image, first determine if it shows a tattoo, then identify ALL artistic styles present if it is a tattoo.
 
-                            Format your response as a JSON array with one object per image (in order):
+                            Format your response as a JSON array with one object per image (in the EXACT order provided):
                             [
-                              {{\"shortcode\": \"{}\", \"styles\": [{{\"style\": \"blackwork\", \"confidence\": 0.95}}, {{\"style\": \"geometric\", \"confidence\": 0.87}}]}},
-                              {{\"shortcode\": \"{}\", \"styles\": [{{\"style\": \"traditional\", \"confidence\": 0.92}}]}},
-                              {{\"shortcode\": \"{}\", \"styles\": []}}
+                              {{\"is_tattoo\": true, \"styles\": [{{\"style\": \"blackwork\", \"confidence\": 0.95}}, {{\"style\": \"geometric\", \"confidence\": 0.87}}]}},
+                              {{\"is_tattoo\": true, \"styles\": [{{\"style\": \"traditional\", \"confidence\": 0.92}}]}},
+                              {{\"is_tattoo\": false, \"styles\": []}},
+                              {{\"is_tattoo\": true, \"styles\": []}}
                             ]
 
-                            Include all styles you can identify, even with lower confidence. Use standard tattoo style names (e.g., blackwork, traditional, realism, watercolor, geometric, etc.).",
+                            CRITICAL INSTRUCTIONS:
+                            • FIRST: Determine if the image shows a tattoo (set \"is_tattoo\": true/false)
+                            • If \"is_tattoo\": false, set \"styles\": [] and move to next image
+                            • If \"is_tattoo\": true, identify ANY and ALL tattoo styles you can see - do NOT limit yourself to common examples
+                            • Include rare, niche, or unique styles (e.g., trash polka, chicano, biomechanical, dotwork, fine line, etc.)
+                            • Use specific style names when possible (e.g., 'neo traditional' not just 'traditional')
+                            • Include cultural styles (e.g., japanese, polynesian, celtic, etc.)
+                            • Include technique-based styles (e.g., stippling, linework, shading styles)
+                            • The examples (blackwork, traditional, realism, watercolor, geometric) are just EXAMPLES - identify whatever styles you actually see
+                            • Include all styles you can identify, even with lower confidence scores
+                            • Be comprehensive and thorough in your style identification for tattoo images
+                            
+                            IMPORTANT: Return exactly {} objects in the array, one for each image in order.",
                             batch_posts.len(),
-                            batch_posts.get(0).map(|p| &p.shortcode).unwrap_or(&"shortcode1".to_string()),
-                            batch_posts.get(1).map(|p| &p.shortcode).unwrap_or(&"shortcode2".to_string()),
-                            batch_posts.get(2).map(|p| &p.shortcode).unwrap_or(&"shortcode3".to_string())
+                            batch_posts.len()
                         ),
                     }
                 )
@@ -559,11 +564,6 @@ async fn process_artist_posts(
                         if let Some(content) = &choice.message.content {
                             let content_trimmed = content.trim();
 
-                            println!(
-                                "  Raw GPT response for batch {}: '{}'",
-                                batch_idx + 1,
-                                content_trimmed
-                            );
 
                             let json_content = if content_trimmed.starts_with("```json") {
                                 content_trimmed
@@ -592,11 +592,21 @@ async fn process_artist_posts(
                                             break;
                                         }
 
-                                        let shortcode = result
-                                            .get("shortcode")
-                                            .and_then(|s| s.as_str())
-                                            .unwrap_or(&batch_posts[idx].shortcode)
-                                            .to_string();
+                                        // Always use the real shortcode from instaloader, not GPT's response
+                                        let shortcode = batch_posts[idx].shortcode.clone();
+
+                                        // Check if this image is a tattoo
+                                        let is_tattoo = result.get("is_tattoo")
+                                            .and_then(|t| t.as_bool())
+                                            .unwrap_or(true); // Default to true for backward compatibility
+
+                                        if !is_tattoo {
+                                            println!(
+                                                "    Shortcode {}: Not a tattoo - skipping",
+                                                shortcode
+                                            );
+                                            continue; // Skip non-tattoo images entirely
+                                        }
 
                                         let mut styles = Vec::new();
 
@@ -627,11 +637,6 @@ async fn process_artist_posts(
                                             }
                                         }
 
-                                        println!(
-                                            "    Shortcode {}: {} high-confidence styles",
-                                            shortcode,
-                                            styles.len()
-                                        );
 
                                         batch_results.push(StyleResult { shortcode, styles });
                                     }
