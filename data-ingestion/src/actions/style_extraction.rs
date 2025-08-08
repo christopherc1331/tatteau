@@ -1,4 +1,6 @@
 use base64::Engine;
+use chrono::Utc;
+use indicatif::{ProgressBar, ProgressStyle};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -88,6 +90,19 @@ fn is_valid_style_name(style: &str) -> bool {
     valid_chars
 }
 
+fn log_style_action(
+    conn: &Connection,
+    artist_id: i64,
+    action: &str,
+) -> Result<(), rusqlite::Error> {
+    let timestamp = Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO style_extraction_logs (artist_id, action, timestamp) VALUES (?, ?, ?)",
+        rusqlite::params![artist_id, action, timestamp],
+    )?;
+    Ok(())
+}
+
 fn calculate_gpt4o_cost(prompt_tokens: u32, completion_tokens: u32) -> f64 {
     // GPT-4o pricing (as of latest known rates)
     let input_cost_per_1k = 0.0025;
@@ -125,62 +140,105 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
     let artists = get_artists_for_style_extraction(conn, artist_limit)?;
 
     if artists.is_empty() {
-        println!("No artists found that need style extraction.");
+        println!("🔍 No artists found that need style extraction.");
         return Ok(());
     }
 
-    println!(
-        "Found {} artists to process for style extraction",
-        artists.len()
+    println!("🎯 Instagram Style Extraction Started");
+    println!("📊 Configuration:");
+    println!("   • Artists to process: {}", artists.len());
+    println!("   • Confidence threshold: {}", confidence_threshold);
+    println!("   • Vision batch size: {}", batch_size);
+    println!("   • Max posts per artist: {}", max_posts);
+    println!("   • Cookie file: {}", cookie_file);
+
+    let progress = ProgressBar::new(artists.len() as u64);
+    progress.set_style(
+        ProgressStyle::default_bar()
+            .template("🎨 [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} artists ({eta})")
+            .unwrap()
+            .progress_chars("##-"),
     );
 
     let client = Arc::new(Client::new());
+    let mut total_posts_processed = 0;
+    let mut total_styles_found = 0;
+    let mut total_api_cost = 0.0;
 
-    for artist in artists {
+    for (artist_idx, artist) in artists.iter().enumerate() {
+        progress.set_message(format!("Processing {}", artist.name));
         println!(
-            "\n=== Processing Artist: {} (ID: {}) ===",
-            artist.name, artist.id
+            "\n🎨 [{}/{}] Processing Artist: {} (ID: {})",
+            artist_idx + 1,
+            artists.len(),
+            artist.name,
+            artist.id
+        );
+
+        let _ = log_style_action(
+            conn,
+            artist.id,
+            &format!("start_processing:{}", artist.name),
         );
 
         let ig_username = match &artist.ig_username {
             Some(username) => username.clone(),
             None => {
                 println!(
-                    "No valid Instagram username found for artist: {} - skipping",
+                    "⚠️  No valid Instagram username found for artist: {} - skipping",
                     artist.name
                 );
+                let _ = log_style_action(conn, artist.id, "skipped:no_ig_username");
+                progress.inc(1);
                 continue;
             }
         };
-        println!("Instagram username: {}", ig_username);
+        println!("📸 Instagram username: @{}", ig_username);
 
         let insta_posts = match call_instaloader(&ig_username, &cookie_file, &max_posts) {
             Ok(posts) => posts,
             Err(e) => {
-                println!("Error calling instaloader for {}: {}", artist.name, e);
+                println!("❌ Instaloader failed for {}: {}", artist.name, e);
+                let _ =
+                    log_style_action(conn, artist.id, &format!("error:instaloader_failed:{}", e));
                 let _ = cleanup_instaloader_files(&ig_username);
                 if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
-                    println!("Error marking artist {} as processed: {}", artist.name, e);
+                    println!(
+                        "⚠️  Error marking artist {} as processed: {}",
+                        artist.name, e
+                    );
                 }
+                progress.inc(1);
                 continue;
             }
         };
 
         if insta_posts.is_empty() {
-            println!("No posts retrieved from Instagram for {}", artist.name);
+            println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
+            let _ = log_style_action(conn, artist.id, "warning:no_posts_found");
             let _ = cleanup_instaloader_files(&ig_username);
             if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
-                println!("Error marking artist {} as processed: {}", artist.name, e);
+                println!(
+                    "⚠️  Error marking artist {} as processed: {}",
+                    artist.name, e
+                );
             }
+            progress.inc(1);
             continue;
         }
 
-        println!(
-            "Retrieved {} posts from Instagram for {}",
-            insta_posts.len(),
-            artist.name
+        println!("📥 Retrieved {} posts from Instagram", insta_posts.len());
+        let _ = log_style_action(
+            conn,
+            artist.id,
+            &format!("instaloader_success:{}_posts", insta_posts.len()),
         );
+        total_posts_processed += insta_posts.len();
 
+        println!(
+            "🤖 Processing {} posts with OpenAI Vision API...",
+            insta_posts.len()
+        );
         match process_artist_posts(
             conn,
             &client,
@@ -191,7 +249,15 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
         )
         .await
         {
-            Ok(style_results) => {
+            Ok((style_results, api_cost)) => {
+                println!("💰 API cost for {}: ${:.4}", artist.name, api_cost);
+                total_api_cost += api_cost;
+                let _ = log_style_action(
+                    conn,
+                    artist.id,
+                    &format!("openai_processing_complete:${:.4}", api_cost),
+                );
+
                 let mut all_artist_styles = HashMap::new();
 
                 for result in style_results {
@@ -251,38 +317,77 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
                     let artist_style_ids: Vec<i64> = all_artist_styles.values().copied().collect();
                     if let Err(e) = upsert_artist_styles(conn, artist.id, &artist_style_ids) {
                         println!(
-                            "Error saving artist-level styles for {}: {}",
+                            "❌ Error saving artist-level styles for {}: {}",
                             artist.name, e
+                        );
+                        let _ = log_style_action(
+                            conn,
+                            artist.id,
+                            &format!("error:saving_artist_styles:{}", e),
                         );
                     } else {
                         println!(
-                            "Successfully saved {} unique styles for artist: {}",
-                            artist_style_ids.len(),
-                            artist.name
+                            "✅ Saved {} unique styles for artist",
+                            artist_style_ids.len()
                         );
+                        let _ = log_style_action(
+                            conn,
+                            artist.id,
+                            &format!("success:saved_{}_styles", artist_style_ids.len()),
+                        );
+                        total_styles_found += artist_style_ids.len();
                     }
+                } else {
+                    println!("ℹ️  No high-confidence styles found for artist");
+                    let _ = log_style_action(conn, artist.id, "info:no_confident_styles");
                 }
             }
             Err(e) => {
-                println!("Error processing styles for artist {}: {}", artist.name, e);
+                println!(
+                    "❌ Error processing styles for artist {}: {}",
+                    artist.name, e
+                );
+                let _ = log_style_action(conn, artist.id, &format!("error:style_processing:{}", e));
             }
         }
 
         if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
-            println!("Error marking artist {} as processed: {}", artist.name, e);
+            println!(
+                "⚠️  Error marking artist {} as processed: {}",
+                artist.name, e
+            );
         } else {
-            println!("Marked artist {} as styles_extracted", artist.name);
+            println!("✅ Marked artist as styles_extracted");
+            let _ = log_style_action(conn, artist.id, "completed:marked_as_extracted");
         }
 
         if let Err(e) = cleanup_instaloader_files(&ig_username) {
             println!(
-                "Warning: Error cleaning up files for {}: {}",
+                "⚠️  Warning: Error cleaning up files for @{}: {}",
                 ig_username, e
             );
+            let _ = log_style_action(conn, artist.id, &format!("warning:cleanup_failed:{}", e));
+        } else {
+            println!("🗑️  Cleaned up temporary files");
+            let _ = log_style_action(conn, artist.id, "info:cleanup_successful");
         }
+
+        progress.inc(1);
+        println!("🎨 Artist {} processing complete!\n", artist.name);
     }
 
-    println!("\n=== Style Extraction Complete ===");
+    progress.finish_with_message("🎉 Style extraction complete!");
+
+    println!("📈 Final Results:");
+    println!("   • Artists processed: {}", artists.len());
+    println!("   • Total posts analyzed: {}", total_posts_processed);
+    println!("   • Unique styles found: {}", total_styles_found);
+    println!("   • Total API cost: ${:.4}", total_api_cost);
+    println!(
+        "   • Average cost per artist: ${:.4}",
+        total_api_cost / artists.len() as f64
+    );
+
     Ok(())
 }
 
@@ -291,9 +396,12 @@ fn call_instaloader(
     cookie_file: &str,
     max_posts: &str,
 ) -> Result<Vec<InstaPost>, Box<dyn std::error::Error>> {
-    println!("Calling instaloader for username: {}", username);
+    println!(
+        "📱 Calling instaloader for @{} (max {} posts)",
+        username, max_posts
+    );
 
-    let output = Command::new("python")
+    let output = Command::new("python3")
         .arg("load_ig_profiles.py")
         .arg(username)
         .arg("--cookiefile")
@@ -319,14 +427,18 @@ fn cleanup_instaloader_files(username: &str) -> Result<(), Box<dyn std::error::E
     let json_file = format!("data-ingestion/{}_posts.json", username);
     if Path::new(&json_file).exists() {
         fs::remove_file(&json_file)?;
-        println!("Deleted JSON file: {}", json_file);
+        println!("   🗑️  Deleted JSON file: {}", json_file);
     }
 
     let image_dir = format!("data-ingestion/{}", username);
     let image_path = Path::new(&image_dir);
     if image_path.exists() && image_path.is_dir() {
+        let file_count = fs::read_dir(image_path)?.count();
         fs::remove_dir_all(image_path)?;
-        println!("Deleted image directory: {}", image_dir);
+        println!(
+            "   🗑️  Deleted image directory with {} files: {}",
+            file_count, image_dir
+        );
     }
 
     Ok(())
@@ -339,11 +451,10 @@ async fn process_artist_posts(
     posts: &[InstaPost],
     batch_size: usize,
     confidence_threshold: f64,
-) -> Result<Vec<StyleResult>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<StyleResult>, f64), Box<dyn std::error::Error>> {
     println!(
-        "Processing {} posts for artist: {}, in batches of {}",
+        "   🤖 Processing {} posts in batches of {} with OpenAI Vision API",
         posts.len(),
-        artist.name,
         batch_size
     );
 
@@ -355,16 +466,16 @@ async fn process_artist_posts(
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
         let batch_posts: Vec<InstaPost> = batch.to_vec();
-        let artist_name = artist.name.clone();
+        let total_batches = (posts.len() + batch_size - 1) / batch_size;
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
 
             println!(
-                "  Processing batch {} of {} posts for artist: {}",
+                "     📸 Processing batch {}/{} ({} posts)",
                 batch_idx + 1,
-                batch_posts.len(),
-                artist_name
+                total_batches,
+                batch_posts.len()
             );
 
             let mut content_parts = vec![
@@ -619,5 +730,5 @@ async fn process_artist_posts(
         );
     }
 
-    Ok(all_results)
+    Ok((all_results, total_cost))
 }
