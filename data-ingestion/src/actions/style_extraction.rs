@@ -1,7 +1,8 @@
 use base64::Engine;
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, env, fs, path::Path, sync::Arc};
+use std::{collections::HashMap, env, fs, path::Path, process::Command, sync::Arc};
 use tokio::sync::Semaphore;
 
 use async_openai::{
@@ -16,9 +17,34 @@ use async_openai::{
 };
 
 use crate::repository::{
-    get_artists_for_style_extraction, get_or_create_style_ids, mark_artist_styles_extracted,
+    get_artists_for_style_extraction, get_or_create_style_ids, insert_artist_image,
+    insert_artist_image_styles, mark_artist_styles_extracted, update_openai_api_costs,
     upsert_artist_styles, Artist,
 };
+
+#[derive(Debug, Deserialize, Clone)]
+struct InstaPost {
+    shortcode: String,
+    filepath: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StyleResult {
+    shortcode: String,
+    styles: Vec<StyleConfidence>,
+}
+
+#[derive(Debug)]
+struct BatchResult {
+    style_results: Vec<StyleResult>,
+    api_cost: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StyleConfidence {
+    style: String,
+    confidence: f64,
+}
 
 fn is_valid_style_name(style: &str) -> bool {
     if style.is_empty() || style.len() > 50 {
@@ -62,6 +88,17 @@ fn is_valid_style_name(style: &str) -> bool {
     valid_chars
 }
 
+fn calculate_gpt4o_cost(prompt_tokens: u32, completion_tokens: u32) -> f64 {
+    // GPT-4o pricing (as of latest known rates)
+    let input_cost_per_1k = 0.0025;
+    let output_cost_per_1k = 0.01;
+
+    let input_cost = (prompt_tokens as f64 / 1000.0) * input_cost_per_1k;
+    let output_cost = (completion_tokens as f64 / 1000.0) * output_cost_per_1k;
+
+    input_cost + output_cost
+}
+
 pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY environment variable must be set");
 
@@ -79,6 +116,11 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
         .unwrap_or_else(|_| "10".to_string())
         .parse()
         .expect("ARTIST_BATCH_LIMIT must be a valid number");
+
+    let cookie_file = env::var("INSTALOADER_COOKIE_FILE")
+        .expect("INSTALOADER_COOKIE_FILE environment variable must be set");
+
+    let max_posts: String = env::var("INSTALOADER_MAX_POSTS").unwrap_or_else(|_| "10".to_string());
 
     let artists = get_artists_for_style_extraction(conn, artist_limit)?;
 
@@ -100,35 +142,124 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
             artist.name, artist.id
         );
 
-        match process_artist_styles(&client, &artist, batch_size, confidence_threshold).await {
-            Ok(extracted_styles) => {
-                if extracted_styles.is_empty() {
-                    println!("No styles extracted for artist: {}", artist.name);
-                } else {
-                    println!(
-                        "Extracted {} unique styles for artist: {}",
-                        extracted_styles.len(),
-                        artist.name
-                    );
+        let ig_username = match &artist.ig_username {
+            Some(username) => username.clone(),
+            None => {
+                println!(
+                    "No valid Instagram username found for artist: {} - skipping",
+                    artist.name
+                );
+                continue;
+            }
+        };
+        println!("Instagram username: {}", ig_username);
 
-                    match get_or_create_style_ids(conn, &extracted_styles) {
-                        Ok(style_ids) => {
-                            if let Err(e) = upsert_artist_styles(conn, artist.id, &style_ids) {
-                                println!("Error saving styles for artist {}: {}", artist.name, e);
-                            } else {
-                                println!(
-                                    "Successfully saved {} styles for artist: {}",
-                                    style_ids.len(),
-                                    artist.name
-                                );
+        let insta_posts = match call_instaloader(&ig_username, &cookie_file, &max_posts) {
+            Ok(posts) => posts,
+            Err(e) => {
+                println!("Error calling instaloader for {}: {}", artist.name, e);
+                let _ = cleanup_instaloader_files(&ig_username);
+                if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
+                    println!("Error marking artist {} as processed: {}", artist.name, e);
+                }
+                continue;
+            }
+        };
+
+        if insta_posts.is_empty() {
+            println!("No posts retrieved from Instagram for {}", artist.name);
+            let _ = cleanup_instaloader_files(&ig_username);
+            if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
+                println!("Error marking artist {} as processed: {}", artist.name, e);
+            }
+            continue;
+        }
+
+        println!(
+            "Retrieved {} posts from Instagram for {}",
+            insta_posts.len(),
+            artist.name
+        );
+
+        match process_artist_posts(
+            conn,
+            &client,
+            &artist,
+            &insta_posts,
+            batch_size,
+            confidence_threshold,
+        )
+        .await
+        {
+            Ok(style_results) => {
+                let mut all_artist_styles = HashMap::new();
+
+                for result in style_results {
+                    match insert_artist_image(conn, &result.shortcode, artist.id) {
+                        Ok(artist_image_id) => {
+                            let style_names: Vec<String> = result
+                                .styles
+                                .iter()
+                                .filter(|s| s.confidence >= confidence_threshold)
+                                .map(|s| s.style.clone())
+                                .filter(|s| is_valid_style_name(s))
+                                .collect();
+
+                            if !style_names.is_empty() {
+                                match get_or_create_style_ids(conn, &style_names) {
+                                    Ok(style_ids) => {
+                                        if let Err(e) = insert_artist_image_styles(
+                                            conn,
+                                            artist_image_id,
+                                            &style_ids,
+                                        ) {
+                                            println!(
+                                                "Error saving styles for image {}: {}",
+                                                result.shortcode, e
+                                            );
+                                        } else {
+                                            println!(
+                                                "Saved {} styles for shortcode {}",
+                                                style_ids.len(),
+                                                result.shortcode
+                                            );
+                                        }
+
+                                        for (name, id) in style_names.iter().zip(style_ids.iter()) {
+                                            all_artist_styles.insert(name.clone(), *id);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        println!(
+                                            "Error mapping styles to IDs for image {}: {}",
+                                            result.shortcode, e
+                                        );
+                                    }
+                                }
                             }
                         }
                         Err(e) => {
                             println!(
-                                "Error mapping styles to IDs for artist {}: {}",
-                                artist.name, e
+                                "Error inserting artist_image for {}: {}",
+                                result.shortcode, e
                             );
                         }
+                    }
+                }
+
+                if !all_artist_styles.is_empty() {
+                    let artist_style_ids: Vec<i64> = all_artist_styles.values().copied().collect();
+                    if let Err(e) = upsert_artist_styles(conn, artist.id, &artist_style_ids) {
+                        println!(
+                            "Error saving artist-level styles for {}: {}",
+                            artist.name, e
+                        );
+                    } else {
+                        println!(
+                            "Successfully saved {} unique styles for artist: {}",
+                            artist_style_ids.len(),
+                            artist.name
+                        );
                     }
                 }
             }
@@ -142,50 +273,76 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
         } else {
             println!("Marked artist {} as styles_extracted", artist.name);
         }
+
+        if let Err(e) = cleanup_instaloader_files(&ig_username) {
+            println!(
+                "Warning: Error cleaning up files for {}: {}",
+                ig_username, e
+            );
+        }
     }
 
     println!("\n=== Style Extraction Complete ===");
     Ok(())
 }
 
-async fn process_artist_styles(
+fn call_instaloader(
+    username: &str,
+    cookie_file: &str,
+    max_posts: &str,
+) -> Result<Vec<InstaPost>, Box<dyn std::error::Error>> {
+    println!("Calling instaloader for username: {}", username);
+
+    let output = Command::new("python")
+        .arg("load_ig_profiles.py")
+        .arg(username)
+        .arg("--cookiefile")
+        .arg(cookie_file)
+        .arg("--max-posts")
+        .arg(max_posts)
+        .current_dir("data-ingestion")
+        .output()?;
+
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Instaloader failed: {}", error).into());
+    }
+
+    let json_file = format!("data-ingestion/{}_posts.json", username);
+    let json_content = fs::read_to_string(&json_file)?;
+    let posts: Vec<InstaPost> = serde_json::from_str(&json_content)?;
+
+    Ok(posts)
+}
+
+fn cleanup_instaloader_files(username: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let json_file = format!("data-ingestion/{}_posts.json", username);
+    if Path::new(&json_file).exists() {
+        fs::remove_file(&json_file)?;
+        println!("Deleted JSON file: {}", json_file);
+    }
+
+    let image_dir = format!("data-ingestion/{}", username);
+    let image_path = Path::new(&image_dir);
+    if image_path.exists() && image_path.is_dir() {
+        fs::remove_dir_all(image_path)?;
+        println!("Deleted image directory: {}", image_dir);
+    }
+
+    Ok(())
+}
+
+async fn process_artist_posts(
+    conn: &Connection,
     client: &Arc<Client<OpenAIConfig>>,
     artist: &Artist,
+    posts: &[InstaPost],
     batch_size: usize,
     confidence_threshold: f64,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let images_path = Path::new(&artist.images_dir);
-
-    if !images_path.exists() {
-        println!(
-            "Images directory does not exist for artist {}: {}",
-            artist.name, artist.images_dir
-        );
-        return Ok(Vec::new());
-    }
-
-    let entries = fs::read_dir(images_path)?;
-    let mut image_files = Vec::new();
-
-    for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-        if let Some(ext) = path.extension() {
-            let ext = ext.to_string_lossy().to_lowercase();
-            if matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "webp" | "gif") {
-                image_files.push(path);
-            }
-        }
-    }
-
-    if image_files.is_empty() {
-        println!("No image files found for artist: {}", artist.name);
-        return Ok(Vec::new());
-    }
-
+) -> Result<Vec<StyleResult>, Box<dyn std::error::Error>> {
     println!(
-        "Found {} image files for artist: {}, processing in batches of {}",
-        image_files.len(),
+        "Processing {} posts for artist: {}, in batches of {}",
+        posts.len(),
         artist.name,
         batch_size
     );
@@ -193,20 +350,20 @@ async fn process_artist_styles(
     let semaphore = Arc::new(Semaphore::new(3));
     let mut handles = Vec::new();
 
-    for (batch_idx, batch) in image_files.chunks(batch_size).enumerate() {
+    for (batch_idx, batch) in posts.chunks(batch_size).enumerate() {
         let client = Arc::clone(client);
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
-        let batch_paths: Vec<_> = batch.to_vec();
+        let batch_posts: Vec<InstaPost> = batch.to_vec();
         let artist_name = artist.name.clone();
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
 
             println!(
-                "  Processing batch {} of {} images for artist: {}",
+                "  Processing batch {} of {} posts for artist: {}",
                 batch_idx + 1,
-                batch_paths.len(),
+                batch_posts.len(),
                 artist_name
             );
 
@@ -214,27 +371,33 @@ async fn process_artist_styles(
                 ChatCompletionRequestUserMessageContentPart::Text(
                     ChatCompletionRequestMessageContentPartText {
                         text: format!(
-                            "Analyze these {} images. For each image, determine if it shows a tattoo. If it is NOT a tattoo, respond with 'NOT_TATTOO'. If it IS a tattoo, identify the artistic styles with confidence scores above {}.
+                            "Analyze these {} tattoo images. For each image, identify the artistic styles and provide confidence scores (0.0 to 1.0).
 
-                              Format your response as a JSON array with one object per image (in order):
-                              [
-                                {{\"image\": 1, \"result\": \"NOT_TATTOO\"}},
-                                {{\"image\": 2, \"result\": \"style1:0.95,style2:0.97\"}},
-                                {{\"image\": 3, \"result\": \"\"}}
-                              ]
+                            Format your response as a JSON array with one object per image (in order):
+                            [
+                              {{\"shortcode\": \"{}\", \"styles\": [{{\"style\": \"blackwork\", \"confidence\": 0.95}}, {{\"style\": \"geometric\", \"confidence\": 0.87}}]}},
+                              {{\"shortcode\": \"{}\", \"styles\": [{{\"style\": \"traditional\", \"confidence\": 0.92}}]}},
+                              {{\"shortcode\": \"{}\", \"styles\": []}}
+                            ]
 
-                              Only include styles with confidence > {}. If no confident styles, use empty string for result.",
-                            batch_paths.len(), threshold, threshold
+                            Include all styles you can identify, even with lower confidence. Use standard tattoo style names (e.g., blackwork, traditional, realism, watercolor, geometric, etc.).",
+                            batch_posts.len(),
+                            batch_posts.get(0).map(|p| &p.shortcode).unwrap_or(&"shortcode1".to_string()),
+                            batch_posts.get(1).map(|p| &p.shortcode).unwrap_or(&"shortcode2".to_string()),
+                            batch_posts.get(2).map(|p| &p.shortcode).unwrap_or(&"shortcode3".to_string())
                         ),
                     }
                 )
             ];
 
-            for image_path in &batch_paths {
+            for post in &batch_posts {
+                let image_path_str = format!("data-ingestion/{}", post.filepath);
+                let image_path = Path::new(&image_path_str);
+
                 let image_data = match fs::read(image_path) {
                     Ok(data) => data,
                     Err(e) => {
-                        println!("  Error reading image {:?}: {}", image_path.file_name(), e);
+                        println!("  Error reading image {}: {}", post.filepath, e);
                         continue;
                     }
                 };
@@ -271,7 +434,7 @@ async fn process_artist_styles(
 
             let request = match CreateChatCompletionRequestArgs::default()
                 .model("gpt-4o")
-                .max_tokens(500u32)
+                .max_tokens(1000u32)
                 .messages([user_message])
                 .build()
             {
@@ -282,7 +445,10 @@ async fn process_artist_styles(
                         batch_idx + 1,
                         e
                     );
-                    return Vec::new();
+                    return BatchResult {
+                        style_results: Vec::new(),
+                        api_cost: 0.0,
+                    };
                 }
             };
 
@@ -290,6 +456,21 @@ async fn process_artist_styles(
 
             match tokio::time::timeout(timeout_duration, client.chat().create(request)).await {
                 Ok(Ok(response)) => {
+                    let api_cost = if let Some(usage) = &response.usage {
+                        let cost =
+                            calculate_gpt4o_cost(usage.prompt_tokens, usage.completion_tokens);
+                        println!(
+                            "  Batch {} API cost: ${:.4} (tokens: {} prompt + {} completion)",
+                            batch_idx + 1,
+                            cost,
+                            usage.prompt_tokens,
+                            usage.completion_tokens
+                        );
+                        cost
+                    } else {
+                        0.0
+                    };
+
                     if let Some(choice) = response.choices.first() {
                         if let Some(content) = &choice.message.content {
                             let content_trimmed = content.trim();
@@ -299,8 +480,6 @@ async fn process_artist_styles(
                                 batch_idx + 1,
                                 content_trimmed
                             );
-
-                            let mut batch_styles = Vec::new();
 
                             let json_content = if content_trimmed.starts_with("```json") {
                                 content_trimmed
@@ -322,56 +501,61 @@ async fn process_artist_styles(
 
                             match serde_json::from_str::<Vec<Value>>(&json_content) {
                                 Ok(results) => {
-                                    for (img_idx, result) in results.iter().enumerate() {
-                                        if img_idx >= batch_paths.len() {
+                                    let mut batch_results = Vec::new();
+
+                                    for (idx, result) in results.iter().enumerate() {
+                                        if idx >= batch_posts.len() {
                                             break;
                                         }
 
-                                        let image_path = &batch_paths[img_idx];
-                                        if let Some(result_str) =
-                                            result.get("result").and_then(|r| r.as_str())
-                                        {
-                                            if result_str == "NOT_TATTOO" {
-                                                println!(
-                                                    "    Image {:?} is not a tattoo",
-                                                    image_path.file_name()
-                                                );
-                                            } else if result_str.is_empty() {
-                                                println!("    Image {:?} is a tattoo but no confident styles", image_path.file_name());
-                                            } else {
-                                                let mut image_styles = Vec::new();
-                                                for style_entry in result_str.split(',') {
-                                                    let style_entry = style_entry.trim();
-                                                    if let Some((style, confidence_str)) =
-                                                        style_entry.split_once(':')
-                                                    {
-                                                        let style = style
-                                                            .trim()
-                                                            .replace('_', " ")
-                                                            .to_lowercase();
-                                                        if is_valid_style_name(&style) {
-                                                            if let Ok(confidence) =
-                                                                confidence_str.trim().parse::<f64>()
-                                                            {
-                                                                if confidence > threshold {
-                                                                    image_styles.push(style);
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
+                                        let shortcode = result
+                                            .get("shortcode")
+                                            .and_then(|s| s.as_str())
+                                            .unwrap_or(&batch_posts[idx].shortcode)
+                                            .to_string();
 
-                                                if !image_styles.is_empty() {
-                                                    println!(
-                                                        "    High-confidence styles for {:?}: {}",
-                                                        image_path.file_name(),
-                                                        image_styles.join(", ")
-                                                    );
-                                                    batch_styles.extend(image_styles);
+                                        let mut styles = Vec::new();
+
+                                        if let Some(styles_array) =
+                                            result.get("styles").and_then(|s| s.as_array())
+                                        {
+                                            for style_obj in styles_array {
+                                                if let (Some(style_name), Some(confidence)) = (
+                                                    style_obj.get("style").and_then(|s| s.as_str()),
+                                                    style_obj
+                                                        .get("confidence")
+                                                        .and_then(|c| c.as_f64()),
+                                                ) {
+                                                    let style_name = style_name
+                                                        .trim()
+                                                        .replace('_', " ")
+                                                        .to_lowercase();
+
+                                                    if is_valid_style_name(&style_name)
+                                                        && confidence >= threshold
+                                                    {
+                                                        styles.push(StyleConfidence {
+                                                            style: style_name,
+                                                            confidence,
+                                                        });
+                                                    }
                                                 }
                                             }
                                         }
+
+                                        println!(
+                                            "    Shortcode {}: {} high-confidence styles",
+                                            shortcode,
+                                            styles.len()
+                                        );
+
+                                        batch_results.push(StyleResult { shortcode, styles });
                                     }
+
+                                    return BatchResult {
+                                        style_results: batch_results,
+                                        api_cost,
+                                    };
                                 }
                                 Err(e) => {
                                     println!(
@@ -381,8 +565,6 @@ async fn process_artist_styles(
                                     );
                                 }
                             }
-
-                            return batch_styles;
                         }
                     }
                     println!("  No content in response for batch {}", batch_idx + 1);
@@ -396,17 +578,27 @@ async fn process_artist_styles(
             }
 
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            Vec::new()
+            BatchResult {
+                style_results: Vec::new(),
+                api_cost: 0.0,
+            }
         });
 
         handles.push(handle);
     }
 
-    let mut all_styles = Vec::new();
+    let mut all_results = Vec::new();
+    let mut total_cost = 0.0;
+    let mut api_calls = 0;
+
     for handle in handles {
         match handle.await {
-            Ok(styles) => {
-                all_styles.extend(styles);
+            Ok(batch_result) => {
+                all_results.extend(batch_result.style_results);
+                total_cost += batch_result.api_cost;
+                if batch_result.api_cost > 0.0 {
+                    api_calls += 1;
+                }
             }
             Err(e) => {
                 println!("  Task failed: {}", e);
@@ -414,21 +606,18 @@ async fn process_artist_styles(
         }
     }
 
-    let mut unique_styles = HashMap::new();
-    for style in all_styles {
-        *unique_styles.entry(style).or_insert(0) += 1;
-    }
-
-    let style_names: Vec<String> = unique_styles.keys().cloned().collect();
-
-    if !style_names.is_empty() {
+    if api_calls > 0 {
+        let avg_cost = total_cost / api_calls as f64;
+        for _ in 0..api_calls {
+            if let Err(e) = update_openai_api_costs(conn, "style_extraction", "gpt-4o", avg_cost) {
+                println!("  Warning: Failed to update API cost tracking: {}", e);
+            }
+        }
         println!(
-            "  Unique styles found for {}: {}",
-            artist.name,
-            style_names.join(", ")
+            "  Total API cost for {}: ${:.4} across {} calls (avg: ${:.4})",
+            artist.name, total_cost, api_calls, avg_cost
         );
     }
 
-    Ok(style_names)
+    Ok(all_results)
 }
-

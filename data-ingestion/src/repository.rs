@@ -141,6 +141,7 @@ pub struct Artist {
     pub id: i64,
     pub name: String,
     pub images_dir: String,
+    pub ig_username: Option<String>,
 }
 
 pub struct LocationUris {
@@ -172,23 +173,46 @@ pub fn get_locations_to_scrape(conn: &Connection, limit: i16) -> Result<Vec<Loca
         .expect("Location URIs to be fetched")
 }
 
-pub fn get_artists_for_style_extraction(conn: &Connection, limit: i16) -> Result<Vec<Artist>, Error> {
+fn extract_instagram_username(social_links: &str) -> Option<String> {
+    // Split comma-delimited URLs and find Instagram URL
+    for url in social_links.split(',') {
+        let url = url.trim();
+        if let Some(start) = url.find("instagram.com/") {
+            let after_domain = &url[start + 14..];
+            // Username is between instagram.com/ and the next / (or end of string)
+            let end = after_domain.find('/').unwrap_or(after_domain.len());
+            let username = &after_domain[..end];
+            if !username.is_empty() {
+                return Some(username.to_string());
+            }
+        }
+    }
+    None
+}
+
+pub fn get_artists_for_style_extraction(
+    conn: &Connection,
+    limit: i16,
+) -> Result<Vec<Artist>, Error> {
     let mut stmt = conn.prepare(
         "
-            SELECT id, name, images_dir
+            SELECT id, name, images_dir, social_links
             FROM artists 
-            WHERE images_dir IS NOT NULL 
-              AND TRIM(images_dir) != ''
+            WHERE social_links IS NOT NULL 
+              AND TRIM(social_links) != ''
+              AND social_links LIKE '%instagram.com%'
               AND (styles_extracted IS NULL OR styles_extracted != 1)
             LIMIT ?1
         ",
     )?;
 
     let artists = stmt.query_map(params![limit], |row| {
+        let social_links: String = row.get(3)?;
         Ok(Artist {
             id: row.get(0)?,
             name: row.get(1)?,
             images_dir: row.get(2)?,
+            ig_username: extract_instagram_username(&social_links),
         })
     });
 
@@ -197,16 +221,18 @@ pub fn get_artists_for_style_extraction(conn: &Connection, limit: i16) -> Result
         .expect("Artists to be fetched")
 }
 
-pub fn get_or_create_style_ids(conn: &Connection, style_names: &[String]) -> Result<Vec<i64>, Error> {
+pub fn get_or_create_style_ids(
+    conn: &Connection,
+    style_names: &[String],
+) -> Result<Vec<i64>, Error> {
     let mut style_ids = Vec::new();
-    
+
     for style_name in style_names {
         // First try to find existing style
         let mut stmt = conn.prepare("SELECT id FROM styles WHERE name = ?1")?;
-        let existing_id: Result<i64, Error> = stmt.query_row(params![style_name], |row| {
-            Ok(row.get(0)?)
-        });
-        
+        let existing_id: Result<i64, Error> =
+            stmt.query_row(params![style_name], |row| Ok(row.get(0)?));
+
         match existing_id {
             Ok(id) => style_ids.push(id),
             Err(_) => {
@@ -217,26 +243,97 @@ pub fn get_or_create_style_ids(conn: &Connection, style_names: &[String]) -> Res
             }
         }
     }
-    
+
     Ok(style_ids)
 }
 
-pub fn upsert_artist_styles(conn: &Connection, artist_id: i64, style_ids: &[i64]) -> Result<(), Error> {
-    // First, delete existing styles for this artist to avoid duplicates
-    let mut delete_stmt = conn.prepare("DELETE FROM artists_styles WHERE artist_id = ?1")?;
-    delete_stmt.execute(params![artist_id])?;
-    
-    // Then insert all the new styles
-    let mut insert_stmt = conn.prepare("INSERT INTO artists_styles (artist_id, style_id) VALUES (?1, ?2)")?;
+pub fn upsert_artist_styles(
+    conn: &Connection,
+    artist_id: i64,
+    style_ids: &[i64],
+) -> Result<(), Error> {
+    // Check for existence before inserting to avoid duplicates
+    let mut check_stmt =
+        conn.prepare("SELECT 1 FROM artists_styles WHERE artist_id = ?1 AND style_id = ?2")?;
+    let mut insert_stmt =
+        conn.prepare("INSERT INTO artists_styles (artist_id, style_id) VALUES (?1, ?2)")?;
+
     for style_id in style_ids {
-        insert_stmt.execute(params![artist_id, style_id])?;
+        let exists: Result<i32, Error> =
+            check_stmt.query_row(params![artist_id, style_id], |row| Ok(row.get(0)?));
+
+        if exists.is_err() {
+            // Style doesn't exist for this artist, insert it
+            insert_stmt.execute(params![artist_id, style_id])?;
+        }
     }
-    
+
     Ok(())
 }
 
 pub fn mark_artist_styles_extracted(conn: &Connection, artist_id: i64) -> Result<(), Error> {
     let mut stmt = conn.prepare("UPDATE artists SET styles_extracted = 1 WHERE id = ?1")?;
     stmt.execute(params![artist_id])?;
+    Ok(())
+}
+
+pub fn insert_artist_image(
+    conn: &Connection,
+    short_code: &str,
+    artist_id: i64,
+) -> Result<i64, Error> {
+    let mut stmt =
+        conn.prepare("INSERT INTO artists_images (short_code, artist_id) VALUES (?1, ?2)")?;
+    stmt.execute(params![short_code, artist_id])?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn insert_artist_image_styles(
+    conn: &Connection,
+    artist_image_id: i64,
+    style_ids: &[i64],
+) -> Result<(), Error> {
+    let mut insert_stmt = conn.prepare(
+        "INSERT INTO artists_images_styles (artists_images_id, style_id) VALUES (?1, ?2)",
+    )?;
+    for style_id in style_ids {
+        insert_stmt.execute(params![artist_image_id, style_id])?;
+    }
+    Ok(())
+}
+
+pub fn update_openai_api_costs(
+    conn: &Connection,
+    action: &str,
+    model: &str,
+    cost: f64,
+) -> Result<(), Error> {
+    // First, try to get existing record with total_cost column
+    let mut stmt = conn
+        .prepare("SELECT count, total_cost FROM openai_api_costs WHERE action = ?1 AND model = ?2")?;
+    let existing: Result<(i64, f64), Error> =
+        stmt.query_row(params![action, model], |row| Ok((row.get(0)?, row.get(1)?)));
+
+    match existing {
+        Ok((existing_count, existing_total)) => {
+            // Add new cost to existing total and calculate new average
+            let new_total = existing_total + cost;
+            let new_count = existing_count + 1;
+            let new_avg = new_total / new_count as f64;
+
+            let mut update_stmt = conn.prepare(
+                "UPDATE openai_api_costs SET count = ?1, avg_cost = ?2, total_cost = ?3 WHERE action = ?4 AND model = ?5"
+            )?;
+            update_stmt.execute(params![new_count, new_avg, new_total, action, model])?;
+        }
+        Err(_) => {
+            // Insert new record
+            let mut insert_stmt = conn.prepare(
+                "INSERT INTO openai_api_costs (action, count, avg_cost, model, total_cost) VALUES (?1, ?2, ?3, ?4, ?5)"
+            )?;
+            insert_stmt.execute(params![action, 1, cost, model, cost])?;
+        }
+    }
+
     Ok(())
 }
