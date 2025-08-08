@@ -177,17 +177,26 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
         let insta_posts = match call_instaloader(&ig_username, &cookie_file, &max_posts) {
             Ok(posts) => posts,
             Err(e) => {
-                println!("❌ Instaloader failed for {} (@{}):", artist.name, ig_username);
+                println!(
+                    "❌ Instaloader failed for {} (@{}):",
+                    artist.name, ig_username
+                );
                 println!("   {}", e);
-                
+
                 // Check if this looks like a username extraction issue
-                if ig_username.contains("?") || ig_username.contains("&") || ig_username.contains("=") {
+                if ig_username.contains("?")
+                    || ig_username.contains("&")
+                    || ig_username.contains("=")
+                {
                     println!("   💡 Hint: Username '{}' looks malformed. Check social_links format in database.", ig_username);
                 }
-                
+
                 let _ = cleanup_instaloader_files(&ig_username);
                 if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
-                    println!("⚠️  Error marking artist {} as processed: {}", artist.name, e);
+                    println!(
+                        "⚠️  Error marking artist {} as processed: {}",
+                        artist.name, e
+                    );
                 }
                 progress.inc(1);
                 continue;
@@ -363,12 +372,12 @@ fn call_instaloader(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         println!("   ❌ Instaloader stderr: {}", stderr);
         if !stdout.is_empty() {
             println!("   📋 Instaloader stdout: {}", stdout);
         }
-        
+
         // Check for common error patterns and provide helpful suggestions
         if stderr.contains("404 Not Found") {
             if stderr.contains("web_profile_info") {
@@ -379,7 +388,7 @@ fn call_instaloader(
         } else if stderr.contains("rate") || stderr.contains("limit") {
             return Err(format!("Instagram rate limiting detected for @{}. Consider:\n  • Waiting before retrying\n  • Using different cookies\n  • Reducing max posts per request", username).into());
         }
-        
+
         return Err(format!("Instaloader failed for @{}: {}", username, stderr).into());
     }
 
@@ -444,7 +453,6 @@ async fn process_artist_posts(
                 total_batches,
                 batch_posts.len()
             );
-
             let mut content_parts = vec![
                 ChatCompletionRequestUserMessageContentPart::Text(
                     ChatCompletionRequestMessageContentPartText {
@@ -564,7 +572,6 @@ async fn process_artist_posts(
                         if let Some(content) = &choice.message.content {
                             let content_trimmed = content.trim();
 
-
                             let json_content = if content_trimmed.starts_with("```json") {
                                 content_trimmed
                                     .strip_prefix("```json")
@@ -596,7 +603,8 @@ async fn process_artist_posts(
                                         let shortcode = batch_posts[idx].shortcode.clone();
 
                                         // Check if this image is a tattoo
-                                        let is_tattoo = result.get("is_tattoo")
+                                        let is_tattoo = result
+                                            .get("is_tattoo")
                                             .and_then(|t| t.as_bool())
                                             .unwrap_or(true); // Default to true for backward compatibility
 
@@ -636,7 +644,6 @@ async fn process_artist_posts(
                                                 }
                                             }
                                         }
-
 
                                         batch_results.push(StyleResult { shortcode, styles });
                                     }
