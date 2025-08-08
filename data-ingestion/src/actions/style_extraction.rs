@@ -393,12 +393,10 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         }));
     }
 
-    // Wait for all tasks to complete
-    while let Some(_) = tasks.next().await {}
+    while (tasks.next().await).is_some() {}
 
     progress.finish_with_message("🎉 Style extraction complete!");
 
-    // Extract final values from Arc<Mutex<>> wrappers
     let final_posts_processed = *total_posts_processed.lock().unwrap();
     let final_styles_found = *total_styles_found.lock().unwrap();
     let final_api_cost = *total_api_cost.lock().unwrap();
@@ -445,7 +443,6 @@ fn call_instaloader(
             println!("   📋 Instaloader stdout: {}", stdout);
         }
 
-        // Check for common error patterns and provide helpful suggestions
         if stderr.contains("404 Not Found") {
             if stderr.contains("web_profile_info") {
                 return Err(format!("Instagram profile @{} not found or account is private. This could mean:\n  • Username doesn't exist\n  • Account is private/restricted\n  • Instagram API changes\n  • Rate limiting in effect", username).into());
@@ -666,21 +663,19 @@ async fn process_artist_posts(
                                             break;
                                         }
 
-                                        // Always use the real shortcode from instaloader, not GPT's response
                                         let shortcode = batch_posts[idx].shortcode.clone();
 
-                                        // Check if this image is a tattoo
                                         let is_tattoo = result
                                             .get("is_tattoo")
                                             .and_then(|t| t.as_bool())
-                                            .unwrap_or(true); // Default to true for backward compatibility
+                                            .unwrap_or(true);
 
                                         if !is_tattoo {
                                             println!(
                                                 "    Shortcode {}: Not a tattoo - skipping",
                                                 shortcode
                                             );
-                                            continue; // Skip non-tattoo images entirely
+                                            continue;
                                         }
 
                                         let mut styles = Vec::new();
