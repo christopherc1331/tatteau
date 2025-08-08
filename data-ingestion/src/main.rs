@@ -4,8 +4,6 @@ use dotenv::dotenv;
 use rusqlite::Connection;
 
 pub mod actions;
-pub mod data_fetcher;
-pub mod data_parser;
 pub mod repository;
 
 enum IngestAction {
@@ -34,7 +32,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match IngestAction::new(&action) {
         IngestAction::Scrape => actions::scraper::scrape(conn).await,
-        IngestAction::GoogleApi => actions::google_api_ingestion::ingest_google(&conn).await,
+        IngestAction::GoogleApi => {
+            actions::google_api_ingestion::driver::ingest_google(&conn).await
+        }
         IngestAction::ExtractStyles => actions::style_extraction::extract_styles(&conn).await,
     }
 }

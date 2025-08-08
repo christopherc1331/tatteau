@@ -1,8 +1,7 @@
-use std::env;
-
 use reqwest::{header::HeaderMap, Client};
 use serde_json::{json, Value};
 use shared_types::CountyBoundary;
+use std::env;
 
 fn make_body(county_boundary: &CountyBoundary, page_size: i8, page_token: Option<&str>) -> Value {
     let CountyBoundary {
@@ -77,3 +76,4 @@ pub async fn fetch_data(
         .await
         .expect("Result is valid JSON")
 }
+

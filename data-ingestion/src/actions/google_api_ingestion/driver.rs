@@ -1,5 +1,5 @@
-use crate::data_fetcher::fetch_data;
-use crate::data_parser::{parse_data, ParsedLocationData};
+use super::fetcher::fetch_data;
+use super::parser::{parse_data, ParsedLocationData};
 use crate::repository::{fetch_county_boundaries, mark_county_ingested, upsert_locations};
 use rusqlite::Connection;
 use serde_json::Value;
@@ -70,3 +70,4 @@ async fn process_county(
 
     Ok(())
 }
+

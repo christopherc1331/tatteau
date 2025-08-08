@@ -108,3 +108,4 @@ pub fn parse_data(value: &Value) -> Option<ParsedLocationData> {
         filtered_count,
     })
 }
+
