@@ -177,13 +177,17 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
         let insta_posts = match call_instaloader(&ig_username, &cookie_file, &max_posts) {
             Ok(posts) => posts,
             Err(e) => {
-                println!("❌ Instaloader failed for {}: {}", artist.name, e);
+                println!("❌ Instaloader failed for {} (@{}):", artist.name, ig_username);
+                println!("   {}", e);
+                
+                // Check if this looks like a username extraction issue
+                if ig_username.contains("?") || ig_username.contains("&") || ig_username.contains("=") {
+                    println!("   💡 Hint: Username '{}' looks malformed. Check social_links format in database.", ig_username);
+                }
+                
                 let _ = cleanup_instaloader_files(&ig_username);
                 if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
-                    println!(
-                        "⚠️  Error marking artist {} as processed: {}",
-                        artist.name, e
-                    );
+                    println!("⚠️  Error marking artist {} as processed: {}", artist.name, e);
                 }
                 progress.inc(1);
                 continue;
@@ -363,8 +367,26 @@ fn call_instaloader(
         .output()?;
 
     if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Instaloader failed: {}", error).into());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        println!("   ❌ Instaloader stderr: {}", stderr);
+        if !stdout.is_empty() {
+            println!("   📋 Instaloader stdout: {}", stdout);
+        }
+        
+        // Check for common error patterns and provide helpful suggestions
+        if stderr.contains("404 Not Found") {
+            if stderr.contains("web_profile_info") {
+                return Err(format!("Instagram profile @{} not found or account is private. This could mean:\n  • Username doesn't exist\n  • Account is private/restricted\n  • Instagram API changes\n  • Rate limiting in effect", username).into());
+            }
+        } else if stderr.contains("login") || stderr.contains("authentication") {
+            return Err(format!("Instagram authentication failed for @{}. Check if:\n  • Cookie file is valid and not expired\n  • Cookies are from the correct Instagram account\n  • Instagram session is still active", username).into());
+        } else if stderr.contains("rate") || stderr.contains("limit") {
+            return Err(format!("Instagram rate limiting detected for @{}. Consider:\n  • Waiting before retrying\n  • Using different cookies\n  • Reducing max posts per request", username).into());
+        }
+        
+        return Err(format!("Instaloader failed for @{}: {}", username, stderr).into());
     }
 
     let json_file = format!("data-ingestion/{}_posts.json", username);

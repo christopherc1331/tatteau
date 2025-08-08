@@ -140,7 +140,6 @@ pub fn mark_locations_scraped(conn: &Connection, ids: Vec<i64>) -> Result<(), Er
 pub struct Artist {
     pub id: i64,
     pub name: String,
-    pub images_dir: String,
     pub ig_username: Option<String>,
 }
 
@@ -194,7 +193,7 @@ pub fn get_artists_for_style_extraction(
 ) -> Result<Vec<Artist>, Error> {
     let mut stmt = conn.prepare(
         "
-            SELECT id, name, images_dir, social_links
+            SELECT id, name, social_links
             FROM artists 
             WHERE social_links IS NOT NULL 
               AND TRIM(social_links) != ''
@@ -205,11 +204,10 @@ pub fn get_artists_for_style_extraction(
     )?;
 
     let artists = stmt.query_map(params![limit], |row| {
-        let social_links: String = row.get(3)?;
+        let social_links: String = row.get(2)?;
         Ok(Artist {
             id: row.get(0)?,
             name: row.get(1)?,
-            images_dir: row.get(2)?,
             ig_username: extract_instagram_username(&social_links),
         })
     });
