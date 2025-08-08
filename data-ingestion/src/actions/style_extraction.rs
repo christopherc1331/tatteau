@@ -1,5 +1,4 @@
 use base64::Engine;
-use chrono::Utc;
 use indicatif::{ProgressBar, ProgressStyle};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -90,19 +89,6 @@ fn is_valid_style_name(style: &str) -> bool {
     valid_chars
 }
 
-fn log_style_action(
-    conn: &Connection,
-    artist_id: i64,
-    action: &str,
-) -> Result<(), rusqlite::Error> {
-    let timestamp = Utc::now().to_rfc3339();
-    conn.execute(
-        "INSERT INTO style_extraction_logs (artist_id, action, timestamp) VALUES (?, ?, ?)",
-        rusqlite::params![artist_id, action, timestamp],
-    )?;
-    Ok(())
-}
-
 fn calculate_gpt4o_cost(prompt_tokens: u32, completion_tokens: u32) -> f64 {
     // GPT-4o pricing (as of latest known rates)
     let input_cost_per_1k = 0.0025;
@@ -175,12 +161,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
             artist.id
         );
 
-        let _ = log_style_action(
-            conn,
-            artist.id,
-            &format!("start_processing:{}", artist.name),
-        );
-
         let ig_username = match &artist.ig_username {
             Some(username) => username.clone(),
             None => {
@@ -188,7 +168,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
                     "⚠️  No valid Instagram username found for artist: {} - skipping",
                     artist.name
                 );
-                let _ = log_style_action(conn, artist.id, "skipped:no_ig_username");
                 progress.inc(1);
                 continue;
             }
@@ -199,8 +178,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
             Ok(posts) => posts,
             Err(e) => {
                 println!("❌ Instaloader failed for {}: {}", artist.name, e);
-                let _ =
-                    log_style_action(conn, artist.id, &format!("error:instaloader_failed:{}", e));
                 let _ = cleanup_instaloader_files(&ig_username);
                 if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
                     println!(
@@ -215,7 +192,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
 
         if insta_posts.is_empty() {
             println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
-            let _ = log_style_action(conn, artist.id, "warning:no_posts_found");
             let _ = cleanup_instaloader_files(&ig_username);
             if let Err(e) = mark_artist_styles_extracted(conn, artist.id) {
                 println!(
@@ -228,11 +204,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
         }
 
         println!("📥 Retrieved {} posts from Instagram", insta_posts.len());
-        let _ = log_style_action(
-            conn,
-            artist.id,
-            &format!("instaloader_success:{}_posts", insta_posts.len()),
-        );
         total_posts_processed += insta_posts.len();
 
         println!(
@@ -252,11 +223,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
             Ok((style_results, api_cost)) => {
                 println!("💰 API cost for {}: ${:.4}", artist.name, api_cost);
                 total_api_cost += api_cost;
-                let _ = log_style_action(
-                    conn,
-                    artist.id,
-                    &format!("openai_processing_complete:${:.4}", api_cost),
-                );
 
                 let mut all_artist_styles = HashMap::new();
 
@@ -320,26 +286,15 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
                             "❌ Error saving artist-level styles for {}: {}",
                             artist.name, e
                         );
-                        let _ = log_style_action(
-                            conn,
-                            artist.id,
-                            &format!("error:saving_artist_styles:{}", e),
-                        );
                     } else {
                         println!(
                             "✅ Saved {} unique styles for artist",
                             artist_style_ids.len()
                         );
-                        let _ = log_style_action(
-                            conn,
-                            artist.id,
-                            &format!("success:saved_{}_styles", artist_style_ids.len()),
-                        );
                         total_styles_found += artist_style_ids.len();
                     }
                 } else {
                     println!("ℹ️  No high-confidence styles found for artist");
-                    let _ = log_style_action(conn, artist.id, "info:no_confident_styles");
                 }
             }
             Err(e) => {
@@ -347,7 +302,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
                     "❌ Error processing styles for artist {}: {}",
                     artist.name, e
                 );
-                let _ = log_style_action(conn, artist.id, &format!("error:style_processing:{}", e));
             }
         }
 
@@ -358,7 +312,6 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
             );
         } else {
             println!("✅ Marked artist as styles_extracted");
-            let _ = log_style_action(conn, artist.id, "completed:marked_as_extracted");
         }
 
         if let Err(e) = cleanup_instaloader_files(&ig_username) {
@@ -366,10 +319,8 @@ pub async fn extract_styles(conn: &Connection) -> Result<(), Box<dyn std::error:
                 "⚠️  Warning: Error cleaning up files for @{}: {}",
                 ig_username, e
             );
-            let _ = log_style_action(conn, artist.id, &format!("warning:cleanup_failed:{}", e));
         } else {
             println!("🗑️  Cleaned up temporary files");
-            let _ = log_style_action(conn, artist.id, "info:cleanup_successful");
         }
 
         progress.inc(1);
