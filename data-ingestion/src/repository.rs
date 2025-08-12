@@ -179,9 +179,16 @@ fn extract_instagram_username(social_links: &str) -> Option<String> {
         if let Some(start) = url_lower.find("instagram.com/") {
             // Use the original URL to extract the username (preserving case)
             let after_domain = &url[start + 14..];
-            let end = after_domain.find('/').unwrap_or(after_domain.len());
-            let username = &after_domain[..end];
-            if !username.is_empty() {
+            
+            // Find the end of username - stop at '/', '?' or end of string
+            let end = after_domain
+                .find(|c| c == '/' || c == '?')
+                .unwrap_or(after_domain.len());
+            
+            let username = &after_domain[..end].trim();
+            
+            // Validate username (no query params, not empty)
+            if !username.is_empty() && !username.contains('&') && !username.contains('=') {
                 return Some(username.to_string());
             }
         }
