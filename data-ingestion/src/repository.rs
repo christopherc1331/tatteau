@@ -175,7 +175,9 @@ pub fn get_locations_to_scrape(conn: &Connection, limit: i16) -> Result<Vec<Loca
 fn extract_instagram_username(social_links: &str) -> Option<String> {
     for url in social_links.split(',') {
         let url = url.trim();
-        if let Some(start) = url.find("instagram.com/") {
+        let url_lower = url.to_lowercase();
+        if let Some(start) = url_lower.find("instagram.com/") {
+            // Use the original URL to extract the username (preserving case)
             let after_domain = &url[start + 14..];
             let end = after_domain.find('/').unwrap_or(after_domain.len());
             let username = &after_domain[..end];
@@ -197,7 +199,7 @@ pub fn get_artists_for_style_extraction(
             FROM artists 
             WHERE social_links IS NOT NULL 
               AND TRIM(social_links) != ''
-              AND social_links LIKE '%instagram.com%'
+              AND (LOWER(social_links) LIKE '%instagram.com%')
               AND (styles_extracted IS NULL OR styles_extracted != 1)
             LIMIT ?1
         ",

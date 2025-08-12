@@ -3,9 +3,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, env, fs, path::Path, process::Command, sync::{Arc, Mutex}};
+use std::{collections::HashMap, env, fs, path::Path, process::Command, sync::Arc};
 use tokio::sync::Semaphore;
-use futures::stream::{FuturesUnordered, StreamExt};
 
 use async_openai::{
     config::OpenAIConfig,
@@ -124,10 +123,6 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
 
     let max_posts: String = env::var("INSTALOADER_MAX_POSTS").unwrap_or_else(|_| "10".to_string());
 
-    let concurrent_artists: usize = env::var("CONCURRENT_ARTISTS")
-        .unwrap_or_else(|_| "3".to_string())
-        .parse()
-        .expect("CONCURRENT_ARTISTS must be a valid number");
 
     let artists = get_artists_for_style_extraction(&conn, artist_limit)?;
 
@@ -139,7 +134,6 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
     println!("🎯 Instagram Style Extraction Started");
     println!("📊 Configuration:");
     println!("   • Artists to process: {}", artists.len());
-    println!("   • Concurrent artists: {}", concurrent_artists);
     println!("   • Confidence threshold: {}", confidence_threshold);
     println!("   • Vision batch size: {}", batch_size);
     println!("   • Max posts per artist: {}", max_posts);
@@ -153,31 +147,13 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
             .progress_chars("##-"),
     );
 
-    let client = Arc::new(Client::new());
-    let conn = Arc::new(Mutex::new(conn));
-    let instaloader_semaphore = Arc::new(Semaphore::new(concurrent_artists));
-    let progress = Arc::new(progress);
-    
-    let total_posts_processed = Arc::new(Mutex::new(0));
-    let total_styles_found = Arc::new(Mutex::new(0));
-    let total_api_cost = Arc::new(Mutex::new(0.0));
-
-    let mut tasks = FuturesUnordered::new();
+    let client = Client::new();
+    let mut total_posts_processed = 0;
+    let mut total_styles_found = 0;
+    let mut total_api_cost = 0.0;
     let artists_len = artists.len();
 
     for (artist_idx, artist) in artists.into_iter().enumerate() {
-        let client = Arc::clone(&client);
-        let conn = Arc::clone(&conn);
-        let instaloader_semaphore = Arc::clone(&instaloader_semaphore);
-        let progress = Arc::clone(&progress);
-        let total_posts_processed = Arc::clone(&total_posts_processed);
-        let total_styles_found = Arc::clone(&total_styles_found);
-        let total_api_cost = Arc::clone(&total_api_cost);
-        let cookie_file = cookie_file.clone();
-        let max_posts = max_posts.clone();
-
-        tasks.push(tokio::spawn(async move {
-            let _permit = instaloader_semaphore.acquire().await.unwrap();
             
             progress.set_message(format!("Processing {}", artist.name));
             println!(
@@ -196,7 +172,7 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
                         artist.name
                     );
                     progress.inc(1);
-                    return;
+                    continue;
                 }
             };
             println!("📸 Instagram username: @{}", ig_username);
@@ -218,41 +194,32 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
                 }
 
                 let _ = cleanup_instaloader_files(&ig_username);
-                {
-                    let conn_guard = conn.lock().unwrap();
-                    if let Err(e) = mark_artist_styles_extracted(&conn_guard, artist.id) {
-                        println!(
-                            "⚠️  Error marking artist {} as processed: {}",
-                            artist.name, e
-                        );
-                    }
+                if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+                    println!(
+                        "⚠️  Error marking artist {} as processed: {}",
+                        artist.name, e
+                    );
                 }
                 progress.inc(1);
-                return;
+                continue;
             }
         };
 
         if insta_posts.is_empty() {
             println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
             let _ = cleanup_instaloader_files(&ig_username);
-            {
-                let conn_guard = conn.lock().unwrap();
-                if let Err(e) = mark_artist_styles_extracted(&conn_guard, artist.id) {
-                    println!(
-                        "⚠️  Error marking artist {} as processed: {}",
-                        artist.name, e
-                    );
-                }
+            if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+                println!(
+                    "⚠️  Error marking artist {} as processed: {}",
+                    artist.name, e
+                );
             }
             progress.inc(1);
-            return;
+            continue;
         }
 
         println!("📥 Retrieved {} posts from Instagram", insta_posts.len());
-        {
-            let mut counter = total_posts_processed.lock().unwrap();
-            *counter += insta_posts.len();
-        }
+        total_posts_processed += insta_posts.len();
 
         println!(
             "🤖 Processing {} posts with OpenAI Vision API...",
@@ -270,18 +237,12 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         {
             Ok((style_results, api_cost)) => {
                 println!("💰 API cost for {}: ${:.4}", artist.name, api_cost);
-                {
-                    let mut cost_counter = total_api_cost.lock().unwrap();
-                    *cost_counter += api_cost;
-                }
+                total_api_cost += api_cost;
 
                 let mut all_artist_styles = HashMap::new();
 
                 for result in style_results {
-                    let artist_image_id = {
-                        let conn_guard = conn.lock().unwrap();
-                        insert_artist_image(&conn_guard, &result.shortcode, artist.id)
-                    };
+                    let artist_image_id = insert_artist_image(&conn, &result.shortcode, artist.id);
                     
                     match artist_image_id {
                         Ok(artist_image_id) => {
@@ -294,25 +255,19 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
                                 .collect();
 
                             if !style_names.is_empty() {
-                                let style_ids = {
-                                    let conn_guard = conn.lock().unwrap();
-                                    get_or_create_style_ids(&conn_guard, &style_names)
-                                };
+                                let style_ids = get_or_create_style_ids(&conn, &style_names);
                                 
                                 match style_ids {
                                     Ok(style_ids) => {
-                                        {
-                                            let conn_guard = conn.lock().unwrap();
-                                            if let Err(e) = insert_artist_image_styles(
-                                                &conn_guard,
-                                                artist_image_id,
-                                                &style_ids,
-                                            ) {
-                                                println!(
-                                                    "Error saving styles for image {}: {}",
-                                                    result.shortcode, e
-                                                );
-                                            }
+                                        if let Err(e) = insert_artist_image_styles(
+                                            &conn,
+                                            artist_image_id,
+                                            &style_ids,
+                                        ) {
+                                            println!(
+                                                "Error saving styles for image {}: {}",
+                                                result.shortcode, e
+                                            );
                                         }
 
                                         for (name, id) in style_names.iter().zip(style_ids.iter()) {
@@ -339,21 +294,17 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
 
                 if !all_artist_styles.is_empty() {
                     let artist_style_ids: Vec<i64> = all_artist_styles.values().copied().collect();
-                    {
-                        let conn_guard = conn.lock().unwrap();
-                        if let Err(e) = upsert_artist_styles(&conn_guard, artist.id, &artist_style_ids) {
-                            println!(
-                                "❌ Error saving artist-level styles for {}: {}",
-                                artist.name, e
-                            );
-                        } else {
-                            println!(
-                                "✅ Saved {} unique styles for artist",
-                                artist_style_ids.len()
-                            );
-                            let mut styles_counter = total_styles_found.lock().unwrap();
-                            *styles_counter += artist_style_ids.len();
-                        }
+                    if let Err(e) = upsert_artist_styles(&conn, artist.id, &artist_style_ids) {
+                        println!(
+                            "❌ Error saving artist-level styles for {}: {}",
+                            artist.name, e
+                        );
+                    } else {
+                        println!(
+                            "✅ Saved {} unique styles for artist",
+                            artist_style_ids.len()
+                        );
+                        total_styles_found += artist_style_ids.len();
                     }
                 } else {
                     println!("ℹ️  No high-confidence styles found for artist");
@@ -367,16 +318,13 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
             }
         }
 
-        {
-            let conn_guard = conn.lock().unwrap();
-            if let Err(e) = mark_artist_styles_extracted(&conn_guard, artist.id) {
-                println!(
-                    "⚠️  Error marking artist {} as processed: {}",
-                    artist.name, e
-                );
-            } else {
-                println!("✅ Marked artist as styles_extracted");
-            }
+        if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+            println!(
+                "⚠️  Error marking artist {} as processed: {}",
+                artist.name, e
+            );
+        } else {
+            println!("✅ Marked artist as styles_extracted");
         }
 
         if let Err(e) = cleanup_instaloader_files(&ig_username) {
@@ -390,25 +338,18 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
 
         progress.inc(1);
         println!("🎨 Artist {} processing complete!\n", artist.name);
-        }));
     }
-
-    while (tasks.next().await).is_some() {}
 
     progress.finish_with_message("🎉 Style extraction complete!");
 
-    let final_posts_processed = *total_posts_processed.lock().unwrap();
-    let final_styles_found = *total_styles_found.lock().unwrap();
-    let final_api_cost = *total_api_cost.lock().unwrap();
-
     println!("📈 Final Results:");
     println!("   • Artists processed: {}", artists_len);
-    println!("   • Total posts analyzed: {}", final_posts_processed);
-    println!("   • Unique styles found: {}", final_styles_found);
-    println!("   • Total API cost: ${:.4}", final_api_cost);
+    println!("   • Total posts analyzed: {}", total_posts_processed);
+    println!("   • Unique styles found: {}", total_styles_found);
+    println!("   • Total API cost: ${:.4}", total_api_cost);
     println!(
         "   • Average cost per artist: ${:.4}",
-        final_api_cost / artists_len as f64
+        total_api_cost / artists_len as f64
     );
 
     Ok(())
@@ -485,8 +426,8 @@ fn cleanup_instaloader_files(username: &str) -> Result<(), Box<dyn std::error::E
 }
 
 async fn process_artist_posts(
-    conn: &Arc<Mutex<Connection>>,
-    client: &Arc<Client<OpenAIConfig>>,
+    conn: &Connection,
+    client: &Client<OpenAIConfig>,
     artist: &Artist,
     posts: &[InstaPost],
     batch_size: usize,
@@ -502,7 +443,7 @@ async fn process_artist_posts(
     let mut handles = Vec::new();
 
     for (batch_idx, batch) in posts.chunks(batch_size).enumerate() {
-        let client = Arc::clone(client);
+        let client = Arc::new(client.clone());
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
         let batch_posts: Vec<InstaPost> = batch.to_vec();
@@ -615,7 +556,7 @@ async fn process_artist_posts(
 
             let timeout_duration = tokio::time::Duration::from_secs(90);
 
-            match tokio::time::timeout(timeout_duration, client.chat().create(request)).await {
+            match tokio::time::timeout(timeout_duration, (*client).chat().create(request)).await {
                 Ok(Ok(response)) => {
                     let api_cost = if let Some(usage) = &response.usage {
                         let cost =
@@ -767,8 +708,7 @@ async fn process_artist_posts(
     if api_calls > 0 {
         let avg_cost = total_cost / api_calls as f64;
         for _ in 0..api_calls {
-            let conn_guard = conn.lock().unwrap();
-            if let Err(e) = update_openai_api_costs(&conn_guard, "style_extraction", "gpt-4o", avg_cost) {
+            if let Err(e) = update_openai_api_costs(&conn, "style_extraction", "gpt-4o", avg_cost) {
                 println!("  Warning: Failed to update API cost tracking: {}", e);
             }
         }
