@@ -121,7 +121,7 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         .expect("ARTIST_BATCH_LIMIT must be a valid number");
 
     let concurrent_artists: usize = env::var("CONCURRENT_ARTISTS")
-        .unwrap_or_else(|_| "3".to_string())
+        .unwrap_or_else(|_| "6".to_string())  // Increased from 3 to compensate for slower Apify requests
         .parse()
         .expect("CONCURRENT_ARTISTS must be a valid number");
 

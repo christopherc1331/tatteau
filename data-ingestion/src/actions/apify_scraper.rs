@@ -35,7 +35,7 @@ pub async fn scrape_instagram_profile(
 
     let actor_id = "apify~instagram-scraper";
     let url = format!(
-        "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}",
+        "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}&memory=256",
         actor_id, api_token
     );
 
