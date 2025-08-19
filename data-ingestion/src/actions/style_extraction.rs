@@ -3,11 +3,11 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, env, fs, path::Path, process::Command, sync::Arc};
+use std::{collections::HashMap, env, sync::Arc};
 use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 
 use async_openai::{
-    config::OpenAIConfig,
     types::{
         ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
         ChatCompletionRequestMessageContentPartText, ChatCompletionRequestUserMessage,
@@ -23,10 +23,12 @@ use crate::repository::{
     upsert_artist_styles, Artist,
 };
 
-#[derive(Debug, Deserialize, Clone)]
-struct InstaPost {
+use super::apify_scraper::{download_image, scrape_instagram_profile};
+
+#[derive(Debug, Clone)]
+struct ProcessablePost {
     shortcode: String,
-    filepath: String,
+    image_data: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -118,11 +120,17 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         .parse()
         .expect("ARTIST_BATCH_LIMIT must be a valid number");
 
-    let cookie_file = env::var("INSTALOADER_COOKIE_FILE")
-        .expect("INSTALOADER_COOKIE_FILE environment variable must be set");
+    let concurrent_artists: usize = env::var("CONCURRENT_ARTISTS")
+        .unwrap_or_else(|_| "3".to_string())
+        .parse()
+        .expect("CONCURRENT_ARTISTS must be a valid number");
 
-    let max_posts: String = env::var("INSTALOADER_MAX_POSTS").unwrap_or_else(|_| "10".to_string());
+    env::var("APIFY_API_TOKEN").expect("APIFY_API_TOKEN environment variable must be set");
 
+    let max_posts: i32 = env::var("MAX_POSTS_PER_ARTIST")
+        .unwrap_or_else(|_| "10".to_string())
+        .parse()
+        .expect("MAX_POSTS_PER_ARTIST must be a valid number");
 
     let artists = get_artists_for_style_extraction(&conn, artist_limit)?;
 
@@ -134,12 +142,13 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
     println!("🎯 Instagram Style Extraction Started");
     println!("📊 Configuration:");
     println!("   • Artists to process: {}", artists.len());
+    println!("   • Concurrent artists: {}", concurrent_artists);
     println!("   • Confidence threshold: {}", confidence_threshold);
     println!("   • Vision batch size: {}", batch_size);
     println!("   • Max posts per artist: {}", max_posts);
-    println!("   • Cookie file: {}", cookie_file);
+    println!("   • Using Apify Instagram scraper");
 
-    let progress = ProgressBar::new(artists.len() as u64);
+    let progress = Arc::new(ProgressBar::new(artists.len() as u64));
     progress.set_style(
         ProgressStyle::default_bar()
             .template("🎨 [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} artists ({eta})")
@@ -147,197 +156,51 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
             .progress_chars("##-"),
     );
 
-    let client = Client::new();
+    let artists_len = artists.len();
     let mut total_posts_processed = 0;
     let mut total_styles_found = 0;
     let mut total_api_cost = 0.0;
-    let artists_len = artists.len();
 
-    for (artist_idx, artist) in artists.into_iter().enumerate() {
-            
-            progress.set_message(format!("Processing {}", artist.name));
-            println!(
-                "\n🎨 [{}/{}] Processing Artist: {} (ID: {})",
-                artist_idx + 1,
-                artists_len,
-                artist.name,
-                artist.id
-            );
+    // Process artists in batches using JoinSet for concurrent execution
+    let mut join_set = JoinSet::new();
+    let semaphore = Arc::new(Semaphore::new(concurrent_artists));
 
-            let ig_username = match &artist.ig_username {
-                Some(username) => username.clone(),
-                None => {
-                    println!(
-                        "⚠️  No valid Instagram username found for artist: {} - skipping",
-                        artist.name
-                    );
-                    progress.inc(1);
-                    continue;
-                }
-            };
-            println!("📸 Instagram username: @{}", ig_username);
+    for artist in artists {
+        let permit = semaphore.clone().acquire_owned().await.unwrap();
+        let progress_clone = progress.clone();
+        let artist_name = artist.name.clone();
 
-        let insta_posts = match call_instaloader(&ig_username, &cookie_file, &max_posts) {
-            Ok(posts) => posts,
-            Err(e) => {
-                println!(
-                    "❌ Instaloader failed for {} (@{}):",
-                    artist.name, ig_username
-                );
-                println!("   {}", e);
+        join_set.spawn(async move {
+            progress_clone.set_message(format!("Processing {}", artist_name));
+            let result =
+                process_single_artist(artist, max_posts, batch_size, confidence_threshold).await;
+            drop(permit);
+            progress_clone.inc(1);
+            result
+        });
+    }
 
-                if ig_username.contains("?")
-                    || ig_username.contains("&")
-                    || ig_username.contains("=")
-                {
-                    println!("   💡 Hint: Username '{}' looks malformed. Check social_links format in database.", ig_username);
-                }
-
-                let _ = cleanup_instaloader_files(&ig_username);
-                if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
-                    println!(
-                        "⚠️  Error marking artist {} as processed: {}",
-                        artist.name, e
-                    );
-                }
-                progress.inc(1);
-                continue;
-            }
-        };
-
-        if insta_posts.is_empty() {
-            println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
-            let _ = cleanup_instaloader_files(&ig_username);
-            if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
-                println!(
-                    "⚠️  Error marking artist {} as processed: {}",
-                    artist.name, e
-                );
-            }
-            progress.inc(1);
-            continue;
-        }
-
-        println!("📥 Retrieved {} posts from Instagram", insta_posts.len());
-        total_posts_processed += insta_posts.len();
-
-        println!(
-            "🤖 Processing {} posts with OpenAI Vision API...",
-            insta_posts.len()
-        );
-        match process_artist_posts(
-            &conn,
-            &client,
-            &artist,
-            &insta_posts,
-            batch_size,
-            confidence_threshold,
-        )
-        .await
-        {
-            Ok((style_results, api_cost)) => {
-                println!("💰 API cost for {}: ${:.4}", artist.name, api_cost);
+    // Collect results from all concurrent tasks
+    while let Some(result) = join_set.join_next().await {
+        match result {
+            Ok(Ok((artist, posts_processed, styles_found, api_cost))) => {
+                total_posts_processed += posts_processed;
+                total_styles_found += styles_found;
                 total_api_cost += api_cost;
-
-                let mut all_artist_styles = HashMap::new();
-
-                for result in style_results {
-                    let artist_image_id = insert_artist_image(&conn, &result.shortcode, artist.id);
-                    
-                    match artist_image_id {
-                        Ok(artist_image_id) => {
-                            let style_names: Vec<String> = result
-                                .styles
-                                .iter()
-                                .filter(|s| s.confidence >= confidence_threshold)
-                                .map(|s| s.style.clone())
-                                .filter(|s| is_valid_style_name(s))
-                                .collect();
-
-                            if !style_names.is_empty() {
-                                let style_ids = get_or_create_style_ids(&conn, &style_names);
-                                
-                                match style_ids {
-                                    Ok(style_ids) => {
-                                        if let Err(e) = insert_artist_image_styles(
-                                            &conn,
-                                            artist_image_id,
-                                            &style_ids,
-                                        ) {
-                                            println!(
-                                                "Error saving styles for image {}: {}",
-                                                result.shortcode, e
-                                            );
-                                        }
-
-                                        for (name, id) in style_names.iter().zip(style_ids.iter()) {
-                                            all_artist_styles.insert(name.clone(), *id);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        println!(
-                                            "Error mapping styles to IDs for image {}: {}",
-                                            result.shortcode, e
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!(
-                                "Error inserting artist_image for {}: {}",
-                                result.shortcode, e
-                            );
-                        }
-                    }
+                if posts_processed > 0 {
+                    println!(
+                        "🎨 Artist {} processing complete! Processed {} posts, found {} styles\n",
+                        artist.name, posts_processed, styles_found
+                    );
                 }
-
-                if !all_artist_styles.is_empty() {
-                    let artist_style_ids: Vec<i64> = all_artist_styles.values().copied().collect();
-                    if let Err(e) = upsert_artist_styles(&conn, artist.id, &artist_style_ids) {
-                        println!(
-                            "❌ Error saving artist-level styles for {}: {}",
-                            artist.name, e
-                        );
-                    } else {
-                        println!(
-                            "✅ Saved {} unique styles for artist",
-                            artist_style_ids.len()
-                        );
-                        total_styles_found += artist_style_ids.len();
-                    }
-                } else {
-                    println!("ℹ️  No high-confidence styles found for artist");
-                }
+            }
+            Ok(Err(e)) => {
+                println!("❌ Error processing artist: {}\n", e);
             }
             Err(e) => {
-                println!(
-                    "❌ Error processing styles for artist {}: {}",
-                    artist.name, e
-                );
+                println!("❌ Task join error: {}\n", e);
             }
         }
-
-        if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
-            println!(
-                "⚠️  Error marking artist {} as processed: {}",
-                artist.name, e
-            );
-        } else {
-            println!("✅ Marked artist as styles_extracted");
-        }
-
-        if let Err(e) = cleanup_instaloader_files(&ig_username) {
-            println!(
-                "⚠️  Warning: Error cleaning up files for @{}: {}",
-                ig_username, e
-            );
-        } else {
-            println!("🗑️  Cleaned up temporary files");
-        }
-
-        progress.inc(1);
-        println!("🎨 Artist {} processing complete!\n", artist.name);
     }
 
     progress.finish_with_message("🎉 Style extraction complete!");
@@ -355,84 +218,220 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
-fn call_instaloader(
-    username: &str,
-    cookie_file: &str,
-    max_posts: &str,
-) -> Result<Vec<InstaPost>, Box<dyn std::error::Error>> {
+async fn process_single_artist(
+    artist: Artist,
+    max_posts: i32,
+    batch_size: usize,
+    confidence_threshold: f64,
+) -> Result<(Artist, usize, usize, f64), Box<dyn std::error::Error + Send + Sync>> {
+    let ig_username = match &artist.ig_username {
+        Some(username) => username.clone(),
+        None => {
+            println!(
+                "⚠️  No valid Instagram username found for artist: {} - skipping",
+                artist.name
+            );
+            return Ok((artist, 0, 0, 0.0));
+        }
+    };
+
     println!(
-        "📱 Calling instaloader for @{} (max {} posts)",
-        username, max_posts
+        "📸 [{} - ID: {}] Instagram username: @{}",
+        artist.name, artist.id, ig_username
     );
 
-    let output = Command::new("python3")
-        .arg("load_ig_profiles.py")
-        .arg(username)
-        .arg("--cookiefile")
-        .arg(cookie_file)
-        .arg("--max-posts")
-        .arg(max_posts)
-        .current_dir("data-ingestion")
-        .output()?;
+    let apify_posts = match scrape_instagram_profile(&ig_username, max_posts).await {
+        Ok(posts) => posts,
+        Err(e) => {
+            println!(
+                "❌ Apify scraper failed for {} (@{}):",
+                artist.name, ig_username
+            );
+            println!("   {}", e);
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
-        println!("   ❌ Instaloader stderr: {}", stderr);
-        if !stdout.is_empty() {
-            println!("   📋 Instaloader stdout: {}", stdout);
-        }
-
-        if stderr.contains("404 Not Found") {
-            if stderr.contains("web_profile_info") {
-                return Err(format!("Instagram profile @{} not found or account is private. This could mean:\n  • Username doesn't exist\n  • Account is private/restricted\n  • Instagram API changes\n  • Rate limiting in effect", username).into());
+            if ig_username.contains("?") || ig_username.contains("&") || ig_username.contains("=") {
+                println!("   💡 Hint: Username '{}' looks malformed. Check social_links format in database.", ig_username);
             }
-        } else if stderr.contains("login") || stderr.contains("authentication") {
-            return Err(format!("Instagram authentication failed for @{}. Check if:\n  • Cookie file is valid and not expired\n  • Cookies are from the correct Instagram account\n  • Instagram session is still active", username).into());
-        } else if stderr.contains("rate") || stderr.contains("limit") {
-            return Err(format!("Instagram rate limiting detected for @{}. Consider:\n  • Waiting before retrying\n  • Using different cookies\n  • Reducing max posts per request", username).into());
+            return Err(Box::from(e.to_string()) as Box<dyn std::error::Error + Send + Sync>);
         }
+    };
 
-        return Err(format!("Instaloader failed for @{}: {}", username, stderr).into());
+    if apify_posts.is_empty() {
+        println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
+        return Ok((artist, 0, 0, 0.0));
     }
 
-    let json_file = format!("data-ingestion/{}_posts.json", username);
-    let json_content = fs::read_to_string(&json_file)?;
-    let posts: Vec<InstaPost> = serde_json::from_str(&json_content)?;
-
-    Ok(posts)
-}
-
-fn cleanup_instaloader_files(username: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let json_file = format!("data-ingestion/{}_posts.json", username);
-    if Path::new(&json_file).exists() {
-        fs::remove_file(&json_file)?;
-        println!("   🗑️  Deleted JSON file: {}", json_file);
+    let mut processable_posts = Vec::new();
+    for post in apify_posts.iter().take(max_posts as usize) {
+        if let Some(display_url) = &post.display_url {
+            match download_image(display_url).await {
+                Ok(image_data) => {
+                    let shortcode = post.shortcode.clone();
+                    processable_posts.push(ProcessablePost {
+                        shortcode,
+                        image_data,
+                    });
+                }
+                Err(e) => {
+                    println!(
+                        "   ⚠️  Failed to download image for post {}: {}",
+                        post.shortcode, e
+                    );
+                }
+            }
+        }
     }
 
-    let image_dir = format!("data-ingestion/{}", username);
-    let image_path = Path::new(&image_dir);
-    if image_path.exists() && image_path.is_dir() {
-        let file_count = fs::read_dir(image_path)?.count();
-        fs::remove_dir_all(image_path)?;
-        println!(
-            "   🗑️  Deleted image directory with {} files: {}",
-            file_count, image_dir
-        );
+    if processable_posts.is_empty() {
+        println!("⚠️  No images could be downloaded for {}", artist.name);
+        return Ok((artist, 0, 0, 0.0));
     }
 
-    Ok(())
+    println!(
+        "📥 [{} - ID: {}] Downloaded {} images from Instagram",
+        artist.name,
+        artist.id,
+        processable_posts.len()
+    );
+    let posts_processed = processable_posts.len();
+
+    println!(
+        "🤖 [{} - ID: {}] Processing {} posts with OpenAI Vision API...",
+        artist.name,
+        artist.id,
+        processable_posts.len()
+    );
+
+    let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set"))?;
+
+    match process_artist_posts(
+        &artist,
+        &processable_posts,
+        batch_size,
+        confidence_threshold,
+    )
+    .await
+    {
+        Ok((style_results, api_cost)) => {
+            println!(
+                "💰 [{} - ID: {}] API cost: ${:.4}",
+                artist.name, artist.id, api_cost
+            );
+
+            let mut all_artist_styles = HashMap::new();
+
+            for result in style_results {
+                let artist_image_id = insert_artist_image(&conn, &result.shortcode, artist.id);
+
+                match artist_image_id {
+                    Ok(artist_image_id) => {
+                        let style_names: Vec<String> = result
+                            .styles
+                            .iter()
+                            .filter(|s| s.confidence >= confidence_threshold)
+                            .map(|s| s.style.clone())
+                            .filter(|s| is_valid_style_name(s))
+                            .collect();
+
+                        if !style_names.is_empty() {
+                            let style_ids = get_or_create_style_ids(&conn, &style_names);
+
+                            match style_ids {
+                                Ok(style_ids) => {
+                                    if let Err(e) = insert_artist_image_styles(
+                                        &conn,
+                                        artist_image_id,
+                                        &style_ids,
+                                    ) {
+                                        println!(
+                                            "Error saving styles for image {}: {}",
+                                            result.shortcode, e
+                                        );
+                                    }
+
+                                    for (name, id) in style_names.iter().zip(style_ids.iter()) {
+                                        all_artist_styles.insert(name.clone(), *id);
+                                    }
+                                }
+                                Err(e) => {
+                                    println!(
+                                        "Error mapping styles to IDs for image {}: {}",
+                                        result.shortcode, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "Error inserting artist_image for {}: {}",
+                            result.shortcode, e
+                        );
+                    }
+                }
+            }
+
+            let styles_found = if !all_artist_styles.is_empty() {
+                let artist_style_ids: Vec<i64> = all_artist_styles.values().copied().collect();
+                if let Err(e) = upsert_artist_styles(&conn, artist.id, &artist_style_ids) {
+                    println!(
+                        "❌ Error saving artist-level styles for {}: {}",
+                        artist.name, e
+                    );
+                    0
+                } else {
+                    println!(
+                        "✅ [{} - ID: {}] Saved {} unique styles",
+                        artist.name,
+                        artist.id,
+                        artist_style_ids.len()
+                    );
+                    artist_style_ids.len()
+                }
+            } else {
+                println!(
+                    "ℹ️  [{} - ID: {}] No high-confidence styles found",
+                    artist.name, artist.id
+                );
+                0
+            };
+
+            if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+                println!(
+                    "⚠️  Error marking artist {} as processed: {}",
+                    artist.name, e
+                );
+            } else {
+                println!(
+                    "✅ [{} - ID: {}] Marked as styles_extracted",
+                    artist.name, artist.id
+                );
+            }
+
+            Ok((artist, posts_processed, styles_found, api_cost))
+        }
+        Err(e) => {
+            println!("❌ Error processing posts for {}: {}", artist.name, e);
+
+            if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+                println!(
+                    "⚠️  Error marking artist {} as processed: {}",
+                    artist.name, e
+                );
+            }
+
+            Err(Box::from(e.to_string()) as Box<dyn std::error::Error + Send + Sync>)
+        }
+    }
 }
 
 async fn process_artist_posts(
-    conn: &Connection,
-    client: &Client<OpenAIConfig>,
     artist: &Artist,
-    posts: &[InstaPost],
+    posts: &[ProcessablePost],
     batch_size: usize,
     confidence_threshold: f64,
 ) -> Result<(Vec<StyleResult>, f64), Box<dyn std::error::Error>> {
+    let client = Client::new();
     println!(
         "   🤖 Processing {} posts in batches of {} with OpenAI Vision API",
         posts.len(),
@@ -446,8 +445,8 @@ async fn process_artist_posts(
         let client = Arc::new(client.clone());
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
-        let batch_posts: Vec<InstaPost> = batch.to_vec();
-        let total_batches = (posts.len() + batch_size - 1) / batch_size;
+        let batch_posts: Vec<ProcessablePost> = batch.to_vec();
+        let total_batches = posts.len().div_ceil(batch_size);
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
@@ -493,28 +492,23 @@ async fn process_artist_posts(
             ];
 
             for post in &batch_posts {
-                let image_path_str = format!("data-ingestion/{}", post.filepath);
-                let image_path = Path::new(&image_path_str);
+                let base64_image =
+                    base64::engine::general_purpose::STANDARD.encode(&post.image_data);
 
-                let image_data = match fs::read(image_path) {
-                    Ok(data) => data,
-                    Err(e) => {
-                        println!("  Error reading image {}: {}", post.filepath, e);
-                        continue;
-                    }
-                };
-
-                let base64_image = base64::engine::general_purpose::STANDARD.encode(&image_data);
-                let mime_type = match image_path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .map(|ext| ext.to_lowercase())
+                // Detect image format from the data itself
+                let mime_type = if post.image_data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+                    "image/jpeg"
+                } else if post.image_data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+                    "image/png"
+                } else if post.image_data.starts_with(b"RIFF")
+                    && post.image_data.len() > 11
+                    && &post.image_data[8..12] == b"WEBP"
                 {
-                    Some(ext) if ext == "jpg" || ext == "jpeg" => "image/jpeg",
-                    Some(ext) if ext == "png" => "image/png",
-                    Some(ext) if ext == "webp" => "image/webp",
-                    Some(ext) if ext == "gif" => "image/gif",
-                    _ => "image/jpeg",
+                    "image/webp"
+                } else if post.image_data.starts_with(b"GIF8") {
+                    "image/gif"
+                } else {
+                    "image/jpeg" // default
                 };
 
                 let data_url = format!("data:{};base64,{}", mime_type, base64_image);
@@ -707,11 +701,20 @@ async fn process_artist_posts(
 
     if api_calls > 0 {
         let avg_cost = total_cost / api_calls as f64;
-        for _ in 0..api_calls {
-            if let Err(e) = update_openai_api_costs(&conn, "style_extraction", "gpt-4o", avg_cost) {
-                println!("  Warning: Failed to update API cost tracking: {}", e);
+
+        // Open a connection for updating costs
+        if let Ok(conn) =
+            Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set"))
+        {
+            for _ in 0..api_calls {
+                if let Err(e) =
+                    update_openai_api_costs(&conn, "style_extraction", "gpt-4o", avg_cost)
+                {
+                    println!("  Warning: Failed to update API cost tracking: {}", e);
+                }
             }
         }
+
         println!(
             "  Total API cost for {}: ${:.4} across {} calls (avg: ${:.4})",
             artist.name, total_cost, api_calls, avg_cost
