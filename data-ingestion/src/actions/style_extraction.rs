@@ -19,8 +19,8 @@ use async_openai::{
 
 use crate::repository::{
     get_artists_for_style_extraction, get_or_create_style_ids, insert_artist_image,
-    insert_artist_image_styles, mark_artist_styles_extracted, update_openai_api_costs,
-    upsert_artist_styles, Artist,
+    insert_artist_image_styles, mark_artist_styles_extracted, mark_artist_styles_extraction_failed, 
+    update_openai_api_costs, upsert_artist_styles, Artist,
 };
 
 use super::apify_scraper::{download_image, scrape_instagram_profile};
@@ -252,12 +252,34 @@ async fn process_single_artist(
             if ig_username.contains("?") || ig_username.contains("&") || ig_username.contains("=") {
                 println!("   💡 Hint: Username '{}' looks malformed. Check social_links format in database.", ig_username);
             }
+            
+            // Mark as failed in database before returning error
+            let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set")).ok();
+            if let Some(conn) = conn {
+                if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
+                    println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+                } else {
+                    println!("❌ [{} - ID: {}] Marked as extraction failed", artist.name, artist.id);
+                }
+            }
+            
             return Err(Box::from(e.to_string()) as Box<dyn std::error::Error + Send + Sync>);
         }
     };
 
     if apify_posts.is_empty() {
         println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
+        
+        // Mark as failed in database
+        let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set")).ok();
+        if let Some(conn) = conn {
+            if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
+                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+            } else {
+                println!("❌ [{} - ID: {}] Marked as extraction failed (no posts)", artist.name, artist.id);
+            }
+        }
+        
         return Ok((artist, 0, 0, 0.0));
     }
 
@@ -284,6 +306,17 @@ async fn process_single_artist(
 
     if processable_posts.is_empty() {
         println!("⚠️  No images could be downloaded for {}", artist.name);
+        
+        // Mark as failed in database  
+        let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set")).ok();
+        if let Some(conn) = conn {
+            if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
+                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+            } else {
+                println!("❌ [{} - ID: {}] Marked as extraction failed (no images)", artist.name, artist.id);
+            }
+        }
+        
         return Ok((artist, 0, 0, 0.0));
     }
 
@@ -413,11 +446,13 @@ async fn process_single_artist(
         Err(e) => {
             println!("❌ Error processing posts for {}: {}", artist.name, e);
 
-            if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+            if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
                 println!(
-                    "⚠️  Error marking artist {} as processed: {}",
-                    artist.name, e
+                    "⚠️  Error marking artist {} as failed: {}",
+                    artist.name, db_err
                 );
+            } else {
+                println!("❌ [{} - ID: {}] Marked as extraction failed (OpenAI error)", artist.name, artist.id);
             }
 
             Err(Box::from(e.to_string()) as Box<dyn std::error::Error + Send + Sync>)

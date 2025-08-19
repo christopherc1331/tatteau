@@ -207,7 +207,7 @@ pub fn get_artists_for_style_extraction(
             WHERE social_links IS NOT NULL 
               AND TRIM(social_links) != ''
               AND (LOWER(social_links) LIKE '%instagram.com%')
-              AND styles_extracted IS NULL
+              AND (styles_extracted IS NULL OR styles_extracted = 0)
             LIMIT ?1
         ",
     )?;
@@ -274,6 +274,12 @@ pub fn upsert_artist_styles(
 
 pub fn mark_artist_styles_extracted(conn: &Connection, artist_id: i64) -> Result<(), Error> {
     let mut stmt = conn.prepare("UPDATE artists SET styles_extracted = 1 WHERE id = ?1")?;
+    stmt.execute(params![artist_id])?;
+    Ok(())
+}
+
+pub fn mark_artist_styles_extraction_failed(conn: &Connection, artist_id: i64) -> Result<(), Error> {
+    let mut stmt = conn.prepare("UPDATE artists SET styles_extracted = -1 WHERE id = ?1")?;
     stmt.execute(params![artist_id])?;
     Ok(())
 }
