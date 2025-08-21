@@ -597,39 +597,36 @@ pub fn MasonryGallery(
             <style>
                 {r#"
                     .masonry-grid {
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 1.5rem;
+                        column-count: 4;
+                        column-gap: 1.5rem;
                         padding: 1.5rem;
                         max-width: 1800px;
                         margin: 0 auto;
                     }
                     
-                    .masonry-item {
-                        flex: 1 1 calc(25% - 1.125rem); /* 4 columns */
-                        min-width: 280px;
-                        max-width: calc(25% - 1.125rem);
-                    }
-                    
                     @media (max-width: 1400px) {
-                        .masonry-item {
-                            flex: 1 1 calc(33.333% - 1rem);
-                            max-width: calc(33.333% - 1rem);
+                        .masonry-grid {
+                            column-count: 3;
                         }
                     }
                     
                     @media (max-width: 1000px) {
-                        .masonry-item {
-                            flex: 1 1 calc(50% - 0.75rem);
-                            max-width: calc(50% - 0.75rem);
+                        .masonry-grid {
+                            column-count: 2;
                         }
                     }
                     
                     @media (max-width: 768px) {
-                        .masonry-item {
-                            flex: 1 1 100%;
-                            max-width: 100%;
+                        .masonry-grid {
+                            column-count: 1;
                         }
+                    }
+                    
+                    .masonry-item {
+                        width: 100%;
+                        break-inside: avoid;
+                        margin-bottom: 1.5rem;
+                        display: inline-block;
                     }
                     
                     .instagram-card {
@@ -640,6 +637,7 @@ pub fn MasonryGallery(
                         transition: transform 0.2s ease, box-shadow 0.2s ease;
                         width: 100%;
                         min-width: 0;
+                        height: fit-content;
                     }
                     
                     .instagram-card:hover {
@@ -707,11 +705,13 @@ pub fn MasonryGallery(
                         width: 100%;
                         min-width: 0;
                         overflow: hidden;
+                        height: auto;
                     }
                     
                     .instagram-wrapper {
                         width: 100%;
                         min-width: 0;
+                        height: auto;
                     }
                     
                     /* Force Instagram embeds to be responsive */
