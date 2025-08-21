@@ -30,6 +30,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                     src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
                     defer
                 ></script>
+                // Add Instagram embed script
+                <script async defer src="//www.instagram.com/embed.js"></script>
                 <body>
                     <App/>
                 </body>
