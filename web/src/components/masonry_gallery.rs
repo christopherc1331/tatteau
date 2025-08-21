@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use thaw::Tag;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::window;
 
@@ -54,7 +53,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
         InstagramPost {
             image: ArtistImage {
                 id: 1,
-                short_code: "DNQodNBtvOv".to_string(),
+                short_code: "DMNyOgCOe39".to_string(),
                 artist_id: 1,
             },
             styles: vec![
@@ -71,34 +70,355 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
         InstagramPost {
             image: ArtistImage {
                 id: 2,
-                short_code: "DNQodNBtvOv".to_string(),
+                short_code: "DM3HnAKu2hB".to_string(),
                 artist_id: 1,
             },
             styles: vec![
                 Style {
                     id: 3,
-                    name: "Neo-Traditional".to_string(),
+                    name: "Japanese".to_string(),
                 },
                 Style {
-                    id: 4,
-                    name: "Color Realism".to_string(),
+                    id: 6,
+                    name: "Watercolor".to_string(),
                 },
             ],
         },
         InstagramPost {
             image: ArtistImage {
                 id: 3,
-                short_code: "DNQodNBtvOv".to_string(),
+                short_code: "DF8HJprp4yu".to_string(),
                 artist_id: 2,
             },
             styles: vec![
                 Style {
-                    id: 5,
-                    name: "Japanese".to_string(),
+                    id: 4,
+                    name: "Neo-Traditional".to_string(),
                 },
                 Style {
-                    id: 6,
-                    name: "Watercolor".to_string(),
+                    id: 5,
+                    name: "Color Realism".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 4,
+                short_code: "DNQodNBtvOv".to_string(),
+                artist_id: 3,
+            },
+            styles: vec![
+                Style {
+                    id: 7,
+                    name: "Geometric".to_string(),
+                },
+                Style {
+                    id: 8,
+                    name: "Dotwork".to_string(),
+                },
+                Style {
+                    id: 9,
+                    name: "Blackwork".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 5,
+                short_code: "DLiEi_9OPpv".to_string(),
+                artist_id: 4,
+            },
+            styles: vec![
+                Style {
+                    id: 10,
+                    name: "Realism".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 6,
+                short_code: "DC2JM-6yCV4".to_string(),
+                artist_id: 5,
+            },
+            styles: vec![
+                Style {
+                    id: 11,
+                    name: "Tribal".to_string(),
+                },
+                Style {
+                    id: 12,
+                    name: "Polynesian".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 7,
+                short_code: "DNOFP6Ctf7C".to_string(),
+                artist_id: 6,
+            },
+            styles: vec![
+                Style {
+                    id: 13,
+                    name: "Minimalist".to_string(),
+                },
+                Style {
+                    id: 14,
+                    name: "Fine Line".to_string(),
+                },
+                Style {
+                    id: 15,
+                    name: "Single Needle".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 8,
+                short_code: "DMQeBWNOGvR".to_string(),
+                artist_id: 7,
+            },
+            styles: vec![
+                Style {
+                    id: 16,
+                    name: "Old School".to_string(),
+                },
+                Style {
+                    id: 17,
+                    name: "American Traditional".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 9,
+                short_code: "DKkJ0B3OVhg".to_string(),
+                artist_id: 8,
+            },
+            styles: vec![
+                Style {
+                    id: 18,
+                    name: "Illustrative".to_string(),
+                },
+                Style {
+                    id: 19,
+                    name: "Sketch".to_string(),
+                },
+                Style {
+                    id: 20,
+                    name: "Graphic".to_string(),
+                },
+                Style {
+                    id: 21,
+                    name: "Etching".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 10,
+                short_code: "DJZc9iKu0kv".to_string(),
+                artist_id: 9,
+            },
+            styles: vec![
+                Style {
+                    id: 22,
+                    name: "Biomechanical".to_string(),
+                },
+                Style {
+                    id: 23,
+                    name: "Horror".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 11,
+                short_code: "DKE4I8nOtWj".to_string(),
+                artist_id: 10,
+            },
+            styles: vec![
+                Style {
+                    id: 24,
+                    name: "Portrait".to_string(),
+                },
+                Style {
+                    id: 25,
+                    name: "Hyperrealism".to_string(),
+                },
+                Style {
+                    id: 26,
+                    name: "Photorealism".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 12,
+                short_code: "DLaTX99O18N".to_string(),
+                artist_id: 11,
+            },
+            styles: vec![
+                Style {
+                    id: 27,
+                    name: "Chicano".to_string(),
+                },
+                Style {
+                    id: 28,
+                    name: "Lettering".to_string(),
+                },
+                Style {
+                    id: 29,
+                    name: "Script".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 13,
+                short_code: "DKAHf9VNML6".to_string(),
+                artist_id: 12,
+            },
+            styles: vec![
+                Style {
+                    id: 30,
+                    name: "Ornamental".to_string(),
+                },
+                Style {
+                    id: 31,
+                    name: "Mandala".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 14,
+                short_code: "DJrVzvSOOZy".to_string(),
+                artist_id: 13,
+            },
+            styles: vec![
+                Style {
+                    id: 32,
+                    name: "Surrealism".to_string(),
+                },
+                Style {
+                    id: 33,
+                    name: "Abstract".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 15,
+                short_code: "DLIN_xquVMh".to_string(),
+                artist_id: 14,
+            },
+            styles: vec![
+                Style {
+                    id: 34,
+                    name: "Celtic".to_string(),
+                },
+                Style {
+                    id: 35,
+                    name: "Nordic".to_string(),
+                },
+                Style {
+                    id: 36,
+                    name: "Runes".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 16,
+                short_code: "DKhthd1OVJ-".to_string(),
+                artist_id: 15,
+            },
+            styles: vec![
+                Style {
+                    id: 37,
+                    name: "Trash Polka".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 17,
+                short_code: "DJKQa9Oy2Z3".to_string(),
+                artist_id: 16,
+            },
+            styles: vec![
+                Style {
+                    id: 38,
+                    name: "New School".to_string(),
+                },
+                Style {
+                    id: 39,
+                    name: "Cartoon".to_string(),
+                },
+                Style {
+                    id: 40,
+                    name: "Anime".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 18,
+                short_code: "DKCywApuCYa".to_string(),
+                artist_id: 17,
+            },
+            styles: vec![
+                Style {
+                    id: 41,
+                    name: "Patchwork".to_string(),
+                },
+                Style {
+                    id: 42,
+                    name: "Stick and Poke".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 19,
+                short_code: "DL5KRdQOSiB".to_string(),
+                artist_id: 18,
+            },
+            styles: vec![
+                Style {
+                    id: 43,
+                    name: "Glitch".to_string(),
+                },
+                Style {
+                    id: 44,
+                    name: "Cyber".to_string(),
+                },
+                Style {
+                    id: 45,
+                    name: "Futuristic".to_string(),
+                },
+            ],
+        },
+        InstagramPost {
+            image: ArtistImage {
+                id: 20,
+                short_code: "DNVw2GpNviS".to_string(),
+                artist_id: 19,
+            },
+            styles: vec![
+                Style {
+                    id: 46,
+                    name: "Sacred Geometry".to_string(),
+                },
+                Style {
+                    id: 47,
+                    name: "Spiritual".to_string(),
+                },
+                Style {
+                    id: 48,
+                    name: "Esoteric".to_string(),
                 },
             ],
         },
@@ -237,11 +557,11 @@ pub fn MasonryGallery(
     // Calculate responsive columns
     let column_count = Memo::new(move |_| {
         let width = screen_width.get();
-        if width >= 1200 {
+        if width >= 1400 {
             4
-        } else if width >= 768 {
+        } else if width >= 1000 {
             3
-        } else if width >= 480 {
+        } else if width >= 768 {
             2
         } else {
             1
@@ -270,37 +590,142 @@ pub fn MasonryGallery(
     view! {
         <div class="masonry-gallery">
             <h1>"Tattoo Artist Gallery"</h1>
+            <p style="font-size: 0.75rem; color: #666;">
+                {move || format!("Screen width: {}px | Columns: {}", screen_width.get(), column_count.get())}
+            </p>
 
             <style>
                 {r#"
                     .masonry-grid {
-                        column-gap: 1rem;
-                        padding: 1rem;
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 1.5rem;
+                        padding: 1.5rem;
+                        max-width: 1800px;
+                        margin: 0 auto;
                     }
                     
                     .masonry-item {
-                        break-inside: avoid;
-                        margin-bottom: 1rem;
+                        flex: 1 1 calc(25% - 1.125rem); /* 4 columns */
+                        min-width: 280px;
+                        max-width: calc(25% - 1.125rem);
+                    }
+                    
+                    @media (max-width: 1400px) {
+                        .masonry-item {
+                            flex: 1 1 calc(33.333% - 1rem);
+                            max-width: calc(33.333% - 1rem);
+                        }
+                    }
+                    
+                    @media (max-width: 1000px) {
+                        .masonry-item {
+                            flex: 1 1 calc(50% - 0.75rem);
+                            max-width: calc(50% - 0.75rem);
+                        }
+                    }
+                    
+                    @media (max-width: 768px) {
+                        .masonry-item {
+                            flex: 1 1 100%;
+                            max-width: 100%;
+                        }
                     }
                     
                     .instagram-card {
                         background: white;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border-radius: 12px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
                         overflow: hidden;
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                        width: 100%;
+                        min-width: 0;
+                    }
+                    
+                    .instagram-card:hover {
+                        transform: translateY(-2px);
+                        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
                     }
                     
                     .style-chips {
-                        padding: 0.5rem;
+                        padding: 0.75rem;
                         display: flex;
                         flex-wrap: wrap;
-                        gap: 0.5rem;
-                        background: #f5f5f5;
+                        gap: 0.375rem;
+                        background: #fafafa;
+                        border-bottom: 1px solid #eee;
+                    }
+                    
+                    .style-chip {
+                        padding: 0.25rem 0.625rem;
+                        border-radius: 14px;
+                        background: #333;
+                        color: white;
+                        font-size: 0.625rem;
+                        font-weight: 600;
+                        letter-spacing: 0.4px;
+                        text-transform: uppercase;
+                        transition: all 0.2s ease;
+                        display: inline-flex;
+                        align-items: center;
+                        white-space: nowrap;
+                        border: 2px solid transparent;
+                    }
+                    
+                    .style-chip:hover {
+                        background: #555;
+                        transform: translateY(-1px);
+                    }
+                    
+                    /* Different colors for variety - more subtle */
+                    .style-chip:nth-child(2n) {
+                        background: #5a67d8;
+                    }
+                    
+                    .style-chip:nth-child(3n) {
+                        background: #ed8936;
+                    }
+                    
+                    .style-chip:nth-child(4n) {
+                        background: #38a169;
+                    }
+                    
+                    .style-chip:nth-child(5n) {
+                        background: #e53e3e;
+                    }
+                    
+                    .style-chip:nth-child(6n) {
+                        background: #805ad5;
+                    }
+                    
+                    .style-chip:nth-child(7n) {
+                        background: #2d3748;
                     }
                     
                     .instagram-embed-container {
                         position: relative;
                         width: 100%;
+                        min-width: 0;
+                        overflow: hidden;
+                    }
+                    
+                    .instagram-wrapper {
+                        width: 100%;
+                        min-width: 0;
+                    }
+                    
+                    /* Force Instagram embeds to be responsive */
+                    .instagram-media {
+                        max-width: 100% !important;
+                        min-width: 200px !important;
+                        width: 100% !important;
+                        margin: 0 auto !important;
+                    }
+                    
+                    .instagram-media iframe {
+                        max-width: 100% !important;
+                        min-width: 200px !important;
+                        width: 100% !important;
                     }
                     
                     .instagram-placeholder {
@@ -329,19 +754,10 @@ pub fn MasonryGallery(
                     .fallback-link:hover {
                         text-decoration: underline;
                     }
-                    
-                    /* Ensure Instagram embeds are responsive */
-                    .instagram-media {
-                        max-width: 100% !important;
-                        width: 100% !important;
-                    }
                 "#}
             </style>
 
-            <div
-                class="masonry-grid"
-                style:column-count=move || column_count.get().to_string()
-            >
+            <div class="masonry-grid">
                 <For
                     each=move || gallery_posts.clone()
                     key=|post| post.image.id
@@ -358,7 +774,7 @@ pub fn MasonryGallery(
                                             key=|style| style.id
                                             children=move |style: Style| {
                                                 view! {
-                                                    <Tag>{style.name}</Tag>
+                                                    <span class="style-chip">{style.name}</span>
                                                 }
                                             }
                                         />
