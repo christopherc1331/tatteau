@@ -1,7 +1,6 @@
 use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
-use crate::components::instagram_embed::{InstagramEmbed, process_instagram_embeds};
-use wasm_bindgen::prelude::*;
+use crate::components::instagram_embed::InstagramEmbed;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -18,22 +17,6 @@ pub fn ShopMasonryGallery(
     let (selected_style, set_selected_style) = signal::<Option<i32>>(None);
     let (show_grid, set_show_grid) = signal(true);
     
-    // Process Instagram embeds after DOM updates
-    Effect::new(move |_| {
-        if show_grid.get() {
-            let window = web_sys::window().unwrap();
-            let closure = Closure::once(move || {
-                process_instagram_embeds();
-            });
-            
-            window.set_timeout_with_callback_and_timeout_and_arguments_0(
-                closure.as_ref().unchecked_ref(),
-                200
-            ).ok();
-            
-            closure.forget();
-        }
-    });
     
     let filtered_posts = Memo::new(move |_| {
         let posts = shop_posts.clone();

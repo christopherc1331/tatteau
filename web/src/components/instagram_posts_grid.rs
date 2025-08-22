@@ -1,7 +1,6 @@
 use crate::db::entities::{Artist, ArtistImage, Style};
-use crate::components::instagram_embed::{InstagramEmbed, process_instagram_embeds};
+use crate::components::instagram_embed::InstagramEmbed;
 use leptos::prelude::*;
-use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostWithArtist {
@@ -15,20 +14,6 @@ pub fn InstagramPostsGrid(
     posts: Vec<PostWithArtist>,
     #[prop(optional)] filter_id: Option<String>,
 ) -> impl IntoView {
-    // Process Instagram embeds after DOM updates
-    Effect::new(move |_| {
-        let window = web_sys::window().unwrap();
-        let closure = Closure::once(move || {
-            process_instagram_embeds();
-        });
-        
-        window.set_timeout_with_callback_and_timeout_and_arguments_0(
-            closure.as_ref().unchecked_ref(),
-            200
-        ).ok();
-        
-        closure.forget();
-    });
     
     view! {
         <style>

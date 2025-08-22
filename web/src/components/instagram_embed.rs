@@ -6,37 +6,51 @@ pub fn InstagramEmbed(
     short_code: String,
 ) -> impl IntoView {
     let embed_id = format!("instagram-embed-{}", short_code);
-    let embed_id_for_js = embed_id.clone();
+    let embed_id_for_effect = embed_id.clone();
+    let embed_id_for_view = embed_id.clone();
     let short_code_for_html = short_code.clone();
+    let short_code_for_effect = short_code.clone();
     
-    // Set up JavaScript to handle loading detection with direct DOM manipulation
+    // Set up JavaScript detection for this embed instance
     Effect::new(move |_| {
         let js_code = format!(r#"
             (function() {{
                 const embedId = '{}';
                 const shortCode = '{}';
+                
+                // Check if this specific element already has tracking set up
+                const elem = document.getElementById(embedId);
+                if (!elem) {{
+                    setTimeout(() => arguments.callee(), 100);
+                    return;
+                }}
+                
+                if (elem.hasAttribute('data-instagram-tracking')) {{
+                    return; // Already tracking this specific element
+                }}
+                elem.setAttribute('data-instagram-tracking', 'true');
+                
                 let checkCount = 0;
-                const maxChecks = 50; // 5 seconds max
+                const maxChecks = 30;
                 
                 function hideLoader() {{
                     const elem = document.getElementById(embedId);
                     if (elem) {{
                         const loadingDiv = elem.querySelector('[data-instagram-loading]');
-                        if (loadingDiv && loadingDiv.style.display !== 'none') {{
-                            console.log('Hiding loader for', shortCode);
+                        if (loadingDiv) {{
                             loadingDiv.style.display = 'none';
+                            console.log('✅ Loader hidden for', shortCode);
                         }}
                     }}
                 }}
                 
                 function checkLoaded() {{
+                    checkCount++;
+                    
                     const elem = document.getElementById(embedId);
                     if (!elem) {{
                         if (checkCount < maxChecks) {{
-                            checkCount++;
                             setTimeout(checkLoaded, 100);
-                        }} else {{
-                            hideLoader();
                         }}
                         return;
                     }}
@@ -44,77 +58,59 @@ pub fn InstagramEmbed(
                     const blockquote = elem.querySelector('.instagram-media');
                     if (!blockquote) {{
                         if (checkCount < maxChecks) {{
-                            checkCount++;
                             setTimeout(checkLoaded, 100);
-                        }} else {{
-                            hideLoader();
                         }}
                         return;
                     }}
                     
-                    // Check if Instagram has processed this embed
+                    // Simple, reliable detection: look for any meaningful change to the blockquote
                     const iframe = blockquote.querySelector('iframe');
-                    const hasProcessedAttr = blockquote.hasAttribute('data-instgrm-processed');
-                    const hasInstagramContent = blockquote.innerHTML.length > 200; // Instagram adds content
-                    const hasVisibleContent = blockquote.offsetHeight > 50;
+                    const hasAnyChildElements = blockquote.children.length > 0;
+                    const hasProcessedClass = blockquote.classList.contains('instagram-media-rendered') || 
+                                            blockquote.hasAttribute('data-instgrm-processed');
                     
-                    if (iframe || hasProcessedAttr || (hasInstagramContent && hasVisibleContent)) {{
-                        console.log('Instagram embed', shortCode, 'loaded - iframe:', !!iframe, 'processed:', hasProcessedAttr, 'content:', hasInstagramContent, 'visible:', hasVisibleContent);
+                    if (iframe || hasAnyChildElements || hasProcessedClass) {{
+                        console.log('🎉 Instagram embed', shortCode, 'loaded successfully');
                         hideLoader();
                         return;
-                    }}
-                    
-                    // Force process Instagram embeds every few checks
-                    if (checkCount % 10 === 0 && window.instgrm && window.instgrm.Embeds) {{
-                        console.log('Force processing Instagram embeds (attempt', checkCount, ')');
-                        window.instgrm.Embeds.process();
                     }}
                     
                     if (checkCount >= maxChecks) {{
-                        console.log('Instagram embed', shortCode, 'timed out after', checkCount, 'attempts');
+                        console.log('⏰ Instagram embed', shortCode, 'timed out');
                         hideLoader();
                     }} else {{
-                        checkCount++;
-                        setTimeout(checkLoaded, 100);
+                        setTimeout(checkLoaded, 200);
                     }}
                 }}
                 
-                // Ensure Instagram script is loaded
+                // Ensure Instagram script is loaded and process
                 if (!window.instgrm) {{
-                    if (!document.querySelector('script[src*="instagram.com/embed.js"]')) {{
-                        console.log('Loading Instagram script for', shortCode);
-                        const script = document.createElement('script');
-                        script.src = 'https://www.instagram.com/embed.js';
-                        script.async = true;
-                        script.onload = () => {{
-                            console.log('Instagram script loaded, processing embeds');
-                            setTimeout(() => {{
-                                if (window.instgrm && window.instgrm.Embeds) {{
-                                    window.instgrm.Embeds.process();
-                                }}
-                            }}, 100);
-                        }};
-                        document.body.appendChild(script);
-                    }}
-                }} else {{
-                    // Script already loaded, process immediately
-                    setTimeout(() => {{
+                    const script = document.createElement('script');
+                    script.src = 'https://www.instagram.com/embed.js';
+                    script.async = true;
+                    script.onload = () => {{
                         if (window.instgrm && window.instgrm.Embeds) {{
+                            // Force processing of all embeds, not just new ones
                             window.instgrm.Embeds.process();
+                            setTimeout(checkLoaded, 100);
                         }}
-                    }}, 100);
+                    }};
+                    document.body.appendChild(script);
+                }} else {{
+                    // Always force re-process all embeds to handle filtered content
+                    if (window.instgrm && window.instgrm.Embeds) {{
+                        window.instgrm.Embeds.process();
+                    }}
+                    setTimeout(checkLoaded, 100);
                 }}
-                
-                // Start checking
-                setTimeout(checkLoaded, 300);
             }})();
-        "#, embed_id_for_js, short_code);
+        "#, embed_id_for_effect, short_code_for_effect);
         
         let _ = web_sys::js_sys::eval(&js_code);
     });
     
     view! {
-        <div id={embed_id.clone()} style="position: relative; min-height: 400px;">
+        <div id={embed_id_for_view} style="position: relative; min-height: 400px;">
             <div
                 inner_html={format!(
                     r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14" style="background: transparent;"></blockquote>"#,
