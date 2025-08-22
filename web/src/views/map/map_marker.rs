@@ -5,9 +5,9 @@ use shared_types::LocationInfo;
 
 #[component]
 pub fn MapMarker(location: LocationInfo) -> impl IntoView {
-    let fill_color = if !location.has_artists {
+    let fill_color = if location.has_artists.unwrap_or(false) == false {
         "%236b7280"
-    } else if location.artist_images_count == 0 {
+    } else if location.artist_images_count.unwrap_or(0) == 0 {
         "%23f97316"
     } else {
         "%235b21b6"

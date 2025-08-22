@@ -72,6 +72,7 @@ fn convert_val_obj_to_location_info(val: &Value) -> LocationInfo {
         lat: extract_f64(&val["location"]["latitude"]),
         long: extract_f64(&val["location"]["longitude"]),
         id: -1,
+        ..Default::default()
     }
 }
 
@@ -108,4 +109,3 @@ pub fn parse_data(value: &Value) -> Option<ParsedLocationData> {
         filtered_count,
     })
 }
-

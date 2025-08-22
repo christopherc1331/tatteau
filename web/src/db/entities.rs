@@ -56,4 +56,5 @@ pub struct Location {
     pub city: Option<String>,
     pub state: Option<String>,
     pub address: Option<String>,
+    pub website_uri: Option<String>,
 }

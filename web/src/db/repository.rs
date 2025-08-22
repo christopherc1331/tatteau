@@ -110,8 +110,8 @@ pub fn query_locations(
                 category: row.get(11)?,
                 website_uri: row.get(12)?,
                 _id: row.get(13)?,
-                has_artists: row.get::<_, i32>(14)? == 1,
-                artist_images_count: row.get(15)?,
+                has_artists: Some(row.get::<_, i32>(14)? == 1),
+                artist_images_count: Some(row.get(15)?),
             })
         },
     )?;
@@ -283,7 +283,7 @@ pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
     let conn = Connection::open(db_path)?;
     
     let mut stmt = conn.prepare(
-        "SELECT id, name, lat, long, city, state, address
+        "SELECT id, name, lat, long, city, state, address, website_uri
          FROM locations
          WHERE id = ?1"
     )?;
@@ -297,6 +297,7 @@ pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
             city: row.get(4)?,
             state: row.get(5)?,
             address: row.get(6)?,
+            website_uri: row.get(7)?,
         })
     })
 }
@@ -383,7 +384,7 @@ pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
     let conn = Connection::open(db_path)?;
     
     let mut stmt = conn.prepare(
-        "SELECT id, name, lat, long, city, state, address
+        "SELECT id, name, lat, long, city, state, address, website_uri
          FROM locations
          WHERE id = ?1"
     )?;
@@ -397,6 +398,7 @@ pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
             city: row.get(4)?,
             state: row.get(5)?,
             address: row.get(6)?,
+            website_uri: row.get(7)?,
         })
     })
 }

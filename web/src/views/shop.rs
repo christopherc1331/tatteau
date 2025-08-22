@@ -71,6 +71,14 @@ pub fn Shop() -> impl IntoView {
                                                        style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
                                                         "📅 Book Appointment"
                                                     </a>
+                                                    {shop_data.location.website_uri.as_ref().filter(|uri| !uri.is_empty()).map(|website_uri| {
+                                                        view! {
+                                                            <a href=website_uri.clone() target="_blank"
+                                                               style="background: #667eea; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
+                                                                "🌐 Visit Website"
+                                                            </a>
+                                                        }
+                                                    })}
                                                 </div>
                                             </div>
                                         </div>

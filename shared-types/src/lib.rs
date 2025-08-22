@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct LocationInfo {
     pub id: i64,
     pub city: String,
@@ -16,8 +16,8 @@ pub struct LocationInfo {
     pub lat: f64,
     pub long: f64,
     pub _id: String,
-    pub has_artists: bool,
-    pub artist_images_count: i32,
+    pub has_artists: Option<bool>,
+    pub artist_images_count: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
