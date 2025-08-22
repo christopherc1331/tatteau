@@ -1,5 +1,7 @@
 use crate::db::entities::{Artist, ArtistImage, Style};
+use crate::components::instagram_embed::{InstagramEmbed, process_instagram_embeds};
 use leptos::prelude::*;
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostWithArtist {
@@ -13,6 +15,20 @@ pub fn InstagramPostsGrid(
     posts: Vec<PostWithArtist>,
     #[prop(optional)] filter_id: Option<String>,
 ) -> impl IntoView {
+    // Process Instagram embeds after DOM updates
+    Effect::new(move |_| {
+        let window = web_sys::window().unwrap();
+        let closure = Closure::once(move || {
+            process_instagram_embeds();
+        });
+        
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(
+            closure.as_ref().unchecked_ref(),
+            200
+        ).ok();
+        
+        closure.forget();
+    });
     
     view! {
         <style>
@@ -61,16 +77,11 @@ pub fn InstagramPostsGrid(
                                 }
                             })}
                             <div style="position: relative;">
-                                <div
-                                    inner_html={format!(
-                                        r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14"></blockquote>"#,
-                                        short_code
-                                    )}
-                                ></div>
+                                <InstagramEmbed short_code={short_code} />
                                 {post.artist.as_ref().map(|artist| {
                                     let artist_name = artist.name.clone().unwrap_or_else(|| "Unknown Artist".to_string());
                                     view! {
-                                        <div style="position: absolute; top: 0.5rem; left: 0.5rem; background: rgba(0,0,0,0.8); color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">
+                                        <div style="position: absolute; top: 0.5rem; left: 0.5rem; background: rgba(0,0,0,0.8); color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600; z-index: 10;">
                                             <a href={format!("/artist/{}", artist.id)}
                                                style="color: white; text-decoration: none;">
                                                 {format!("👤 {}", artist_name)}
@@ -86,33 +97,6 @@ pub fn InstagramPostsGrid(
             }).collect_view()}
         </div>
         
-        <script>
-            {format!(r#"
-            // Process Instagram embeds for this grid
-            setTimeout(() => {{
-                if (window.instgrm && window.instgrm.Embeds) {{
-                    console.log('Processing Instagram embeds for filter: {}');
-                    window.instgrm.Embeds.process();
-                }} else {{
-                    // Load Instagram script if not present
-                    if (!document.querySelector('script[src*="instagram.com/embed.js"]')) {{
-                        const script = document.createElement('script');
-                        script.src = 'https://www.instagram.com/embed.js';
-                        script.async = true;
-                        script.onload = () => {{
-                            console.log('Instagram script loaded, processing embeds');
-                            if (window.instgrm && window.instgrm.Embeds) {{
-                                window.instgrm.Embeds.process();
-                            }}
-                        }};
-                        document.body.appendChild(script);
-                    }}
-                }}
-            }}, 100);
-            "#,
-            filter_id.clone().unwrap_or_else(|| "default".to_string())
-            )}
-        </script>
 
     }
 }

@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
+use crate::components::instagram_embed::{InstagramEmbed, process_instagram_embeds};
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -14,6 +16,24 @@ pub fn ShopMasonryGallery(
     all_styles: Vec<Style>,
 ) -> impl IntoView {
     let (selected_style, set_selected_style) = signal::<Option<i32>>(None);
+    let (show_grid, set_show_grid) = signal(true);
+    
+    // Process Instagram embeds after DOM updates
+    Effect::new(move |_| {
+        if show_grid.get() {
+            let window = web_sys::window().unwrap();
+            let closure = Closure::once(move || {
+                process_instagram_embeds();
+            });
+            
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                200
+            ).ok();
+            
+            closure.forget();
+        }
+    });
     
     let filtered_posts = Memo::new(move |_| {
         let posts = shop_posts.clone();
@@ -34,7 +54,11 @@ pub fn ShopMasonryGallery(
                     <span style="font-weight: 600; color: #4a5568; margin-right: 0.5rem;">"Filter by style:"</span>
                     
                     <button 
-                        on:click=move |_| set_selected_style.set(None)
+                        on:click=move |_| {
+                            set_show_grid.set(false);
+                            set_selected_style.set(None);
+                            set_timeout(move || set_show_grid.set(true), std::time::Duration::from_millis(50));
+                        }
                         style=move || format!(
                             "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
                             if selected_style.get().is_none() { "#667eea" } else { "white" },
@@ -49,7 +73,11 @@ pub fn ShopMasonryGallery(
                         let style_name = style.name.clone();
                         view! {
                             <button 
-                                on:click=move |_| set_selected_style.set(Some(style_id))
+                                on:click=move |_| {
+                                    set_show_grid.set(false);
+                                    set_selected_style.set(Some(style_id));
+                                    set_timeout(move || set_show_grid.set(true), std::time::Duration::from_millis(50));
+                                }
                                 style=move || format!(
                                     "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
                                     if selected_style.get() == Some(style_id) { "#667eea" } else { "white" },
@@ -86,13 +114,15 @@ pub fn ShopMasonryGallery(
                 }
                 "#}
             </style>
-            <div class="shop-masonry">
-                {move || {
-                    filtered_posts.get().into_iter().map(|post| {
-                        let short_code = post.image.short_code.clone();
-                        let artist_name = post.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
-                        
-                        view! {
+            {move || {
+                if show_grid.get() {
+                    view! {
+                        <div class="shop-masonry">
+                            {filtered_posts.get().into_iter().map(|post| {
+                                let short_code = post.image.short_code.clone();
+                                let artist_name = post.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
+                                
+                                view! {
                             <div style="break-inside: avoid; margin-bottom: 1rem; position: relative;">
                                 <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
                                     <div style="padding: 0.5rem; background: white;">
@@ -103,12 +133,7 @@ pub fn ShopMasonryGallery(
                                         </a>
                                     </div>
                                     
-                                    <div 
-                                        inner_html={format!(
-                                            r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14"></blockquote><script>setTimeout(() => {{ if(window.instgrm && window.instgrm.Embeds) {{ window.instgrm.Embeds.process(); }} }}, 500);</script>"#, 
-                                            short_code
-                                        )}
-                                    ></div>
+                                    <InstagramEmbed short_code={short_code} />
                                     
                                     {(!post.styles.is_empty()).then(|| {
                                         view! {
@@ -127,10 +152,19 @@ pub fn ShopMasonryGallery(
                                     })}
                                 </div>
                             </div>
-                        }
-                    }).collect_view()
-                }}
-            </div>
+                                }
+                            }).collect_view()}
+                        </div>
+                        
+                    }.into_any()
+                } else {
+                    view! {
+                        <div style="height: 200px; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: #999;">"Loading..."</span>
+                        </div>
+                    }.into_any()
+                }
+            }}
         </div>
     }
 }
