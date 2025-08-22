@@ -90,12 +90,12 @@ pub fn Shop() -> impl IntoView {
 
                                     <div style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;">
                                         <div style="display: grid; grid-template-columns: 1fr 400px; gap: 2rem; margin-bottom: 2rem;">
-                                            // Left side: Artists and Styles together
-                                            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                                            // Left side: Artists and Styles combined
+                                            <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
                                                 {(!shop_data.artists.is_empty()).then(|| {
                                                     view! {
-                                                        <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Our Artists"</h3>
+                                                        <div style="margin-bottom: 2rem;">
+                                                            <h3 style="font-size: 1.5rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"Our Artists"</h3>
                                                             <div style="display: flex; flex-direction: column; gap: 1rem;">
                                                                 {shop_data.artists.into_iter().map(|artist| {
                                                                     let artist_name = artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
@@ -127,8 +127,8 @@ pub fn Shop() -> impl IntoView {
 
                                                 {(!shop_data.all_styles.is_empty()).then(|| {
                                                     view! {
-                                                        <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Styles We Do"</h3>
+                                                        <div>
+                                                            <h3 style="font-size: 1.5rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"Styles We Do"</h3>
                                                             <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                                                                 {shop_data.all_styles.into_iter().map(|style| {
                                                                     view! {
@@ -150,17 +150,17 @@ pub fn Shop() -> impl IntoView {
                                             let encoded_addr = urlencoding::encode(&addr);
 
                                             view! {
-                                                <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-bottom: 2rem;">
-                                                    <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 0.5rem 0;">"📍 Shop Location"</h3>
-                                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                                        <p style="color: #4a5568; margin: 0; font-size: 0.9rem;">
+                                                <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+                                                    <h3 style="font-size: 1.5rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"📍 Shop Location"</h3>
+                                                    <div style="margin-bottom: 1.5rem;">
+                                                        <p style="color: #4a5568; margin: 0 0 1rem 0; font-size: 1rem; line-height: 1.5;">
                                                             {addr.clone()}
                                                         </p>
                                                         <a href={format!("https://www.google.com/maps/dir/?api=1&destination={}",
                                                             shop_data.location.address.as_ref().unwrap_or(&"".to_string()))}
                                                            target="_blank"
-                                                           style="background: #4285f4; color: white; padding: 0.375rem 0.75rem; border-radius: 6px; text-decoration: none; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; font-weight: 600; white-space: nowrap;">
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                                           style="background: #4285f4; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 600;">
+                                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                                                 <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M16.24,7.76L15.12,6.64L8.76,13L5.64,9.88L4.52,11L8.76,15.24L16.24,7.76Z"/>
                                                                 <path d="M2.5,19H21.5V21H2.5V19M22.07,9.64C21.86,8.84 21.03,8.36 20.23,8.58L14.92,10L8,3.57L6.09,4.08L10.23,11.25L5.26,12.58L3.29,11.04L1.84,11.43L3.66,14.59L4.43,15.92L6.03,15.5L11.34,14.07L15.69,12.91L21,11.5C21.81,11.26 22.28,10.44 22.07,9.64Z"/>
                                                             </svg>
@@ -184,8 +184,8 @@ pub fn Shop() -> impl IntoView {
 
                                         {(!shop_posts.is_empty()).then(|| {
                                             view! {
-                                                <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                    <h2 style="font-size: 1.5rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Shop Portfolio"</h2>
+                                                <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+                                                    <h2 style="font-size: 1.75rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"Shop Portfolio"</h2>
                                                     <ShopMasonryGallery shop_posts=shop_posts all_styles=all_styles_for_filter />
                                                 </div>
                                             }
