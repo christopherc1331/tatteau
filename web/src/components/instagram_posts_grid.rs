@@ -13,6 +13,7 @@ pub fn InstagramPostsGrid(
     posts: Vec<PostWithArtist>,
     #[prop(optional)] filter_id: Option<String>,
 ) -> impl IntoView {
+    
     view! {
         <style>
             {r#"
@@ -84,38 +85,34 @@ pub fn InstagramPostsGrid(
                 }
             }).collect_view()}
         </div>
-
+        
         <script>
             {format!(r#"
-            // Force Instagram embed reprocessing for filter: {}
+            // Process Instagram embeds for this grid
             setTimeout(() => {{
-                if(window.instgrm && window.instgrm.Embeds) {{
-                    // Target this specific grid instance
-                    const gridId = 'posts-grid-{}';
-                    const gridElement = document.getElementById(gridId);
-                    if (gridElement) {{
-                        console.log('Processing Instagram embeds for grid:', gridId);
-                        
-                        // Remove processed attributes from all blockquotes in this grid
-                        const blockquotes = gridElement.querySelectorAll('blockquote.instagram-media');
-                        blockquotes.forEach(bq => {{
-                            bq.removeAttribute('data-instgrm-processed');
-                            // Also remove any existing iframe to force fresh load
-                            const existingIframe = bq.querySelector('iframe');
-                            if (existingIframe) {{
-                                existingIframe.remove();
+                if (window.instgrm && window.instgrm.Embeds) {{
+                    console.log('Processing Instagram embeds for filter: {}');
+                    window.instgrm.Embeds.process();
+                }} else {{
+                    // Load Instagram script if not present
+                    if (!document.querySelector('script[src*="instagram.com/embed.js"]')) {{
+                        const script = document.createElement('script');
+                        script.src = 'https://www.instagram.com/embed.js';
+                        script.async = true;
+                        script.onload = () => {{
+                            console.log('Instagram script loaded, processing embeds');
+                            if (window.instgrm && window.instgrm.Embeds) {{
+                                window.instgrm.Embeds.process();
                             }}
-                        }});
-                        
-                        // Process embeds
-                        window.instgrm.Embeds.process();
+                        }};
+                        document.body.appendChild(script);
                     }}
                 }}
-            }}, 300);
-            "#, 
-            filter_id.clone().unwrap_or_else(|| "default".to_string()),
+            }}, 100);
+            "#,
             filter_id.clone().unwrap_or_else(|| "default".to_string())
             )}
         </script>
+
     }
 }

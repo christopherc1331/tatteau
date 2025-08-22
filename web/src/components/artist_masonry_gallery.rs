@@ -14,6 +14,7 @@ pub fn ArtistMasonryGallery(
     artist_styles: Vec<Style>,
 ) -> impl IntoView {
     let (selected_style, set_selected_style) = signal::<Option<i32>>(None);
+    let (show_grid, set_show_grid) = signal(true);
     
     let filtered_posts = Memo::new(move |_| {
         let posts = instagram_posts.clone();
@@ -50,7 +51,10 @@ pub fn ArtistMasonryGallery(
                     <button 
                         on:click=move |_| {
                             leptos::logging::log!("All button clicked, clearing filter");
+                            set_show_grid.set(false);
                             set_selected_style.set(None);
+                            // Re-show grid after a brief delay
+                            set_timeout(move || set_show_grid.set(true), std::time::Duration::from_millis(50));
                         }
                         style=move || format!(
                             "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
@@ -70,7 +74,10 @@ pub fn ArtistMasonryGallery(
                             <button 
                                 on:click=move |_| {
                                     leptos::logging::log!("Button clicked for style: {} (ID: {})", style_name_for_click, style_id);
+                                    set_show_grid.set(false);
                                     set_selected_style.set(Some(style_id));
+                                    // Re-show grid after a brief delay
+                                    set_timeout(move || set_show_grid.set(true), std::time::Duration::from_millis(50));
                                 }
                                 style=move || format!(
                                     "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
@@ -86,14 +93,22 @@ pub fn ArtistMasonryGallery(
             </div>
             
             {move || {
-                let posts = filtered_posts.get();
-                let filter_id = selected_style.get().map(|id| format!("artist-{}", id)).unwrap_or_else(|| "artist-all".to_string());
-                
-                view! {
-                    <InstagramPostsGrid 
-                        posts=posts
-                        filter_id=filter_id
-                    />
+                if show_grid.get() {
+                    let posts = filtered_posts.get();
+                    let filter_id = selected_style.get().map(|id| format!("artist-{}", id)).unwrap_or_else(|| "artist-all".to_string());
+                    
+                    view! {
+                        <InstagramPostsGrid 
+                            posts=posts
+                            filter_id=filter_id
+                        />
+                    }.into_any()
+                } else {
+                    view! {
+                        <div style="height: 200px; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: #999;">"Loading..."</span>
+                        </div>
+                    }.into_any()
                 }
             }}
         </div>
