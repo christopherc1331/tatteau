@@ -11,7 +11,7 @@ pub fn MapMarkerPopup(location: LocationInfo) -> impl IntoView {
                 {format!("Address: {}", location.address)}
             </p>
 
-            {if location.has_artists.unwrap_or(false) == false {
+            {if !location.has_artists.unwrap_or(false) {
                 view! {
                     <a href=location.website_uri target="_blank"
                        style="background: #667eea; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; text-align: center; font-weight: 600;">

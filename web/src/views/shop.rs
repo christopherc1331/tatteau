@@ -2,16 +2,20 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
 use crate::{
-    components::{loading::LoadingView, shop_masonry_gallery::{ShopMasonryGallery, ShopInstagramPost}},
-    server::fetch_shop_data,
+    components::{
+        loading::LoadingView,
+        shop_masonry_gallery::{ShopInstagramPost, ShopMasonryGallery},
+    },
     db::entities::{Artist, Style},
+    server::fetch_shop_data,
 };
 
 #[component]
 pub fn Shop() -> impl IntoView {
     let params = use_params_map();
     let shop_id = Memo::new(move |_| {
-        params.read()
+        params
+            .read()
             .get("id")
             .and_then(|id| id.parse::<i32>().ok())
             .unwrap_or(0)
@@ -39,9 +43,9 @@ pub fn Shop() -> impl IntoView {
                             let shop_name = shop_data.location.name.unwrap_or_else(|| "Unknown Shop".to_string());
                             let city = shop_data.location.city.unwrap_or_else(|| "Unknown".to_string());
                             let state = shop_data.location.state.unwrap_or_else(|| "Unknown".to_string());
-                            
+
                             let all_styles_for_filter = shop_data.all_styles.clone();
-                            
+
                             let shop_posts: Vec<ShopInstagramPost> = shop_data.all_images_with_styles
                                 .clone()
                                 .into_iter()
@@ -51,21 +55,21 @@ pub fn Shop() -> impl IntoView {
                                     artist,
                                 })
                                 .collect();
-                            
+
                             view! {
                                 <div style="min-height: 100vh; background: #f8fafc;">
                                     <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem 1rem;">
                                         <div style="max-width: 1200px; margin: 0 auto;">
                                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                                                 <div>
-                                                    <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 0.5rem 0;">
+                                                    <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 0.5rem 0; line-height: 1;">
                                                         {shop_name.clone()}
                                                     </h1>
                                                     <div style="font-size: 1.1rem; opacity: 0.9;">
                                                         {format!("{}, {}", city, state)}
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                                                     <a href={format!("/book/shop/{}", shop_id.get())}
                                                        style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
@@ -85,90 +89,98 @@ pub fn Shop() -> impl IntoView {
                                     </div>
 
                                     <div style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;">
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
-                                            {(!shop_data.artists.is_empty()).then(|| {
-                                                view! {
-                                                    <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                        <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Our Artists"</h3>
-                                                        <div style="display: flex; flex-direction: column; gap: 1rem;">
-                                                            {shop_data.artists.into_iter().map(|artist| {
-                                                                let artist_name = artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
-                                                                view! {
-                                                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
-                                                                        <div>
-                                                                            <div style="font-weight: 600; color: #2d3748;">
-                                                                                {artist_name}
+                                        <div style="display: grid; grid-template-columns: 1fr 400px; gap: 2rem; margin-bottom: 2rem;">
+                                            // Left side: Artists and Styles together
+                                            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                                                {(!shop_data.artists.is_empty()).then(|| {
+                                                    view! {
+                                                        <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+                                                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Our Artists"</h3>
+                                                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                                                {shop_data.artists.into_iter().map(|artist| {
+                                                                    let artist_name = artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
+                                                                    view! {
+                                                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                                            <div>
+                                                                                <div style="font-weight: 600; color: #2d3748;">
+                                                                                    {artist_name}
+                                                                                </div>
+                                                                                {artist.years_experience.and_then(|years| {
+                                                                                    (years > 0).then(|| view! {
+                                                                                        <div style="font-size: 0.8rem; color: #6b7280;">
+                                                                                            {format!("{} years experience", years)}
+                                                                                        </div>
+                                                                                    })
+                                                                                })}
                                                                             </div>
-                                                                            {artist.years_experience.and_then(|years| {
-                                                                                (years > 0).then(|| view! {
-                                                                                    <div style="font-size: 0.8rem; color: #6b7280;">
-                                                                                        {format!("{} years experience", years)}
-                                                                                    </div>
-                                                                                })
-                                                                            })}
+                                                                            <a href={format!("/artist/{}", artist.id)}
+                                                                               style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.8rem;">
+                                                                                "View Profile"
+                                                                            </a>
                                                                         </div>
-                                                                        <a href={format!("/artist/{}", artist.id)} 
-                                                                           style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.8rem;">
-                                                                            "View Profile"
-                                                                        </a>
-                                                                    </div>
-                                                                }
-                                                            }).collect_view()}
+                                                                    }
+                                                                }).collect_view()}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                }
-                                            })}
+                                                    }
+                                                })}
 
-                                            {(!shop_data.all_styles.is_empty()).then(|| {
-                                                view! {
-                                                    <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                        <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Styles We Do"</h3>
-                                                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                                            {shop_data.all_styles.into_iter().map(|style| {
-                                                                view! {
-                                                                    <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem;">
-                                                                        {style.name}
-                                                                    </span>
-                                                                }
-                                                            }).collect_view()}
+                                                {(!shop_data.all_styles.is_empty()).then(|| {
+                                                    view! {
+                                                        <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+                                                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Styles We Do"</h3>
+                                                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                                                {shop_data.all_styles.into_iter().map(|style| {
+                                                                    view! {
+                                                                        <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem;">
+                                                                            {style.name}
+                                                                        </span>
+                                                                    }
+                                                                }).collect_view()}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                }
-                                            })}
-                                        </div>
+                                                    }
+                                                })}
+                                            </div>
 
-                                        {shop_data.location.address.clone().map(|addr| {
+                                            // Right side: Map section
+                                            {shop_data.location.address.clone().map(|addr| {
                                             let lat = shop_data.location.lat.unwrap_or(0.0);
                                             let long = shop_data.location.long.unwrap_or(0.0);
                                             let encoded_addr = urlencoding::encode(&addr);
-                                            
+
                                             view! {
                                                 <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-bottom: 2rem;">
                                                     <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 0.5rem 0;">"📍 Shop Location"</h3>
-                                                    <p style="color: #4a5568; margin: 0 0 1rem 0; font-size: 0.9rem;">
-                                                        {addr.clone()}
-                                                    </p>
-                                                    
+                                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                                        <p style="color: #4a5568; margin: 0; font-size: 0.9rem;">
+                                                            {addr.clone()}
+                                                        </p>
+                                                        <a href={format!("https://www.google.com/maps/dir/?api=1&destination={}",
+                                                            shop_data.location.address.as_ref().unwrap_or(&"".to_string()))}
+                                                           target="_blank"
+                                                           style="background: #4285f4; color: white; padding: 0.375rem 0.75rem; border-radius: 6px; text-decoration: none; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; font-weight: 600; white-space: nowrap;">
+                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M16.24,7.76L15.12,6.64L8.76,13L5.64,9.88L4.52,11L8.76,15.24L16.24,7.76Z"/>
+                                                                <path d="M2.5,19H21.5V21H2.5V19M22.07,9.64C21.86,8.84 21.03,8.36 20.23,8.58L14.92,10L8,3.57L6.09,4.08L10.23,11.25L5.26,12.58L3.29,11.04L1.84,11.43L3.66,14.59L4.43,15.92L6.03,15.5L11.34,14.07L15.69,12.91L21,11.5C21.81,11.26 22.28,10.44 22.07,9.64Z"/>
+                                                            </svg>
+                                                            "Get Directions"
+                                                        </a>
+                                                    </div>
+
                                                     <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; position: relative;">
                                                         <iframe
-                                                            src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}", 
+                                                            src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}",
                                                                 long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
                                                             style="width: 100%; height: 100%; border: none; pointer-events: none;"
                                                             title="Shop Location Map"
                                                         ></iframe>
                                                         <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; pointer-events: none;"></div>
                                                     </div>
-                                                    
-                                                    <div style="margin-top: 0.5rem; text-align: center;">
-                                                        <a href={format!("https://www.google.com/maps/search/?api=1&query={}", encoded_addr)} 
-                                                           target="_blank"
-                                                           style="color: #667eea; text-decoration: none; font-size: 0.8rem;">
-                                                            "Open in Google Maps"
-                                                        </a>
-                                                    </div>
                                                 </div>
                                             }
                                         })}
+                                        </div>
 
                                         {(!shop_posts.is_empty()).then(|| {
                                             view! {
@@ -211,3 +223,4 @@ pub fn Shop() -> impl IntoView {
         </div>
     }
 }
+
