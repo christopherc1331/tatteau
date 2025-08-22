@@ -108,7 +108,30 @@ pub fn MapRenderer(
                                         <Popup>
                                             <Label size=LabelSize::Large>{loc.name.clone()}</Label>
                                             <p>{format!("Address: {}", loc.address)}</p>
-                                            <a href=loc.website_uri target="_blank">{loc.website_uri.clone()}</a>
+                                            <div style="margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                                                {if !loc.has_artists {
+                                                    view! {
+                                                        <a href=loc.website_uri target="_blank" 
+                                                           style="background: #667eea; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; text-align: center; font-weight: 600;">
+                                                            "Visit Website"
+                                                        </a>
+                                                    }.into_any()
+                                                } else if loc.artist_images_count == 0 {
+                                                    view! {
+                                                        <a href={format!("/shop/{}", loc.id)} 
+                                                           style="background: #667eea; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; text-align: center; font-weight: 600;">
+                                                            "View Shop Info"
+                                                        </a>
+                                                    }.into_any()
+                                                } else {
+                                                    view! {
+                                                        <a href={format!("/shop/{}", loc.id)} 
+                                                           style="background: #667eea; color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none; text-align: center; font-weight: 600;">
+                                                            "View Shop Portfolio"
+                                                        </a>
+                                                    }.into_any()
+                                                }}
+                                            </div>
                                         </Popup>
                                     </Marker>
                                 }

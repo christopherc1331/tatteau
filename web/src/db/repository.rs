@@ -59,25 +59,30 @@ pub fn query_locations(
     let mut stmt = conn.prepare(
         "
         SELECT 
-            id,
-            name,
-            lat,
-            long,
-            city,
-            county,
-            state,
-            country_code,
-            postal_code,
-            is_open,
-            address,
-            category,
-            website_uri,
-            _id
-        FROM locations
+            l.id,
+            l.name,
+            l.lat,
+            l.long,
+            l.city,
+            l.county,
+            l.state,
+            l.country_code,
+            l.postal_code,
+            l.is_open,
+            l.address,
+            l.category,
+            l.website_uri,
+            l._id,
+            CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
+            COUNT(DISTINCT ai.id) as artist_images_count
+        FROM locations l
+        LEFT JOIN artists a ON l.id = a.location_id
+        LEFT JOIN artists_images ai ON a.id = ai.artist_id
         WHERE 
-            lat BETWEEN ?1 AND ?2
-            AND long BETWEEN ?3 AND ?4
-        AND (is_person IS NULL OR is_person != 1)
+            l.lat BETWEEN ?1 AND ?2
+            AND l.long BETWEEN ?3 AND ?4
+            AND (l.is_person IS NULL OR l.is_person != 1)
+        GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id
     ",
     )?;
 
@@ -105,6 +110,8 @@ pub fn query_locations(
                 category: row.get(11)?,
                 website_uri: row.get(12)?,
                 _id: row.get(13)?,
+                has_artists: row.get::<_, i32>(14)? == 1,
+                artist_images_count: row.get(15)?,
             })
         },
     )?;
