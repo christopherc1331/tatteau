@@ -2,12 +2,13 @@ use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
-    StaticSegment,
+    ParamSegment, StaticSegment,
 };
 use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::masonry_gallery::MasonryGallery;
+use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::map::map_wrapper::DiscoveryMap;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -60,6 +61,7 @@ pub fn App() -> impl IntoView {
                     <Routes fallback=|| "Page not found.".into_view()>
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("gallery") view=GalleryPage/>
+                        <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                     </Routes>
                 </main>
             </Router>

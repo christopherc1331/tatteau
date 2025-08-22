@@ -2,45 +2,8 @@ use leptos::prelude::*;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::window;
 
-// [Keep your existing structs - Artist, ArtistStyle, ArtistImage, etc.]
-#[derive(Debug, Clone, PartialEq)]
-pub struct Artist {
-    pub id: i32,
-    pub name: Option<String>,
-    pub location_id: i32,
-    pub social_links: Option<String>,
-    pub email: Option<String>,
-    pub phone: Option<String>,
-    pub years_experience: Option<i32>,
-    pub styles_extracted: Option<i32>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ArtistStyle {
-    pub id: i32,
-    pub style_id: i32,
-    pub artist_id: i32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ArtistImage {
-    pub id: i32,
-    pub short_code: String,
-    pub artist_id: i32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ArtistImageStyle {
-    pub id: i32,
-    pub artists_images_id: i32,
-    pub style_id: i32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Style {
-    pub id: i32,
-    pub name: String,
-}
+// Import the entities from the db module
+use crate::db::entities::{ArtistImage, Style};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InstagramPost {

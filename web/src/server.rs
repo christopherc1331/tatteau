@@ -5,9 +5,10 @@ use leptos_leaflet::leaflet::LatLngBounds;
 use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
-use crate::db::entities::CityCoords;
+use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style};
 #[cfg(feature = "ssr")]
 use crate::db::repository::{
+    get_artist_by_id, get_artist_images_with_styles, get_artist_location, get_artist_styles,
     get_cities_and_coords, get_city_coordinates, get_states, query_locations,
 };
 
@@ -89,5 +90,35 @@ fn get_geographic_center(cities: &[CityCoords]) -> Option<CityCoords> {
         state: first_city.clone().state,
         lat,
         long,
+    })
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ArtistData {
+    pub artist: Artist,
+    pub location: Location,
+    pub styles: Vec<Style>,
+    pub images_with_styles: Vec<(ArtistImage, Vec<Style>)>,
+}
+
+#[server]
+pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnError> {
+    let artist = get_artist_by_id(artist_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch artist: {}", e)))?;
+    
+    let location = get_artist_location(artist.location_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch location: {}", e)))?;
+    
+    let styles = get_artist_styles(artist_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
+    
+    let images_with_styles = get_artist_images_with_styles(artist_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
+    
+    Ok(ArtistData {
+        artist,
+        location,
+        styles,
+        images_with_styles,
     })
 }
