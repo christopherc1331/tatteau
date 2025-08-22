@@ -141,13 +141,14 @@ pub fn Shop() -> impl IntoView {
                                                         {addr.clone()}
                                                     </p>
                                                     
-                                                    <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+                                                    <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; position: relative;">
                                                         <iframe
                                                             src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}", 
                                                                 long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
-                                                            style="width: 100%; height: 100%; border: none;"
+                                                            style="width: 100%; height: 100%; border: none; pointer-events: none;"
                                                             title="Shop Location Map"
                                                         ></iframe>
+                                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; pointer-events: none;"></div>
                                                     </div>
                                                     
                                                     <div style="margin-top: 0.5rem; text-align: center;">

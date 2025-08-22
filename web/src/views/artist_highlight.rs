@@ -28,6 +28,14 @@ pub fn ArtistHighlight() -> impl IntoView {
     );
 
     view! {
+        <style>
+            {r#"
+            .shop-link:hover {
+                border-bottom: 1px solid rgba(255,255,255,0.9) !important;
+                opacity: 1 !important;
+            }
+            "#}
+        </style>
         <div style="min-height: 100vh; background: #f8fafc;">
             <Suspense fallback=move || view! {
                 <LoadingView message=Some("Loading artist information...".to_string()) />
@@ -61,9 +69,8 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                     </h1>
                                                     <div style="font-size: 1.1rem; opacity: 0.9;">
                                                         <a href={format!("/shop/{}", artist_data.location.id)} 
-                                                           style="color: rgba(255,255,255,0.9); text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.5); padding-bottom: 2px; transition: all 0.2s ease;">
-                                                           onmouseover="this.style.borderBottom = '1px solid rgba(255,255,255,0.9)'; this.style.opacity = '1'"
-                                                           onmouseout="this.style.borderBottom = '1px dashed rgba(255,255,255,0.5)'; this.style.opacity = '0.9'">
+                                                           style="color: rgba(255,255,255,0.9); text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.5); padding-bottom: 2px; transition: all 0.2s ease;"
+                                                           class="shop-link">
                                                             {format!("🏪 {} • {}, {}", shop_name, city, state)}
                                                         </a>
                                                     </div>
@@ -149,13 +156,14 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                                 {addr.clone()}
                                                             </p>
                                                             
-                                                            <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+                                                            <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; position: relative;">
                                                                 <iframe
                                                                     src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}", 
                                                                         long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
-                                                                    style="width: 100%; height: 100%; border: none;"
+                                                                    style="width: 100%; height: 100%; border: none; pointer-events: none;"
                                                                     title="Shop Location Map"
                                                                 ></iframe>
+                                                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; pointer-events: none;"></div>
                                                             </div>
                                                             
                                                             <div style="margin-top: 0.5rem; text-align: center;">

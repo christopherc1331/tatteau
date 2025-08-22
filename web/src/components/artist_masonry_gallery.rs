@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style};
+use crate::components::instagram_posts_grid::{InstagramPostsGrid, PostWithArtist};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InstagramPost {
@@ -16,14 +17,29 @@ pub fn ArtistMasonryGallery(
     
     let filtered_posts = Memo::new(move |_| {
         let posts = instagram_posts.clone();
-        if let Some(style_id) = selected_style.get() {
-            posts.into_iter()
+        let current_filter = selected_style.get();
+        
+        let filtered = if let Some(style_id) = current_filter {
+            let filtered_posts: Vec<_> = posts.into_iter()
                 .filter(|post| post.styles.iter().any(|s| s.id == style_id))
-                .collect::<Vec<_>>()
+                .collect();
+            
+            // Debug logging
+            leptos::logging::log!("Filtering by style ID: {}, found {} posts", style_id, filtered_posts.len());
+            filtered_posts
         } else {
+            leptos::logging::log!("No filter applied, showing all {} posts", posts.len());
             posts
-        }
+        };
+        
+        // Convert to PostWithArtist format
+        filtered.into_iter().map(|post| PostWithArtist {
+            image: post.image,
+            styles: post.styles,
+            artist: None, // Artist page doesn't need artist info
+        }).collect::<Vec<_>>()
     });
+
 
     view! {
         <div>
@@ -32,7 +48,10 @@ pub fn ArtistMasonryGallery(
                     <span style="font-weight: 600; color: #4a5568; margin-right: 0.5rem;">"Filter by style:"</span>
                     
                     <button 
-                        on:click=move |_| set_selected_style.set(None)
+                        on:click=move |_| {
+                            leptos::logging::log!("All button clicked, clearing filter");
+                            set_selected_style.set(None);
+                        }
                         style=move || format!(
                             "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
                             if selected_style.get().is_none() { "#667eea" } else { "white" },
@@ -45,81 +64,38 @@ pub fn ArtistMasonryGallery(
                     {artist_styles.into_iter().map(|style| {
                         let style_id = style.id;
                         let style_name = style.name.clone();
+                        let style_name_for_display = style_name.clone();
+                        let style_name_for_click = style_name.clone();
                         view! {
                             <button 
-                                on:click=move |_| set_selected_style.set(Some(style_id))
+                                on:click=move |_| {
+                                    leptos::logging::log!("Button clicked for style: {} (ID: {})", style_name_for_click, style_id);
+                                    set_selected_style.set(Some(style_id));
+                                }
                                 style=move || format!(
                                     "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
                                     if selected_style.get() == Some(style_id) { "#667eea" } else { "white" },
                                     if selected_style.get() == Some(style_id) { "white" } else { "#374151" }
                                 )
                             >
-                                {style_name}
+                                {style_name_for_display}
                             </button>
                         }
                     }).collect_view()}
                 </div>
             </div>
             
-            <style>
-                {r#"
-                .artist-masonry {
-                    columns: 4;
-                    column-gap: 1rem;
-                    column-fill: balance;
-                    width: 100%;
+            {move || {
+                let posts = filtered_posts.get();
+                let filter_id = selected_style.get().map(|id| format!("artist-{}", id)).unwrap_or_else(|| "artist-all".to_string());
+                
+                view! {
+                    <InstagramPostsGrid 
+                        posts=posts
+                        filter_id=filter_id
+                    />
                 }
-                @media (max-width: 1200px) {
-                    .artist-masonry { columns: 3 !important; }
-                }
-                @media (max-width: 768px) {
-                    .artist-masonry { columns: 2 !important; }
-                }
-                @media (max-width: 480px) {
-                    .artist-masonry { columns: 1 !important; }
-                }
-                .instagram-media {
-                    max-width: 100% !important;
-                    min-width: 280px !important;
-                }
-                "#}
-            </style>
-            <div class="artist-masonry">
-                {move || {
-                    filtered_posts.get().into_iter().map(|post| {
-                        let short_code = post.image.short_code.clone();
-                        
-                        view! {
-                            <div style="break-inside: avoid; margin-bottom: 1rem; position: relative;">
-                                <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
-                                    <div 
-                                        inner_html={format!(
-                                            r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14"></blockquote>"#, 
-                                            short_code
-                                        )}
-                                    ></div>
-                                    
-                                    {(!post.styles.is_empty()).then(|| {
-                                        view! {
-                                            <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; right: 0.5rem;">
-                                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
-                                                    {post.styles.into_iter().map(|style| {
-                                                        view! {
-                                                            <span style="background: rgba(102, 126, 234, 0.9); color: white; padding: 0.125rem 0.375rem; border-radius: 10px; font-size: 0.6rem; font-weight: 500;">
-                                                                {style.name}
-                                                            </span>
-                                                        }
-                                                    }).collect_view()}
-                                                </div>
-                                            </div>
-                                        }
-                                    })}
-                                </div>
-                            </div>
-                        }
-                    }).collect_view()
-                }}
-            </div>
+            }}
         </div>
     }
 }

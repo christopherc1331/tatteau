@@ -26,6 +26,7 @@ pub fn ShopMasonryGallery(
         }
     });
 
+
     view! {
         <div>
             <div style="margin-bottom: 1.5rem;">
@@ -94,23 +95,24 @@ pub fn ShopMasonryGallery(
                         view! {
                             <div style="break-inside: avoid; margin-bottom: 1rem; position: relative;">
                                 <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
+                                    <div style="padding: 0.5rem; background: white;">
+                                        <a href={format!("/artist/{}", post.artist.id)} 
+                                           style="color: #374151; text-decoration: none; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; font-weight: 600;">
+                                            <span>"👤"</span>
+                                            <span>{artist_name}</span>
+                                        </a>
+                                    </div>
+                                    
                                     <div 
                                         inner_html={format!(
-                                            r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14"></blockquote>"#, 
+                                            r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14"></blockquote><script>setTimeout(() => {{ if(window.instgrm && window.instgrm.Embeds) {{ window.instgrm.Embeds.process(); }} }}, 500);</script>"#, 
                                             short_code
                                         )}
                                     ></div>
                                     
-                                    <div style="position: absolute; top: 0.5rem; left: 0.5rem; background: rgba(0,0,0,0.8); color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.7rem; font-weight: 600;">
-                                        <a href={format!("/artist/{}", post.artist.id)} 
-                                           style="color: white; text-decoration: none;">
-                                            {format!("👤 {}", artist_name)}
-                                        </a>
-                                    </div>
-                                    
                                     {(!post.styles.is_empty()).then(|| {
                                         view! {
-                                            <div style="position: absolute; bottom: 0.5rem; left: 0.5rem; right: 0.5rem;">
+                                            <div style="padding: 0.5rem; background: white;">
                                                 <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
                                                     {post.styles.into_iter().map(|style| {
                                                         view! {
