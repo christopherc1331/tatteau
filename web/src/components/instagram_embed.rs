@@ -2,18 +2,17 @@ use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
 #[component]
-pub fn InstagramEmbed(
-    short_code: String,
-) -> impl IntoView {
+pub fn InstagramEmbed(short_code: String) -> impl IntoView {
     let embed_id = format!("instagram-embed-{}", short_code);
     let embed_id_for_effect = embed_id.clone();
     let embed_id_for_view = embed_id.clone();
     let short_code_for_html = short_code.clone();
     let short_code_for_effect = short_code.clone();
-    
+
     // Set up JavaScript detection for this embed instance
     Effect::new(move |_| {
-        let js_code = format!(r#"
+        let js_code = format!(
+            r#"
             (function() {{
                 const embedId = '{}';
                 const shortCode = '{}';
@@ -45,7 +44,6 @@ pub fn InstagramEmbed(
                             const loadingDiv = elem.querySelector('[data-instagram-loading]');
                             if (loadingDiv) {{
                                 loadingDiv.style.display = 'none';
-                                console.log('✅ Loader hidden for', shortCode);
                             }}
                         }}
                     }}
@@ -76,13 +74,11 @@ pub fn InstagramEmbed(
                                                 blockquote.hasAttribute('data-instgrm-processed');
                         
                         if (iframe || hasAnyChildElements || hasProcessedClass) {{
-                            console.log('🎉 Instagram embed', shortCode, 'loaded successfully');
                             hideLoader();
                             return;
                         }}
                         
                         if (checkCount >= maxChecks) {{
-                            console.log('⏰ Instagram embed', shortCode, 'timed out');
                             hideLoader();
                         }} else {{
                             setTimeout(checkLoaded, 200);
@@ -111,11 +107,13 @@ pub fn InstagramEmbed(
                 
                 initializeEmbed();
             }})();
-        "#, embed_id_for_effect, short_code_for_effect);
-        
+        "#,
+            embed_id_for_effect, short_code_for_effect
+        );
+
         let _ = web_sys::js_sys::eval(&js_code);
     });
-    
+
     view! {
         <div id={embed_id_for_view} style="position: relative; min-height: 400px;">
             <div
@@ -124,7 +122,7 @@ pub fn InstagramEmbed(
                     short_code_for_html
                 )}
             ></div>
-            
+
             <div data-instagram-loading="true" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; background: rgba(249, 250, 251, 0.95); border-radius: 8px; padding: 1rem; pointer-events: none;">
                 <div style="text-align: center;">
                     <div style="display: inline-block; width: 32px; height: 32px; border: 2px solid #e5e7eb; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;">
@@ -148,10 +146,13 @@ pub fn InstagramEmbed(
 // Helper function to trigger Instagram processing for all embeds
 #[wasm_bindgen]
 pub fn process_instagram_embeds() {
-    web_sys::js_sys::eval(r#"
+    web_sys::js_sys::eval(
+        r#"
         if (window.instgrm && window.instgrm.Embeds) {
-            console.log('Processing all Instagram embeds...');
             window.instgrm.Embeds.process();
         }
-    "#).ok();
+    "#,
+    )
+    .ok();
 }
+
