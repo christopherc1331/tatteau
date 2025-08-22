@@ -9,7 +9,9 @@ use thaw::*;
 
 use crate::components::masonry_gallery::MasonryGallery;
 use crate::views::artist_highlight::ArtistHighlight;
+use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::map::map_wrapper::DiscoveryMap;
+use crate::views::shop::Shop;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -62,6 +64,9 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("gallery") view=GalleryPage/>
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
+                        <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
+                        <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
+                        <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
                     </Routes>
                 </main>
             </Router>

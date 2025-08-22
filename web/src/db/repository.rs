@@ -143,31 +143,8 @@ pub fn get_states() -> SqliteResult<Vec<LocationState>> {
     let res = stmt.query_map([], |r| Ok(LocationState { state: r.get(0)? }))?;
 
     res.into_iter().collect()
+}
 
-    // println!("row length: {:?}", rows.size_hint());
-    // let mut i = 1;
-    // while let Some(row) = rows.next()? {
-    //     // println!("Processing row: {}", i);
-    //     // i += 1;
-    //     let s: String = row.get(0)?;
-    //     if s.is_empty() {
-    //         continue;
-    //     }
-    //     result.push(s);
-    // }
-    // println!("row length: {:?}", result.len());
-    // println!("rows: {:?}", result);
-    // Ok(result)
-
-    // Ok(vec![
-    //     "Texas".to_string(),
-    //     "California".to_string(),
-    //     "New York".to_string(),
-    // ])
-    // Ok(vec![
-    //     "Wyoming".to_string(),
-    //     "Wisconsin".to_string(),
-    //     "West Virginia".to_string(),
     //     "Washington".to_string(),
     //     "Virginia".to_string(),
     //     "Vermont".to_string(),
@@ -219,7 +196,6 @@ pub fn get_states() -> SqliteResult<Vec<LocationState>> {
     //     "Alaska".to_string(),
     //     "Alabama".to_string(),
     // ])
-}
 
 #[cfg(feature = "ssr")]
 pub fn get_city_coordinates(city_name: String) -> SqliteResult<CityCoords> {
@@ -387,6 +363,164 @@ pub fn get_artist_images_with_styles(artist_id: i32) -> SqliteResult<Vec<(Artist
         
         let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
         result.push((img, styles_vec?));
+    }
+    
+    Ok(result)
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT id, name, lat, long, city, state, address
+         FROM locations
+         WHERE id = ?1"
+    )?;
+    
+    stmt.query_row(params![location_id], |row| {
+        Ok(Location {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            lat: row.get(2)?,
+            long: row.get(3)?,
+            city: row.get(4)?,
+            state: row.get(5)?,
+            address: row.get(6)?,
+        })
+    })
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    // Updated query to join with locations and ensure we're getting artists for actual shops, not persons
+    let mut stmt = conn.prepare(
+        "SELECT a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+         FROM artists a
+         JOIN locations l ON a.location_id = l.id
+         WHERE a.location_id = ?1 
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND a.name IS NOT NULL
+         AND a.name != ''"
+    )?;
+    
+    let artists = stmt.query_map(params![location_id], |row| {
+        Ok(Artist {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            location_id: row.get(2)?,
+            social_links: row.get(3)?,
+            email: row.get(4)?,
+            phone: row.get(5)?,
+            years_experience: row.get(6)?,
+            styles_extracted: row.get(7)?,
+        })
+    })?;
+    
+    artists.collect()
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_all_styles_by_location(location_id: i32) -> SqliteResult<Vec<Style>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT s.id, s.name
+         FROM styles s
+         JOIN artists_styles ast ON s.id = ast.style_id
+         JOIN artists a ON ast.artist_id = a.id
+         JOIN locations l ON a.location_id = l.id
+         WHERE a.location_id = ?1
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND a.name IS NOT NULL
+         AND a.name != ''
+         ORDER BY s.name"
+    )?;
+    
+    let styles = stmt.query_map(params![location_id], |row| {
+        Ok(Style {
+            id: row.get(0)?,
+            name: row.get(1)?,
+        })
+    })?;
+    
+    styles.collect()
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_all_images_with_styles_by_location(location_id: i32) -> SqliteResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    // First get all images for artists at this location, filtering out person locations
+    let mut stmt = conn.prepare(
+        "SELECT ai.id, ai.short_code, ai.artist_id, a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+         FROM artists_images ai
+         JOIN artists a ON ai.artist_id = a.id
+         JOIN locations l ON a.location_id = l.id
+         WHERE a.location_id = ?1
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND a.name IS NOT NULL
+         AND a.name != ''"
+    )?;
+    
+    let images = stmt.query_map(params![location_id], |row| {
+        let image = ArtistImage {
+            id: row.get(0)?,
+            short_code: row.get(1)?,
+            artist_id: row.get(2)?,
+        };
+        
+        let artist = Artist {
+            id: row.get(3)?,
+            name: row.get(4)?,
+            location_id: row.get(5)?,
+            social_links: row.get(6)?,
+            email: row.get(7)?,
+            phone: row.get(8)?,
+            years_experience: row.get(9)?,
+            styles_extracted: row.get(10)?,
+        };
+        
+        Ok((image, artist))
+    })?;
+    
+    let mut result = Vec::new();
+    
+    // For each image, get its styles
+    for item in images {
+        let (image, artist) = item?;
+        let img_id = image.id;
+        
+        let mut styles_stmt = conn.prepare(
+            "SELECT s.id, s.name
+             FROM styles s
+             JOIN artists_images_styles ais ON s.id = ais.style_id
+             WHERE ais.artists_images_id = ?1"
+        )?;
+        
+        let styles = styles_stmt.query_map(params![img_id], |row| {
+            Ok(Style {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        })?;
+        
+        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
+        result.push((image, styles_vec?, artist));
     }
     
     Ok(result)

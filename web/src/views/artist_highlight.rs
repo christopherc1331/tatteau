@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
 use crate::{
-    components::{loading::LoadingView, masonry_gallery::{MasonryGallery, InstagramPost}},
+    components::{loading::LoadingView, artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost}},
     server::fetch_artist_data,
 };
 
@@ -35,6 +35,8 @@ pub fn ArtistHighlight() -> impl IntoView {
                 {move || {
                     artist_data.get().map(|data| {
                         data.map(|artist_data| {
+                            let artist_styles_for_filter = artist_data.styles.clone();
+                            
                             let instagram_posts: Vec<InstagramPost> = artist_data.images_with_styles
                                 .into_iter()
                                 .map(|(image, styles)| InstagramPost {
@@ -58,11 +60,21 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                         {artist_name.clone()}
                                                     </h1>
                                                     <div style="font-size: 1.1rem; opacity: 0.9;">
-                                                        {format!("{} • {}, {}", shop_name, city, state)}
+                                                        <a href={format!("/shop/{}", artist_data.location.id)} 
+                                                           style="color: rgba(255,255,255,0.9); text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.5); padding-bottom: 2px; transition: all 0.2s ease;">
+                                                           onmouseover="this.style.borderBottom = '1px solid rgba(255,255,255,0.9)'; this.style.opacity = '1'"
+                                                           onmouseout="this.style.borderBottom = '1px dashed rgba(255,255,255,0.5)'; this.style.opacity = '0.9'">
+                                                            {format!("🏪 {} • {}, {}", shop_name, city, state)}
+                                                        </a>
                                                     </div>
                                                 </div>
                                                 
                                                 <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                                                    <a href={format!("/book/artist/{}", artist_id.get())}
+                                                       style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
+                                                        "📅 Book Appointment"
+                                                    </a>
+                                                    
                                                     {artist_data.artist.social_links.and_then(|links| {
                                                         (!links.is_empty()).then(|| view! {
                                                             <a href={links} target="_blank" 
@@ -126,12 +138,33 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                 })}
 
                                                 {artist_data.location.address.clone().map(|addr| {
+                                                    let lat = artist_data.location.lat.unwrap_or(0.0);
+                                                    let long = artist_data.location.long.unwrap_or(0.0);
+                                                    let encoded_addr = urlencoding::encode(&addr);
+                                                    
                                                     view! {
                                                         <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
                                                             <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 0.5rem 0;">"📍 Shop Location"</h3>
-                                                            <p style="color: #4a5568; margin: 0; font-size: 0.9rem;">
-                                                                {addr}
+                                                            <p style="color: #4a5568; margin: 0 0 1rem 0; font-size: 0.9rem;">
+                                                                {addr.clone()}
                                                             </p>
+                                                            
+                                                            <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+                                                                <iframe
+                                                                    src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}", 
+                                                                        long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
+                                                                    style="width: 100%; height: 100%; border: none;"
+                                                                    title="Shop Location Map"
+                                                                ></iframe>
+                                                            </div>
+                                                            
+                                                            <div style="margin-top: 0.5rem; text-align: center;">
+                                                                <a href={format!("https://www.google.com/maps/search/?api=1&query={}", encoded_addr)} 
+                                                                   target="_blank"
+                                                                   style="color: #667eea; text-decoration: none; font-size: 0.8rem;">
+                                                                    "Open in Google Maps"
+                                                                </a>
+                                                            </div>
                                                         </div>
                                                     }
                                                 })}
@@ -142,7 +175,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                                             view! {
                                                 <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
                                                     <h2 style="font-size: 1.5rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Portfolio"</h2>
-                                                    <MasonryGallery instagram_posts=instagram_posts />
+                                                    <ArtistMasonryGallery instagram_posts=instagram_posts artist_styles=artist_styles_for_filter />
                                                 </div>
                                             }
                                         })}

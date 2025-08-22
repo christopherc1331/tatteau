@@ -30,6 +30,7 @@ shared-types = { path = "../shared-types" }
 rusqlite = { version = "0.34.0", features = ["bundled"], optional = true }
 thaw_utils = "0.1.2"
 web-sys = "0.3.77"
+urlencoding = "2.1"
 
 [features]
 default = []

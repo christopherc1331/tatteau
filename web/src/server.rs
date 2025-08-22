@@ -6,10 +6,13 @@ use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
 use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style};
+use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "ssr")]
 use crate::db::repository::{
     get_artist_by_id, get_artist_images_with_styles, get_artist_location, get_artist_styles,
     get_cities_and_coords, get_city_coordinates, get_states, query_locations,
+    get_location_by_id, get_artists_by_location, get_all_styles_by_location, get_all_images_with_styles_by_location,
 };
 
 #[server]
@@ -101,6 +104,14 @@ pub struct ArtistData {
     pub images_with_styles: Vec<(ArtistImage, Vec<Style>)>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ShopData {
+    pub location: Location,
+    pub artists: Vec<Artist>,
+    pub all_styles: Vec<Style>,
+    pub all_images_with_styles: Vec<(ArtistImage, Vec<Style>, Artist)>,
+}
+
 #[server]
 pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnError> {
     let artist = get_artist_by_id(artist_id)
@@ -120,5 +131,27 @@ pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnErr
         location,
         styles,
         images_with_styles,
+    })
+}
+
+#[server]
+pub async fn fetch_shop_data(location_id: i32) -> Result<ShopData, ServerFnError> {
+    let location = get_location_by_id(location_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch location: {}", e)))?;
+    
+    let artists = get_artists_by_location(location_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch artists: {}", e)))?;
+    
+    let all_styles = get_all_styles_by_location(location_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
+    
+    let all_images_with_styles = get_all_images_with_styles_by_location(location_id)
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
+    
+    Ok(ShopData {
+        location,
+        artists,
+        all_styles,
+        all_images_with_styles,
     })
 }
