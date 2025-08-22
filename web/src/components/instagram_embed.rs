@@ -21,7 +21,12 @@ pub fn InstagramEmbed(
                 // Check if this specific element already has tracking set up
                 const elem = document.getElementById(embedId);
                 if (!elem) {{
-                    setTimeout(() => arguments.callee(), 100);
+                    setTimeout(function() {{
+                        const retryElem = document.getElementById(embedId);
+                        if (retryElem) {{
+                            initializeEmbed();
+                        }}
+                    }}, 100);
                     return;
                 }}
                 
@@ -30,79 +35,81 @@ pub fn InstagramEmbed(
                 }}
                 elem.setAttribute('data-instagram-tracking', 'true');
                 
-                let checkCount = 0;
-                const maxChecks = 30;
-                
-                function hideLoader() {{
-                    const elem = document.getElementById(embedId);
-                    if (elem) {{
-                        const loadingDiv = elem.querySelector('[data-instagram-loading]');
-                        if (loadingDiv) {{
-                            loadingDiv.style.display = 'none';
-                            console.log('✅ Loader hidden for', shortCode);
+                function initializeEmbed() {{
+                    let checkCount = 0;
+                    const maxChecks = 30;
+                    
+                    function hideLoader() {{
+                        const elem = document.getElementById(embedId);
+                        if (elem) {{
+                            const loadingDiv = elem.querySelector('[data-instagram-loading]');
+                            if (loadingDiv) {{
+                                loadingDiv.style.display = 'none';
+                                console.log('✅ Loader hidden for', shortCode);
+                            }}
                         }}
                     }}
-                }}
-                
-                function checkLoaded() {{
-                    checkCount++;
                     
-                    const elem = document.getElementById(embedId);
-                    if (!elem) {{
-                        if (checkCount < maxChecks) {{
-                            setTimeout(checkLoaded, 100);
+                    function checkLoaded() {{
+                        checkCount++;
+                        
+                        const elem = document.getElementById(embedId);
+                        if (!elem) {{
+                            if (checkCount < maxChecks) {{
+                                setTimeout(checkLoaded, 100);
+                            }}
+                            return;
                         }}
-                        return;
-                    }}
-                    
-                    const blockquote = elem.querySelector('.instagram-media');
-                    if (!blockquote) {{
-                        if (checkCount < maxChecks) {{
-                            setTimeout(checkLoaded, 100);
+                        
+                        const blockquote = elem.querySelector('.instagram-media');
+                        if (!blockquote) {{
+                            if (checkCount < maxChecks) {{
+                                setTimeout(checkLoaded, 100);
+                            }}
+                            return;
                         }}
-                        return;
+                        
+                        // Simple, reliable detection: look for any meaningful change to the blockquote
+                        const iframe = blockquote.querySelector('iframe');
+                        const hasAnyChildElements = blockquote.children.length > 0;
+                        const hasProcessedClass = blockquote.classList.contains('instagram-media-rendered') || 
+                                                blockquote.hasAttribute('data-instgrm-processed');
+                        
+                        if (iframe || hasAnyChildElements || hasProcessedClass) {{
+                            console.log('🎉 Instagram embed', shortCode, 'loaded successfully');
+                            hideLoader();
+                            return;
+                        }}
+                        
+                        if (checkCount >= maxChecks) {{
+                            console.log('⏰ Instagram embed', shortCode, 'timed out');
+                            hideLoader();
+                        }} else {{
+                            setTimeout(checkLoaded, 200);
+                        }}
                     }}
                     
-                    // Simple, reliable detection: look for any meaningful change to the blockquote
-                    const iframe = blockquote.querySelector('iframe');
-                    const hasAnyChildElements = blockquote.children.length > 0;
-                    const hasProcessedClass = blockquote.classList.contains('instagram-media-rendered') || 
-                                            blockquote.hasAttribute('data-instgrm-processed');
-                    
-                    if (iframe || hasAnyChildElements || hasProcessedClass) {{
-                        console.log('🎉 Instagram embed', shortCode, 'loaded successfully');
-                        hideLoader();
-                        return;
-                    }}
-                    
-                    if (checkCount >= maxChecks) {{
-                        console.log('⏰ Instagram embed', shortCode, 'timed out');
-                        hideLoader();
+                    // Ensure Instagram script is loaded and process
+                    if (!window.instgrm) {{
+                        const script = document.createElement('script');
+                        script.src = 'https://www.instagram.com/embed.js';
+                        script.async = true;
+                        script.onload = () => {{
+                            if (window.instgrm && window.instgrm.Embeds) {{
+                                window.instgrm.Embeds.process();
+                                setTimeout(checkLoaded, 100);
+                            }}
+                        }};
+                        document.body.appendChild(script);
                     }} else {{
-                        setTimeout(checkLoaded, 200);
+                        if (window.instgrm && window.instgrm.Embeds) {{
+                            window.instgrm.Embeds.process();
+                        }}
+                        setTimeout(checkLoaded, 100);
                     }}
                 }}
                 
-                // Ensure Instagram script is loaded and process
-                if (!window.instgrm) {{
-                    const script = document.createElement('script');
-                    script.src = 'https://www.instagram.com/embed.js';
-                    script.async = true;
-                    script.onload = () => {{
-                        if (window.instgrm && window.instgrm.Embeds) {{
-                            // Force processing of all embeds, not just new ones
-                            window.instgrm.Embeds.process();
-                            setTimeout(checkLoaded, 100);
-                        }}
-                    }};
-                    document.body.appendChild(script);
-                }} else {{
-                    // Always force re-process all embeds to handle filtered content
-                    if (window.instgrm && window.instgrm.Embeds) {{
-                        window.instgrm.Embeds.process();
-                    }}
-                    setTimeout(checkLoaded, 100);
-                }}
+                initializeEmbed();
             }})();
         "#, embed_id_for_effect, short_code_for_effect);
         
