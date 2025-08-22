@@ -103,8 +103,29 @@ pub fn MapRenderer(
                 match locations.get() {
                     Some(Ok(locations)) => view! {
                             {locations.into_iter().map(|loc| {
+                                // Balanced visibility - vibrant enough to see, elegant enough to look good
+                                let fill_color = if !loc.has_artists {
+                                    "%236b7280" // Darker gray for better visibility
+                                } else if loc.artist_images_count == 0 {
+                                    "%23f97316" // Vibrant orange
+                                } else {
+                                    "%235b21b6" // Rich purple (matches your site theme)
+                                };
+                                
+                                // Clean design with better contrast and subtle shadow - slightly larger
+                                let icon_svg = format!(
+                                    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='42' viewBox='0 0 28 42'%3E%3Cdefs%3E%3Cfilter id='shadow' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeDropShadow dx='0' dy='1' stdDeviation='1.5' flood-color='%23000' flood-opacity='0.25'/%3E%3C/filter%3E%3C/defs%3E%3Cpath fill='{}' stroke='%23ffffff' stroke-width='1.5' filter='url(%23shadow)' d='M14 2C8.5 2 4 6.5 4 12c0 8.5 10 26 10 26s10-17.5 10-26c0-5.5-4.5-10-10-10zm0 13.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z'/%3E%3C/svg%3E",
+                                    fill_color
+                                );
+                                
                                 view! {
-                                    <Marker position=Position::new(loc.lat, loc.long) draggable=false>
+                                    <Marker 
+                                        position=Position::new(loc.lat, loc.long) 
+                                        draggable=false
+                                        icon_url=Some(icon_svg)
+                                        icon_size=Some((28.0, 42.0))
+                                        icon_anchor=Some((14.0, 42.0))
+                                    >
                                         <Popup>
                                             <Label size=LabelSize::Large>{loc.name.clone()}</Label>
                                             <p>{format!("Address: {}", loc.address)}</p>
