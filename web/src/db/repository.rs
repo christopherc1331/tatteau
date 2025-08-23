@@ -534,3 +534,25 @@ pub fn get_all_images_with_styles_by_location(location_id: i32) -> SqliteResult<
     
     Ok(result)
 }
+
+#[cfg(feature = "ssr")]
+pub fn save_quiz_session(
+    style_preference: String,
+    body_placement: String,
+    pain_tolerance: i32,
+    budget_min: f64,
+    budget_max: f64,
+    vibe_preference: String,
+) -> SqliteResult<i64> {
+    use rusqlite::params;
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    conn.execute(
+        "INSERT INTO client_quiz_sessions (style_preference, body_placement, pain_tolerance, budget_min, budget_max, vibe_preference)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![style_preference, body_placement, pain_tolerance, budget_min, budget_max, vibe_preference],
+    )?;
+
+    Ok(conn.last_insert_rowid())
+}

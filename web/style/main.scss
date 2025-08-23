@@ -3,6 +3,79 @@ body {
 	text-align: center;
 }
 
+// Common button styles
+.btn-primary {
+	background: #007bff;
+	color: white;
+	border: none;
+	padding: 1rem 2rem;
+	border-radius: 8px;
+	font-size: 1.1rem;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	
+	&:hover {
+		background: #0056b3;
+	}
+}
+
+.btn-secondary {
+	background: #6c757d;
+	color: white;
+	border: none;
+	padding: 0.75rem 1.5rem;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	
+	&:hover {
+		background: #545b62;
+	}
+}
+
+.btn-outlined {
+	background: none;
+	border: 1px solid #007bff;
+	color: #007bff;
+	padding: 0.5rem 1rem;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	
+	&:hover {
+		background: #007bff;
+		color: white;
+	}
+}
+
+// Form styles
+.form-input {
+	width: 100%;
+	padding: 0.5rem;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	font-size: 1rem;
+}
+
+.form-label {
+	display: block;
+	margin-bottom: 0.5rem;
+	font-weight: bold;
+}
+
+// Card styles
+.card {
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	background: white;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+	transition: box-shadow 0.2s ease;
+	
+	&:hover {
+		box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+	}
+}
+
 .masonry-gallery {
 	padding: 20px;
 	max-width: 1400px;

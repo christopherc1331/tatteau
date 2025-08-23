@@ -4,6 +4,18 @@ A workspace containing two crates:
 - `data-ingestion`: Data ingestion and processing
 - `web`: Web application built with Leptos
 
+## Prerequisites
+
+- Rust nightly toolchain (1.88.0 or later)
+  ```bash
+  rustup default nightly
+  ```
+  Note: The project requires nightly Rust 1.88.0+ due to dependency requirements
+- cargo-leptos (optional, for development)
+  ```bash
+  cargo install cargo-leptos --locked
+  ```
+
 ## Building and Testing
 
 ### Building All Crates

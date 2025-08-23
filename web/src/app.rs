@@ -10,7 +10,10 @@ use thaw::*;
 use crate::components::masonry_gallery::MasonryGallery;
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::booking::{ArtistBooking, ShopBooking};
+use crate::views::home::HomePage;
 use crate::views::map::map_wrapper::DiscoveryMap;
+use crate::views::match_results::MatchResults;
+use crate::views::quiz::GetMatchedQuiz;
 use crate::views::shop::Shop;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -62,6 +65,10 @@ pub fn App() -> impl IntoView {
                 <main>
                     <Routes fallback=|| "Page not found.".into_view()>
                         <Route path=StaticSegment("") view=HomePage/>
+                        <Route path=StaticSegment("explore") view=ExplorePage/>
+                        <Route path=StaticSegment("match") view=GetMatchedQuiz/>
+                        <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
+                        <Route path=StaticSegment("styles") view=StylesPage/>
                         <Route path=StaticSegment("gallery") view=GalleryPage/>
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
@@ -74,11 +81,22 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Renders the home page of your application.
+/// Renders the explore page with map discovery
 #[component]
-fn HomePage() -> impl IntoView {
+fn ExplorePage() -> impl IntoView {
     view! {
         <DiscoveryMap/>
+    }
+}
+
+/// Renders the styles page
+#[component]
+fn StylesPage() -> impl IntoView {
+    view! {
+        <div style="max-width: 1200px; margin: 0 auto; padding: 2rem;">
+            <h1 style="text-align: center; margin-bottom: 2rem;">"Tattoo Styles"</h1>
+            <MasonryGallery/>
+        </div>
     }
 }
 
