@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Target directories (will be rebuilt in container)
+target/
+*/target/
+web/target/
+data-ingestion/target/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Logs
+*.log
+
+# Node modules (if any)
+node_modules/
+*/node_modules/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts that will be recreated
+Cargo.lock
+*/Cargo.lock
+
+# Test files
+test_*
