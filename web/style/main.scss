@@ -5,6 +5,13 @@ body {
 
 // Import component styles
 @import 'explore';
+@import 'match_results';
+
+// Global animations
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 
 // Common button styles
 .btn-primary {

@@ -766,10 +766,106 @@ pub fn query_locations_with_details(
 }
 
 #[cfg(feature = "ssr")]
+pub fn query_matched_artists(
+    style_preferences: Vec<String>,
+    location: String,
+    price_range: Option<(f64, f64)>,
+) -> SqliteResult<Vec<crate::server::MatchedArtist>> {
+    use rusqlite::params;
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    // Build query with style filtering
+    let mut query = "
+        SELECT DISTINCT
+            a.id,
+            a.name,
+            l.name as location_name,
+            l.city,
+            l.state,
+            (SELECT s.name 
+             FROM styles s 
+             JOIN artists_styles ast ON s.id = ast.style_id 
+             WHERE ast.artist_id = a.id 
+             LIMIT 1) as primary_style,
+            COUNT(DISTINCT ai.id) as image_count,
+            COALESCE(AVG(CASE WHEN ar.rating > 0 THEN ar.rating END), 0.0) as avg_rating
+        FROM artists a
+        LEFT JOIN locations l ON a.location_id = l.id
+        LEFT JOIN artists_images ai ON a.id = ai.artist_id
+        LEFT JOIN artist_reviews ar ON a.id = ar.artist_id
+        LEFT JOIN artists_styles ast2 ON a.id = ast2.artist_id
+        LEFT JOIN styles s2 ON ast2.style_id = s2.id
+        WHERE 1=1".to_string();
+
+    let mut params = Vec::new();
+    let mut param_index = 1;
+
+    // Add location filter if specified
+    if !location.is_empty() && location != "Any" {
+        query.push_str(&format!(" AND (l.city LIKE ?{} OR l.state LIKE ?{})", param_index, param_index + 1));
+        params.push(format!("%{}%", location));
+        params.push(format!("%{}%", location));
+        param_index += 2;
+    }
+
+    // Add style filter if preferences specified
+    if !style_preferences.is_empty() {
+        let style_placeholders: Vec<String> = (0..style_preferences.len())
+            .map(|i| format!("?{}", param_index + i))
+            .collect();
+        query.push_str(&format!(" AND s2.name IN ({})", style_placeholders.join(",")));
+        for style in &style_preferences {
+            params.push(style.clone());
+        }
+        param_index += style_preferences.len();
+    }
+
+    query.push_str(" GROUP BY a.id, a.name, l.name, l.city, l.state ORDER BY image_count DESC, avg_rating DESC LIMIT 20");
+
+    let mut stmt = conn.prepare(&query)?;
+    
+    // Convert params to rusqlite format
+    let rusqlite_params: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+    
+    let artists = stmt.query_map(&rusqlite_params[..], |row| {
+        // Calculate a basic match score (this could be more sophisticated)
+        let image_count: i32 = row.get(6)?;
+        let avg_rating: f64 = row.get(7)?;
+        let match_score = std::cmp::min(100, (image_count * 10 + (avg_rating * 10.0) as i32).max(50));
+        
+        Ok(crate::server::MatchedArtist {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            location_name: row.get(2)?,
+            city: row.get(3)?,
+            state: row.get(4)?,
+            primary_style: row.get::<_, Option<String>>(5)?.unwrap_or_else(|| "Various".to_string()),
+            image_count,
+            avg_rating,
+            match_score,
+        })
+    })?;
+
+    artists.collect()
+}
+
+#[cfg(feature = "ssr")]
 pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords> {
     use rusqlite::params;
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
+    
+    // First check if the postal code exists
+    let mut check_stmt = conn.prepare(
+        "SELECT COUNT(*) FROM locations WHERE postal_code = ?1"
+    )?;
+    
+    let count: i32 = check_stmt.query_row(params![postal_code], |row| row.get(0))?;
+    
+    if count == 0 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
     
     let mut stmt = conn.prepare(
         "SELECT DISTINCT city, state, lat, long

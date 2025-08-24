@@ -4,7 +4,10 @@ use thaw::{Button, ButtonSize, Checkbox, CheckboxGroup, Flex, FlexAlign};
 use crate::{
     components::loading::LoadingView,
     db::entities::CityCoords,
-    server::{get_available_styles, get_cities, get_location_stats, search_by_postal_code, LocationStats, StyleWithCount},
+    server::{
+        get_available_styles, get_cities, get_location_stats, search_by_postal_code, LocationStats,
+        StyleWithCount,
+    },
     views::map::{
         drop_down_cities::DropDownCities, drop_down_states::DropDownStates,
         map_renderer::MapRenderer,
@@ -25,47 +28,70 @@ pub fn DiscoveryMap() -> impl IntoView {
         move || state.get(),
         move |state| async move { get_cities(state).await },
     );
-    
+
     // New state for enhanced features
     let search_input = RwSignal::new(String::new());
     let selected_styles = RwSignal::new(Vec::<i32>::new());
     let sidebar_collapsed = RwSignal::new(false);
-    
+
     // Fetch location stats (use LocalResource to avoid hydration issues)
     let location_stats = Resource::new(
         move || (city.get(), state.get()),
-        move |(city, state)| async move { 
-            get_location_stats(city, state).await.unwrap_or_default()
-        },
+        move |(city, state)| async move { get_location_stats(city, state).await.unwrap_or_default() },
     );
-    
+
     // Fetch available styles (use LocalResource to avoid hydration issues)
     let available_styles = Resource::new(
         || (),
-        |_| async move { 
-            get_available_styles().await.unwrap_or_default()
-        },
+        |_| async move { get_available_styles().await.unwrap_or_default() },
     );
-    
+
     let handle_search = move |_ev: web_sys::MouseEvent| {
-        let search_value = search_input.get();
+        let search_value = search_input.get().trim().to_string();
         if !search_value.is_empty() {
             // Check if it's a zip code
             if search_value.chars().all(|c| c.is_numeric()) && search_value.len() == 5 {
                 spawn_local(async move {
-                    if let Ok(coords) = search_by_postal_code(search_value).await {
-                        city.set(coords.city.clone());
-                        state.set(coords.state);
+                    match search_by_postal_code(search_value.clone()).await {
+                        Ok(coords) => {
+                            city.set(coords.city.clone());
+                            state.set(coords.state);
+                        },
+                        Err(e) => {
+                            leptos::logging::log!("Postal code search failed for {}: {:?}", search_value, e);
+                            // Could add user feedback here in the future
+                        }
+                    }
+                });
+            } else {
+                // Treat as city name - find the first city with this name
+                spawn_local(async move {
+                    // Try to get cities for the current state first
+                    match get_cities(state.get()).await {
+                        Ok(cities_list) => {
+                            if let Some(matching_city) = cities_list.into_iter().find(|c| 
+                                c.city.to_lowercase().contains(&search_value.to_lowercase())
+                            ) {
+                                city.set(matching_city.city);
+                                state.set(matching_city.state);
+                            } else {
+                                leptos::logging::log!("No city found matching: {}", search_value);
+                                // Could add user feedback here in the future
+                            }
+                        },
+                        Err(e) => {
+                            leptos::logging::log!("Failed to get cities: {:?}", e);
+                        }
                     }
                 });
             }
         }
     };
-    
+
     let toggle_sidebar = move |_ev: web_sys::MouseEvent| {
         sidebar_collapsed.update(|c| *c = !*c);
     };
-    
+
     let clear_filters = move |_ev: web_sys::MouseEvent| {
         selected_styles.set(Vec::new());
     };
@@ -76,7 +102,7 @@ pub fn DiscoveryMap() -> impl IntoView {
             <div class="explore-header">
                 <div class="header-content">
                     <h1>"Discover Tattoo Artists"</h1>
-                    
+
                     <div class="search-section">
                         <input
                             type="text"
@@ -91,7 +117,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                             "Search"
                         </button>
                     </div>
-                    
+
                     <div class="location-stats">
                         <Suspense fallback=|| view! { <span>"Loading stats..."</span> }>
                             {move || {
@@ -117,7 +143,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                                         </>
                                     }.into_any()
                                 } else {
-                                    view! { 
+                                    view! {
                                         <div class="stat-item">
                                             <span>"No stats available"</span>
                                         </div>
@@ -128,7 +154,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                     </div>
                 </div>
             </div>
-            
+
             // Main content
             <div class="explore-content">
                 // Sidebar
@@ -136,11 +162,11 @@ pub fn DiscoveryMap() -> impl IntoView {
                     <button class="sidebar-toggle" on:click=toggle_sidebar>
                         {move || if sidebar_collapsed.get() { "→" } else { "←" }}
                     </button>
-                    
+
                     <div class="sidebar-header">
                         <h2>"Filters"</h2>
                     </div>
-                    
+
                     <div class="sidebar-content">
                         // Location filters
                         <div class="filter-section">
@@ -150,19 +176,19 @@ pub fn DiscoveryMap() -> impl IntoView {
                                 <DropDownCities city=city cities=cities/>
                             </div>
                         </div>
-                        
+
                         // Style filters (simplified)
                         <div class="filter-section style-filters">
                             <h3>"Tattoo Styles"</h3>
                             <div>"Style filtering coming soon"</div>
                         </div>
-                        
+
                         <button class="clear-filters" on:click=clear_filters>
                             "Clear All Filters"
                         </button>
                     </div>
                 </div>
-                
+
                 // Map area
                 <div class="explore-map-wrapper">
                     // Map
@@ -173,7 +199,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                         cities=cities
                         selected_styles=selected_styles
                     />
-                    
+
                     // Map legend
                     <div class="map-legend">
                         <h4>"Map Legend"</h4>
@@ -197,3 +223,4 @@ pub fn DiscoveryMap() -> impl IntoView {
         </div>
     }
 }
+

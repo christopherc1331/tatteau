@@ -2,101 +2,148 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 use thaw::*;
 
-#[derive(Clone, Debug)]
-pub struct MatchedArtist {
-    pub id: i32,
-    pub name: String,
-    pub style: String,
-    pub price_range: String,
-    pub location: String,
-    pub match_score: i32,
-}
+use crate::{
+    components::loading::LoadingView,
+    server::{get_matched_artists, MatchedArtist},
+};
 
 #[component]
 pub fn MatchResults() -> impl IntoView {
-    // TODO: Fetch matched artists from database
-    let matched_artists = vec![
-        MatchedArtist {
-            id: 1,
-            name: "Sarah Johnson".to_string(),
-            style: "Neo-Traditional".to_string(),
-            price_range: "$150-300/hr".to_string(),
-            location: "Brooklyn, NY".to_string(),
-            match_score: 95,
+    // Fetch matched artists from database based on user preferences
+    // For now, using some sample preferences - in a real app this would come from user session/URL params
+    let matched_artists = Resource::new(
+        || (),
+        |_| async move {
+            get_matched_artists(
+                vec!["Traditional".to_string(), "Neo-Traditional".to_string()],
+                "Washington".to_string(),
+                None,
+            ).await
         },
-        MatchedArtist {
-            id: 2,
-            name: "Mike Chen".to_string(),
-            style: "Japanese".to_string(),
-            price_range: "$200-400/hr".to_string(),
-            location: "Manhattan, NY".to_string(),
-            match_score: 88,
-        },
-        MatchedArtist {
-            id: 3,
-            name: "Emma Rodriguez".to_string(),
-            style: "Watercolor".to_string(),
-            price_range: "$100-250/hr".to_string(),
-            location: "Queens, NY".to_string(),
-            match_score: 82,
-        },
-    ];
+    );
 
     view! {
-        <div style="max-width: 1200px; margin: 0 auto; padding: 2rem;">
-            <h1 style="text-align: center; margin-bottom: 2rem;">"Your Perfect Matches"</h1>
-            <p style="text-align: center; color: #666; margin-bottom: 3rem;">
-                "Based on your preferences, here are your top artist matches"
-            </p>
-
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 2rem;">
-                {matched_artists.into_iter().map(|artist| {
-                    view! {
-                        <div class="card">
-                            <div style="padding: 1.5rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                    <h3 style="margin: 0;">{artist.name.clone()}</h3>
-                                    <span style="background: #28a745; color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.85rem;">
-                                        {format!("{}% Match", artist.match_score)}
-                                    </span>
-                                </div>
-                                
-                                <div style="margin-bottom: 1rem;">
-                                    <p style="margin: 0.5rem 0;">
-                                        <strong>"Style: "</strong> {artist.style}
-                                    </p>
-                                    <p style="margin: 0.5rem 0;">
-                                        <strong>"Price: "</strong> {artist.price_range}
-                                    </p>
-                                    <p style="margin: 0.5rem 0;">
-                                        <strong>"Location: "</strong> {artist.location}
-                                    </p>
-                                </div>
-
-                                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                                    <A href={format!("/artist/{}", artist.id)}>
-                                        <button class="btn-primary" style="padding: 0.75rem 1.5rem;">
-                                            "View Profile"
-                                        </button>
-                                    </A>
-                                    <A href={format!("/book/artist/{}", artist.id)}>
-                                        <button class="btn-secondary">
-                                            "Book Now"
-                                        </button>
-                                    </A>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                }).collect::<Vec<_>>()}
+        <div class="match-results-container">
+            <div class="page-header">
+                <h1>"Your Perfect Matches"</h1>
+                <p class="subtitle">
+                    "Based on your preferences, here are your top artist matches"
+                </p>
             </div>
 
-            <div style="text-align: center; margin-top: 3rem;">
-                <A href="/match">
-                    <button class="btn-outlined" style="padding: 0.75rem 1.5rem;">
-                        "Refine Your Preferences"
-                    </button>
-                </A>
+            <Suspense fallback=|| view! { <LoadingView message=Some("Finding your perfect matches...".to_string()) /> }>
+                {move || {
+                    match matched_artists.get() {
+                        Some(Ok(artists)) => {
+                            if artists.is_empty() {
+                                view! {
+                                    <div class="no-matches">
+                                        <h3>"No matches found"</h3>
+                                        <p>"Try adjusting your preferences to find more artists."</p>
+                                        <A href="/match">
+                                            <div class="btn-outlined">
+                                                "Update Preferences"
+                                            </div>
+                                        </A>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <>
+                                        <div class="artists-grid">
+                                            {artists.into_iter().map(|artist| {
+                                                view! {
+                                                    <ArtistCard artist=artist />
+                                                }
+                                            }).collect_view()}
+                                        </div>
+                                        
+                                        <div class="refine-section">
+                                            <A href="/match">
+                                                <div class="btn-outlined">
+                                                    "Refine Your Preferences"
+                                                </div>
+                                            </A>
+                                        </div>
+                                    </>
+                                }.into_any()
+                            }
+                        },
+                        Some(Err(_)) => view! {
+                            <div class="no-matches">
+                                <h3>"Something went wrong"</h3>
+                                <p>"We couldn't load your matches right now. Please try again."</p>
+                                <A href="/match">
+                                    <div class="btn-outlined">
+                                        "Back to Preferences"
+                                    </div>
+                                </A>
+                            </div>
+                        }.into_any(),
+                        None => view! {
+                            <LoadingView message=Some("Loading matches...".to_string()) />
+                        }.into_any(),
+                    }
+                }}
+            </Suspense>
+        </div>
+    }
+}
+
+#[component]
+pub fn ArtistCard(artist: MatchedArtist) -> impl IntoView {
+    view! {
+        <div class="artist-card">
+            <div class="card-content">
+                <div class="card-header">
+                    <h3 class="artist-name">{artist.name.clone()}</h3>
+                    <div class="match-badge">
+                        {format!("{}% Match", artist.match_score)}
+                    </div>
+                </div>
+                
+                <div class="artist-details">
+                    <div class="detail-row">
+                        <span class="detail-label">"Style:"</span>
+                        <span class="detail-value">{artist.primary_style}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">"Location:"</span>
+                        <span class="detail-value">{format!("{}, {}", artist.city, artist.state)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">"Shop:"</span>
+                        <span class="detail-value">{artist.location_name}</span>
+                    </div>
+                </div>
+
+                <div class="artist-stats">
+                    <div class="stat">
+                        <span class="stat-number">{artist.image_count}</span>
+                        <span class="stat-label">"Portfolio"</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">{format!("{:.1}", artist.avg_rating)}</span>
+                        <span class="stat-label">"Rating"</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number">{artist.match_score}</span>
+                        <span class="stat-label">"Match"</span>
+                    </div>
+                </div>
+
+                <div class="card-actions">
+                    <A href={format!("/artist/{}", artist.id)}>
+                        <div class="btn btn-primary">
+                            "View Profile"
+                        </div>
+                    </A>
+                    <A href={format!("/book/artist/{}", artist.id)}>
+                        <div class="btn btn-secondary">
+                            "Book Now"
+                        </div>
+                    </A>
+                </div>
             </div>
         </div>
     }

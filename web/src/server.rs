@@ -237,6 +237,39 @@ pub async fn get_locations_with_details(
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct MatchedArtist {
+    pub id: i64,
+    pub name: String,
+    pub location_name: String,
+    pub city: String,
+    pub state: String,
+    pub primary_style: String,
+    pub image_count: i32,
+    pub avg_rating: f64,
+    pub match_score: i32,
+}
+
+#[server]
+pub async fn get_matched_artists(
+    style_preferences: Vec<String>,
+    location: String,
+    price_range: Option<(f64, f64)>,
+) -> Result<Vec<MatchedArtist>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::repository::query_matched_artists;
+        match query_matched_artists(style_preferences, location, price_range) {
+            Ok(artists) => Ok(artists),
+            Err(e) => Err(ServerFnError::new(format!("Failed to fetch matched artists: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
 #[server]
 pub async fn search_by_postal_code(postal_code: String) -> Result<CityCoords, ServerFnError> {
     #[cfg(feature = "ssr")]

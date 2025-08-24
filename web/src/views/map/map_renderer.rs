@@ -151,6 +151,22 @@ pub fn MapRenderer(
                         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                         attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
                     />
+                    // Loading overlay for when locations are being fetched
+                    {move || {
+                        if locations.get().is_none() {
+                            view! {
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(255, 255, 255, 0.9); padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div style="width: 20px; height: 20px; border: 2px solid #e5e7eb; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                                        <span style="color: #374151; font-weight: 500;">"Loading markers..."</span>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <></> }.into_any()
+                        }
+                    }}
+                    
                     {move ||
                         match locations.get() {
                             Some(Ok(locations)) => view! {
@@ -161,14 +177,10 @@ pub fn MapRenderer(
                                     }).collect_view()}
                             }.into_any(),
                             Some(Err(err)) => {
-                                println!("Error occurred while fetching locations: {}", err);
-                                view! {
-                                    <ErrorView message=Some("Error fetching locations...".to_string()) />
-                                }.into_any()
+                                leptos::logging::log!("Error occurred while fetching locations: {}", err);
+                                view! { <></> }.into_any()
                             },
-                            None => view! {
-                                <LoadingView message=Some("Fetching locations...".to_string()) />
-                            }.into_any(),
+                            None => view! { <></> }.into_any(),
                         }
                     }
                 </MapContainer>
