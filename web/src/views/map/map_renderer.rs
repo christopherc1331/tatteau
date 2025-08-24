@@ -1,8 +1,8 @@
 use crate::{
     components::{error::ErrorView, loading::LoadingView},
     db::entities::CityCoords,
-    server::fetch_locations,
-    views::map::map_marker::MapMarker,
+    server::{fetch_locations, get_locations_with_details},
+    views::map::{enhanced_map_marker::EnhancedMapMarker, map_marker::MapMarker},
 };
 use leptos::{leptos_dom::logging::console_log, prelude::*};
 use leptos_leaflet::{
@@ -20,6 +20,7 @@ pub fn MapRenderer(
     city: RwSignal<String>,
     default_location: CityCoords,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
+    selected_styles: RwSignal<Vec<i32>>,
 ) -> impl IntoView {
     let selected_city_coords = RwSignal::new(default_location.clone());
 
@@ -74,8 +75,20 @@ pub fn MapRenderer(
     });
 
     let locations = Resource::new(
-        move || (state.get(), city.get(), bounds.get()),
-        move |(state, city, bounds)| async move { fetch_locations(state, city, bounds).await },
+        move || (state.get(), city.get(), bounds.get(), selected_styles.get()),
+        move |(state, city, bounds, styles)| async move {
+            get_locations_with_details(
+                state,
+                city,
+                bounds,
+                if styles.is_empty() {
+                    None
+                } else {
+                    Some(styles)
+                },
+            )
+            .await
+        },
     );
 
     Effect::new(move |_| {
@@ -141,9 +154,9 @@ pub fn MapRenderer(
                     {move ||
                         match locations.get() {
                             Some(Ok(locations)) => view! {
-                                    {locations.into_iter().map(|loc| {
+                                    {locations.into_iter().map(|enhanced_loc| {
                                         view! {
-                                            <MapMarker location=loc />
+                                            <EnhancedMapMarker location=enhanced_loc />
                                         }
                                     }).collect_view()}
                             }.into_any(),

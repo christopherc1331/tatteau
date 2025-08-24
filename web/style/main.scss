@@ -3,6 +3,9 @@ body {
 	text-align: center;
 }
 
+// Import component styles
+@import 'explore';
+
 // Common button styles
 .btn-primary {
 	background: #007bff;

@@ -19,8 +19,11 @@ pub fn DropDownCities(
     });
 
     view! {
-        {move ||
-            match cities.get() {
+        <Suspense fallback=|| view! {
+            <LoadingView message=Some("Loading cities...".to_string()) />
+        }>
+            {move ||
+                match cities.get() {
                 Some(Ok(cities)) => view! {
                     <Flex vertical=true align=FlexAlign::Start>
                         <Label>"City"</Label>
@@ -43,7 +46,8 @@ pub fn DropDownCities(
                 None => view! {
                     <LoadingView message=Some("Fetching locations...".to_string()) />
                 }.into_any(),
+                }
             }
-        }
+        </Suspense>
     }
 }

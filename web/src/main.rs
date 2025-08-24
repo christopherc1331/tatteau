@@ -3,6 +3,7 @@
 async fn main() {
     use axum::Router;
     use web::app::*;
+    use web::server::*;
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};

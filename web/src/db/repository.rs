@@ -3,6 +3,8 @@ use super::entities::{Artist, ArtistImage, ArtistImageStyle, ArtistStyle, CityCo
 use rusqlite::{Connection, Result as SqliteResult};
 use shared_types::{LocationInfo, MapBounds};
 use std::path::Path;
+#[cfg(feature = "ssr")]
+use serde_json;
 
 #[cfg(feature = "ssr")]
 pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
@@ -555,4 +557,234 @@ pub fn save_quiz_session(
     )?;
 
     Ok(conn.last_insert_rowid())
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_location_stats_for_city(city: String, state: String) -> SqliteResult<crate::server::LocationStats> {
+    use rusqlite::params;
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT 
+            COUNT(DISTINCT l.id) as shop_count,
+            COUNT(DISTINCT a.id) as artist_count,
+            COUNT(DISTINCT s.id) as styles_available
+         FROM locations l
+         LEFT JOIN artists a ON l.id = a.location_id
+         LEFT JOIN artists_styles ast ON a.id = ast.artist_id
+         LEFT JOIN styles s ON ast.style_id = s.id
+         WHERE l.city = ?1 AND l.state = ?2
+         AND (l.is_person IS NULL OR l.is_person != 1)"
+    )?;
+    
+    stmt.query_row(params![city, state], |row| {
+        Ok(crate::server::LocationStats {
+            shop_count: row.get(0)?,
+            artist_count: row.get(1)?,
+            styles_available: row.get(2)?,
+        })
+    })
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWithCount>> {
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT 
+            s.id,
+            s.name,
+            COUNT(DISTINCT ast.artist_id) as artist_count
+         FROM styles s
+         LEFT JOIN artists_styles ast ON s.id = ast.style_id
+         GROUP BY s.id, s.name
+         ORDER BY artist_count DESC, s.name ASC"
+    )?;
+    
+    let styles = stmt.query_map([], |row| {
+        Ok(crate::server::StyleWithCount {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            artist_count: row.get(2)?,
+        })
+    })?;
+    
+    styles.collect()
+}
+
+#[cfg(feature = "ssr")]
+fn map_location_row(row: &rusqlite::Row) -> rusqlite::Result<(shared_types::LocationInfo, i32)> {
+    use shared_types::LocationInfo;
+    let location_id: i64 = row.get(0)?;
+    let location_info = LocationInfo {
+        id: location_id,
+        name: row.get(1)?,
+        lat: row.get(2)?,
+        long: row.get(3)?,
+        city: row.get(4)?,
+        county: row.get(5)?,
+        state: row.get(6)?,
+        country_code: row.get(7)?,
+        postal_code: row.get(8)?,
+        is_open: row.get(9)?,
+        address: row.get(10)?,
+        category: row.get(11)?,
+        website_uri: row.get(12)?,
+        _id: row.get(13)?,
+        has_artists: Some(row.get::<_, i32>(15)? == 1),
+        artist_images_count: Some(row.get(16)?),
+    };
+    Ok((location_info, row.get::<_, i32>(14)?))
+}
+
+#[cfg(feature = "ssr")]
+pub fn query_locations_with_details(
+    state: String,
+    city: String,
+    bounds: MapBounds,
+    style_filter: Option<Vec<i32>>,
+) -> SqliteResult<Vec<crate::server::EnhancedLocationInfo>> {
+    use rusqlite::params;
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    // Build the query based on whether we have style filters
+    let query = if style_filter.is_some() && !style_filter.as_ref().unwrap().is_empty() {
+        "SELECT DISTINCT
+            l.id, l.name, l.lat, l.long, l.city, l.county, l.state, 
+            l.country_code, l.postal_code, l.is_open, l.address, 
+            l.category, l.website_uri, l._id,
+            COUNT(DISTINCT a.id) as artist_count,
+            CASE WHEN COUNT(DISTINCT ai.id) > 0 THEN 1 ELSE 0 END as has_artists,
+            COUNT(DISTINCT ai.id) as artist_images_count
+         FROM locations l
+         LEFT JOIN artists a ON l.id = a.location_id
+         LEFT JOIN artists_images ai ON a.id = ai.artist_id
+         LEFT JOIN artists_styles ast ON a.id = ast.artist_id
+         WHERE l.lat BETWEEN ?1 AND ?2
+         AND l.long BETWEEN ?3 AND ?4
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND ast.style_id IN (SELECT value FROM json_each(?5))
+         GROUP BY l.id"
+    } else {
+        "SELECT 
+            l.id, l.name, l.lat, l.long, l.city, l.county, l.state, 
+            l.country_code, l.postal_code, l.is_open, l.address, 
+            l.category, l.website_uri, l._id,
+            COUNT(DISTINCT a.id) as artist_count,
+            CASE WHEN COUNT(DISTINCT ai.id) > 0 THEN 1 ELSE 0 END as has_artists,
+            COUNT(DISTINCT ai.id) as artist_images_count
+         FROM locations l
+         LEFT JOIN artists a ON l.id = a.location_id
+         LEFT JOIN artists_images ai ON a.id = ai.artist_id
+         WHERE l.lat BETWEEN ?1 AND ?2
+         AND l.long BETWEEN ?3 AND ?4
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         GROUP BY l.id"
+    };
+    
+    let mut stmt = conn.prepare(query)?;
+    
+    let locations = if let Some(ref styles) = style_filter {
+        if !styles.is_empty() {
+            let style_json = serde_json::to_string(&styles).unwrap();
+            stmt.query_map(
+                params![
+                    bounds.south_west.lat,
+                    bounds.north_east.lat,
+                    bounds.south_west.long,
+                    bounds.north_east.long,
+                    style_json
+                ],
+                map_location_row,
+            )?
+        } else {
+            stmt.query_map(
+                params![
+                    bounds.south_west.lat,
+                    bounds.north_east.lat,
+                    bounds.south_west.long,
+                    bounds.north_east.long
+                ],
+                map_location_row,
+            )?
+        }
+    } else {
+        stmt.query_map(
+            params![
+                bounds.south_west.lat,
+                bounds.north_east.lat,
+                bounds.south_west.long,
+                bounds.north_east.long
+            ],
+            map_location_row,
+        )?
+    };
+    
+    let mut result = Vec::new();
+    for location_result in locations {
+        let (location_info, artist_count) = location_result?;
+        
+        // Get image count and styles for this location
+        let mut image_count_stmt = conn.prepare(
+            "SELECT COUNT(DISTINCT ai.id)
+             FROM artists_images ai
+             JOIN artists a ON ai.artist_id = a.id
+             WHERE a.location_id = ?1"
+        )?;
+        
+        let image_count: i32 = image_count_stmt
+            .query_row(params![location_info.id], |row| row.get(0))?;
+        
+        let mut styles_stmt = conn.prepare(
+            "SELECT DISTINCT s.name
+             FROM styles s
+             JOIN artists_styles ast ON s.id = ast.style_id
+             JOIN artists a ON ast.artist_id = a.id
+             WHERE a.location_id = ?1
+             LIMIT 5"
+        )?;
+        
+        let styles: Vec<String> = styles_stmt
+            .query_map(params![location_info.id], |row| row.get(0))?
+            .filter_map(Result::ok)
+            .collect();
+        
+        result.push(crate::server::EnhancedLocationInfo {
+            location: location_info,
+            artist_count,
+            image_count,
+            styles,
+            min_price: None, // TODO: Add when artist_pricing table exists
+            max_price: None, // TODO: Add when artist_pricing table exists
+        });
+    }
+    
+    Ok(result)
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords> {
+    use rusqlite::params;
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT city, state, lat, long
+         FROM locations
+         WHERE postal_code = ?1
+         AND (is_person IS NULL OR is_person != 1)
+         LIMIT 1"
+    )?;
+    
+    stmt.query_row(params![postal_code], |row| {
+        Ok(CityCoords {
+            city: row.get(0)?,
+            state: row.get(1)?,
+            lat: row.get(2)?,
+            long: row.get(3)?,
+        })
+    })
 }

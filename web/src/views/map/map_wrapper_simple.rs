@@ -21,7 +21,7 @@ pub fn DiscoveryMap() -> impl IntoView {
         long: -117.4186315,
     };
     let city = RwSignal::new(default_location.clone().city);
-    let cities = Resource::new(
+    let cities = LocalResource::new(
         move || state.get(),
         move |state| async move { get_cities(state).await },
     );
@@ -32,7 +32,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     let sidebar_collapsed = RwSignal::new(false);
     
     // Fetch location stats (use LocalResource to avoid hydration issues)
-    let location_stats = Resource::new(
+    let location_stats = LocalResource::new(
         move || (city.get(), state.get()),
         move |(city, state)| async move { 
             get_location_stats(city, state).await.unwrap_or_default()
@@ -40,7 +40,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     );
     
     // Fetch available styles (use LocalResource to avoid hydration issues)
-    let available_styles = Resource::new(
+    let available_styles = LocalResource::new(
         || (),
         |_| async move { 
             get_available_styles().await.unwrap_or_default()
@@ -95,35 +95,28 @@ pub fn DiscoveryMap() -> impl IntoView {
                     <div class="location-stats">
                         <Suspense fallback=|| view! { <span>"Loading stats..."</span> }>
                             {move || {
-                                if let Some(stats) = location_stats.get() {
-                                    view! {
-                                        <>
-                                            <div class="stat-item">
-                                                <span class="stat-number">{stats.shop_count}</span>
-                                                <span>"shops"</span>
-                                            </div>
-                                            <div class="stat-item">
-                                                <span class="stat-number">{stats.artist_count}</span>
-                                                <span>"artists"</span>
-                                            </div>
-                                            <div class="stat-item">
-                                                <span class="stat-number">{stats.styles_available}</span>
-                                                <span>"styles"</span>
-                                            </div>
-                                            <div class="stat-item">
-                                                <span>"in"</span>
-                                                <span class="stat-number">{city.get()}</span>
-                                            </div>
-                                        </>
-                                    }.into_any()
-                                } else {
-                                    view! { 
+                                location_stats.get().map(|stats| {
+                                view! {
+                                    <>
                                         <div class="stat-item">
-                                            <span>"No stats available"</span>
+                                            <span class="stat-number">{stats.shop_count}</span>
+                                            <span>"shops"</span>
                                         </div>
-                                    }.into_any()
+                                        <div class="stat-item">
+                                            <span class="stat-number">{stats.artist_count}</span>
+                                            <span>"artists"</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-number">{stats.styles_available}</span>
+                                            <span>"styles"</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span>"in"</span>
+                                            <span class="stat-number">{city.get()}</span>
+                                        </div>
+                                    </>
                                 }
-                            }}
+                            }).unwrap_or_else(|| view! { <span>"No stats available"</span> })}
                         </Suspense>
                     </div>
                 </div>

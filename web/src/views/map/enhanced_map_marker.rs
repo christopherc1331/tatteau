@@ -1,0 +1,90 @@
+use crate::server::EnhancedLocationInfo;
+use leptos::prelude::*;
+use leptos_leaflet::prelude::*;
+
+#[component]
+pub fn EnhancedMapMarker(location: EnhancedLocationInfo) -> impl IntoView {
+    let fill_color = if location.location.has_artists.unwrap_or(false) == false {
+        "%236b7280"
+    } else if location.image_count == 0 {
+        "%23f97316"
+    } else {
+        "%235b21b6"
+    };
+
+    let icon_svg = format!(
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='48' viewBox='0 0 32 48'%3E%3Cdefs%3E%3Cfilter id='shadow' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeDropShadow dx='0' dy='2' stdDeviation='2' flood-color='%23000' flood-opacity='0.3'/%3E%3C/filter%3E%3C/defs%3E%3Cpath fill='{}' stroke='%23ffffff' stroke-width='2' filter='url(%23shadow)' d='M16 2C9.5 2 4 7.5 4 14c0 10.5 12 30 12 30s12-19.5 12-30c0-6.5-5.5-12-12-12zm0 16c-2.2 0-4-1.8-4-4s1.8-4 4-4 4 1.8 4 4-1.8 4-4 4z'/%3E%3C/svg%3E",
+        fill_color
+    );
+
+    view! {
+        <Marker
+            position=Position::new(location.location.lat, location.location.long)
+            draggable=false
+            icon_url=Some(icon_svg)
+            icon_size=Some((32.0, 48.0))
+            icon_anchor=Some((16.0, 48.0))
+        >
+            <Popup>
+                <EnhancedMapPopup location=location />
+            </Popup>
+        </Marker>
+    }
+}
+
+#[component]
+pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
+    view! {
+        <div class="location-popup">
+            <div class="popup-header">
+                <h3>{location.location.name.clone()}</h3>
+                <p class="popup-address">{location.location.address}</p>
+            </div>
+            
+            <div class="popup-stats">
+                <div class="stat">
+                    <span class="stat-value">{location.artist_count}</span>
+                    <span>" artists"</span>
+                </div>
+                {if location.image_count > 0 {
+                    view! {
+                        <div class="stat">
+                            <span class="stat-value">{location.image_count}</span>
+                            <span>" images"</span>
+                        </div>
+                    }.into_any()
+                } else {
+                    view! {}.into_any()
+                }}
+            </div>
+            
+            
+            {if !location.styles.is_empty() {
+                view! {
+                    <div class="popup-styles">
+                        {location.styles.into_iter().take(5).map(|style| {
+                            view! {
+                                <span class="style-tag">{style}</span>
+                            }
+                        }).collect_view()}
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }}
+            
+            <a 
+                class="popup-cta"
+                href=format!("/shop/{}", location.location.id)
+            >
+                {if location.image_count > 0 {
+                    "View Portfolio & Artists"
+                } else if location.artist_count > 0 {
+                    "View Shop Details"
+                } else {
+                    "Visit Website"
+                }}
+            </a>
+        </div>
+    }
+}
