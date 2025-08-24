@@ -657,7 +657,7 @@ pub fn query_locations_with_details(
             l.country_code, l.postal_code, l.is_open, l.address, 
             l.category, l.website_uri, l._id,
             COUNT(DISTINCT a.id) as artist_count,
-            CASE WHEN COUNT(DISTINCT ai.id) > 0 THEN 1 ELSE 0 END as has_artists,
+            CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
             COUNT(DISTINCT ai.id) as artist_images_count
          FROM locations l
          LEFT JOIN artists a ON l.id = a.location_id
@@ -674,7 +674,7 @@ pub fn query_locations_with_details(
             l.country_code, l.postal_code, l.is_open, l.address, 
             l.category, l.website_uri, l._id,
             COUNT(DISTINCT a.id) as artist_count,
-            CASE WHEN COUNT(DISTINCT ai.id) > 0 THEN 1 ELSE 0 END as has_artists,
+            CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
             COUNT(DISTINCT ai.id) as artist_images_count
          FROM locations l
          LEFT JOIN artists a ON l.id = a.location_id
