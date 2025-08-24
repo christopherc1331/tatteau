@@ -2,7 +2,7 @@ use leptos::{prelude::*, task::spawn_local};
 use thaw::{Button, ButtonSize, Checkbox, CheckboxGroup, Flex, FlexAlign};
 
 use crate::{
-    components::loading::LoadingView,
+    components::{loading::LoadingView, location_search::LocationSearch},
     db::entities::CityCoords,
     server::{
         get_available_styles, get_cities, get_location_stats, search_by_postal_code, LocationStats,
@@ -30,9 +30,9 @@ pub fn DiscoveryMap() -> impl IntoView {
     );
 
     // New state for enhanced features
-    let search_input = RwSignal::new(String::new());
     let selected_styles = RwSignal::new(Vec::<i32>::new());
     let sidebar_collapsed = RwSignal::new(false);
+    let map_center = RwSignal::new(default_location.clone());
 
     // Fetch location stats (use LocalResource to avoid hydration issues)
     let location_stats = Resource::new(
@@ -46,46 +46,9 @@ pub fn DiscoveryMap() -> impl IntoView {
         |_| async move { get_available_styles().await.unwrap_or_default() },
     );
 
-    let handle_search = move |_ev: web_sys::MouseEvent| {
-        let search_value = search_input.get().trim().to_string();
-        if !search_value.is_empty() {
-            // Check if it's a zip code
-            if search_value.chars().all(|c| c.is_numeric()) && search_value.len() == 5 {
-                spawn_local(async move {
-                    match search_by_postal_code(search_value.clone()).await {
-                        Ok(coords) => {
-                            city.set(coords.city.clone());
-                            state.set(coords.state);
-                        },
-                        Err(e) => {
-                            leptos::logging::log!("Postal code search failed for {}: {:?}", search_value, e);
-                            // Could add user feedback here in the future
-                        }
-                    }
-                });
-            } else {
-                // Treat as city name - find the first city with this name
-                spawn_local(async move {
-                    // Try to get cities for the current state first
-                    match get_cities(state.get()).await {
-                        Ok(cities_list) => {
-                            if let Some(matching_city) = cities_list.into_iter().find(|c| 
-                                c.city.to_lowercase().contains(&search_value.to_lowercase())
-                            ) {
-                                city.set(matching_city.city);
-                                state.set(matching_city.state);
-                            } else {
-                                leptos::logging::log!("No city found matching: {}", search_value);
-                                // Could add user feedback here in the future
-                            }
-                        },
-                        Err(e) => {
-                            leptos::logging::log!("Failed to get cities: {:?}", e);
-                        }
-                    }
-                });
-            }
-        }
+    // Handle location selection from search
+    let handle_location_selected = move |coords: CityCoords| {
+        map_center.set(coords);
     };
 
     let toggle_sidebar = move |_ev: web_sys::MouseEvent| {
@@ -103,20 +66,11 @@ pub fn DiscoveryMap() -> impl IntoView {
                 <div class="header-content">
                     <h1>"Discover Tattoo Artists"</h1>
 
-                    <div class="search-section">
-                        <input
-                            type="text"
-                            class="search-input"
-                            placeholder="Search by city or zip code..."
-                            on:input=move |ev| {
-                                let value = event_target_value(&ev);
-                                search_input.set(value);
-                            }
-                        />
-                        <button class="search-button" on:click=handle_search>
-                            "Search"
-                        </button>
-                    </div>
+                    <LocationSearch 
+                        city=city
+                        state=state
+                        on_location_selected=handle_location_selected
+                    />
 
                     <div class="location-stats">
                         <Suspense fallback=|| view! { <span>"Loading stats..."</span> }>
@@ -177,10 +131,68 @@ pub fn DiscoveryMap() -> impl IntoView {
                             </div>
                         </div>
 
-                        // Style filters (simplified)
+                        // Style filters
                         <div class="filter-section style-filters">
                             <h3>"Tattoo Styles"</h3>
-                            <div>"Style filtering coming soon"</div>
+                            <Suspense fallback=|| view! { <div>"Loading styles..."</div> }>
+                                {move || {
+                                    available_styles.get().map(|styles| {
+                                        if styles.is_empty() {
+                                            view! {
+                                                <div class="no-styles">"No styles available"</div>
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <div class="style-checkbox-grid">
+                                                    {styles.into_iter().map(|style| {
+                                                        let style_id = style.id;
+                                                        let style_name = style.name.clone();
+                                                        let artist_count = style.artist_count;
+                                                        
+                                                        view! {
+                                                            <label class="style-checkbox-label">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    class="style-checkbox"
+                                                                    on:change=move |ev| {
+                                                                        let is_checked = event_target_checked(&ev);
+                                                                        selected_styles.update(|styles| {
+                                                                            if is_checked {
+                                                                                if !styles.contains(&style_id) {
+                                                                                    styles.push(style_id);
+                                                                                }
+                                                                            } else {
+                                                                                styles.retain(|&id| id != style_id);
+                                                                            }
+                                                                        });
+                                                                    }
+                                                                    checked=move || selected_styles.get().contains(&style_id)
+                                                                />
+                                                                <span class="style-label-content">
+                                                                    <span class="style-name">{style_name}</span>
+                                                                    <span class="artist-count">"("{artist_count}")"</span>
+                                                                </span>
+                                                            </label>
+                                                        }
+                                                    }).collect_view()}
+                                                </div>
+                                            }.into_any()
+                                        }
+                                    })
+                                }}
+                            </Suspense>
+                        </div>
+                        
+                        // Price range filter (placeholder)
+                        <div class="filter-section">
+                            <h3>"Price Range"</h3>
+                            <div class="price-range-placeholder">"Coming soon"</div>
+                        </div>
+                        
+                        // Distance filter (placeholder)
+                        <div class="filter-section">
+                            <h3>"Distance"</h3>
+                            <div class="distance-placeholder">"Coming soon"</div>
                         </div>
 
                         <button class="clear-filters" on:click=clear_filters>
@@ -195,7 +207,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                     <MapRenderer
                         state=state
                         city=city
-                        default_location=default_location
+                        default_location=map_center.get()
                         cities=cities
                         selected_styles=selected_styles
                     />

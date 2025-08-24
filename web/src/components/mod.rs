@@ -3,6 +3,7 @@ pub mod error;
 pub mod instagram_embed;
 pub mod instagram_posts_grid;
 pub mod loading;
+pub mod location_search;
 pub mod masonry_gallery;
 pub mod shop_masonry_gallery;
 

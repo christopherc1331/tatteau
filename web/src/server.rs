@@ -6,6 +6,7 @@ use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
 use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style};
+use crate::db::search_repository::{SearchResult, SearchResultType};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
@@ -288,5 +289,37 @@ pub async fn search_by_postal_code(postal_code: String) -> Result<CityCoords, Se
             lat: 0.0,
             long: 0.0,
         })
+    }
+}
+
+#[server]
+pub async fn universal_search(query: String) -> Result<Vec<SearchResult>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::search_repository::universal_location_search;
+        match universal_location_search(query) {
+            Ok(results) => Ok(results),
+            Err(e) => Err(ServerFnError::new(format!("Search failed: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn get_search_suggestions(query: String) -> Result<Vec<String>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::search_repository::get_search_suggestions as get_suggestions;
+        match get_suggestions(query, 10) {
+            Ok(suggestions) => Ok(suggestions),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get suggestions: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
     }
 }
