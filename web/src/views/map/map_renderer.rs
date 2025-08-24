@@ -87,38 +87,85 @@ pub fn MapRenderer(
         }
     });
 
+    let map_ready = RwSignal::new(false);
+
+    Effect::new(move |_| {
+        let closure = Closure::wrap(Box::new(move || {
+            map_ready.set(true);
+        }) as Box<dyn FnMut()>);
+
+        let window = web_sys::window().expect("Failed to get window");
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                50,
+            )
+            .expect("Failed to set timeout");
+
+        closure.forget();
+    });
+
+    Effect::new(move |_| {
+        if let Some(map_instance) = map.get() {
+            // Give the map a moment to render, then update bounds
+            let closure = Closure::wrap(Box::new(move || {
+                update_bounds(());
+            }) as Box<dyn FnMut()>);
+
+            let window = web_sys::window().expect("Failed to get window");
+            window
+                .set_timeout_with_callback_and_timeout_and_arguments_0(
+                    closure.as_ref().unchecked_ref(),
+                    100,
+                )
+                .expect("Failed to set timeout");
+
+            closure.forget();
+        }
+    });
+
     view! {
-        <MapContainer
-            style="height: 100%; width: 100%; flex: 1"
-            center=center.get()
-            zoom=12.0
-            set_view=true
-            map=map.write_only()
-        >
-            <TileLayer
-                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
-            />
-            {move ||
-                match locations.get() {
-                    Some(Ok(locations)) => view! {
-                            {locations.into_iter().map(|loc| {
+        {move || if map_ready.get() {
+            view! {
+                <MapContainer
+                    style="height: 100%; width: 100%; flex: 1"
+                    center=center.get()
+                    zoom=12.0
+                    set_view=true
+                    map=map.write_only()
+                >
+                    <TileLayer
+                        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
+                    />
+                    {move ||
+                        match locations.get() {
+                            Some(Ok(locations)) => view! {
+                                    {locations.into_iter().map(|loc| {
+                                        view! {
+                                            <MapMarker location=loc />
+                                        }
+                                    }).collect_view()}
+                            }.into_any(),
+                            Some(Err(err)) => {
+                                println!("Error occurred while fetching locations: {}", err);
                                 view! {
-                                    <MapMarker location=loc />
-                                }
-                            }).collect_view()}
-                    }.into_any(),
-                    Some(Err(err)) => {
-                        println!("Error occurred while fetching locations: {}", err);
-                        view! {
-                            <ErrorView message=Some("Error fetching locations...".to_string()) />
-                        }.into_any()
-                    },
-                    None => view! {
-                        <LoadingView message=Some("Fetching locations...".to_string()) />
-                    }.into_any(),
-                }
-            }
-        </MapContainer>
+                                    <ErrorView message=Some("Error fetching locations...".to_string()) />
+                                }.into_any()
+                            },
+                            None => view! {
+                                <LoadingView message=Some("Fetching locations...".to_string()) />
+                            }.into_any(),
+                        }
+                    }
+                </MapContainer>
+            }.into_any()
+        } else {
+            view! {
+                <div style="height: 100%; width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;">
+                    <LoadingView message=Some("Initializing map...".to_string()) />
+                </div>
+            }.into_any()
+        }}
     }
 }
