@@ -106,7 +106,7 @@ pub fn MapRenderer(
     });
 
     Effect::new(move |_| {
-        if let Some(map_instance) = map.get() {
+        if map.get().is_some() {
             // Give the map a moment to render, then update bounds
             let closure = Closure::wrap(Box::new(move || {
                 update_bounds(());
