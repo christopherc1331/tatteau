@@ -251,6 +251,103 @@
         }
     }
     
+    // Price filter styles
+    .price-filter {
+        .price-range-container {
+            .price-display {
+                background: #f8fafc;
+                padding: 0.75rem;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 1rem;
+                font-size: 1.125rem;
+                font-weight: 600;
+                color: #1e293b;
+                
+                .price-separator {
+                    color: #94a3b8;
+                    margin: 0 0.5rem;
+                }
+            }
+            
+            .slider-group {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+                margin-bottom: 1rem;
+                
+                .slider-label {
+                    font-size: 0.875rem;
+                    color: #64748b;
+                    font-weight: 500;
+                    margin-bottom: 0.25rem;
+                }
+            }
+            
+            .price-presets {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 0.5rem;
+            }
+        }
+    }
+    
+    // Distance filter styles
+    .distance-filter {
+        .distance-container {
+            .distance-display {
+                background: #f8fafc;
+                padding: 0.75rem;
+                border-radius: 6px;
+                text-align: center;
+                margin-bottom: 1rem;
+                
+                .distance-value {
+                    font-size: 1.5rem;
+                    font-weight: 600;
+                    color: #1e293b;
+                }
+                
+                .distance-unit {
+                    font-size: 1rem;
+                    color: #64748b;
+                    margin-left: 0.25rem;
+                }
+            }
+            
+            .distance-presets {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0.5rem;
+                margin-top: 1rem;
+            }
+        }
+    }
+    
+    // Preset button styles
+    .preset-btn {
+        padding: 0.5rem;
+        background: white;
+        color: #64748b;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        
+        &:hover {
+            background: #f8fafc;
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        &:active {
+            background: #667eea;
+            color: white;
+        }
+    }
+    
     .clear-filters {
         margin-top: 1rem;
         width: 100%;

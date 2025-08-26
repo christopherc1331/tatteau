@@ -1,5 +1,5 @@
 use leptos::{prelude::*, task::spawn_local};
-use thaw::{Button, ButtonSize, Checkbox, CheckboxGroup, Flex, FlexAlign};
+use thaw::{Button, ButtonSize, Checkbox, CheckboxGroup, Flex, FlexAlign, Slider};
 
 use crate::{
     components::{loading::LoadingView, location_search::LocationSearch},
@@ -35,6 +35,15 @@ pub fn DiscoveryMap() -> impl IntoView {
     let sidebar_collapsed = RwSignal::new(false);
     let map_center = RwSignal::new(default_location.clone());
     let map_bounds = RwSignal::new(MapBounds::default());
+    
+    // Price range filter state (min, max)
+    let price_range = RwSignal::new((0.0, 500.0));
+    let selected_price_min = RwSignal::new(50.0);
+    let selected_price_max = RwSignal::new(300.0);
+    
+    // Distance filter state
+    let distance_radius = RwSignal::new(25.0); // Default 25 miles
+    let distance_unit = RwSignal::new("miles".to_string());
 
     // Fetch location stats (use LocalResource to avoid hydration issues)
     let location_stats = Resource::new(
@@ -69,6 +78,9 @@ pub fn DiscoveryMap() -> impl IntoView {
 
     let clear_filters = move |_ev: web_sys::MouseEvent| {
         selected_styles.set(Vec::new());
+        selected_price_min.set(50.0);
+        selected_price_max.set(300.0);
+        distance_radius.set(25.0);
     };
 
     view! {
@@ -195,16 +207,95 @@ pub fn DiscoveryMap() -> impl IntoView {
                             </Suspense>
                         </div>
                         
-                        // Price range filter (placeholder)
-                        <div class="filter-section">
+                        // Price range filter
+                        <div class="filter-section price-filter">
                             <h3>"Price Range"</h3>
-                            <div class="price-range-placeholder">"Coming soon"</div>
+                            <div class="price-range-container">
+                                <div class="price-display">
+                                    <span class="price-min">"$"{move || selected_price_min.get() as i32}</span>
+                                    <span class="price-separator">" - "</span>
+                                    <span class="price-max">"$"{move || selected_price_max.get() as i32}</span>
+                                </div>
+                                
+                                <div class="slider-group">
+                                    <label class="slider-label">"Minimum"</label>
+                                    <Slider 
+                                        value=selected_price_min
+                                        min=0.0
+                                        max=500.0
+                                        step=10.0
+                                    />
+                                    
+                                    <label class="slider-label">"Maximum"</label>
+                                    <Slider 
+                                        value=selected_price_max
+                                        min=0.0
+                                        max=1000.0
+                                        step=10.0
+                                    />
+                                </div>
+                                
+                                <div class="price-presets">
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| {
+                                            selected_price_min.set(0.0);
+                                            selected_price_max.set(150.0);
+                                        }
+                                    >"Budget"</button>
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| {
+                                            selected_price_min.set(150.0);
+                                            selected_price_max.set(400.0);
+                                        }
+                                    >"Mid-range"</button>
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| {
+                                            selected_price_min.set(400.0);
+                                            selected_price_max.set(1000.0);
+                                        }
+                                    >"Premium"</button>
+                                </div>
+                            </div>
                         </div>
                         
-                        // Distance filter (placeholder)
-                        <div class="filter-section">
+                        // Distance filter
+                        <div class="filter-section distance-filter">
                             <h3>"Distance"</h3>
-                            <div class="distance-placeholder">"Coming soon"</div>
+                            <div class="distance-container">
+                                <div class="distance-display">
+                                    <span class="distance-value">{move || distance_radius.get() as i32}</span>
+                                    <span class="distance-unit">" miles"</span>
+                                </div>
+                                
+                                <Slider 
+                                    value=distance_radius
+                                    min=5.0
+                                    max=100.0
+                                    step=5.0
+                                />
+                                
+                                <div class="distance-presets">
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| distance_radius.set(10.0)
+                                    >"10 mi"</button>
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| distance_radius.set(25.0)
+                                    >"25 mi"</button>
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| distance_radius.set(50.0)
+                                    >"50 mi"</button>
+                                    <button 
+                                        class="preset-btn"
+                                        on:click=move |_| distance_radius.set(100.0)
+                                    >"100 mi"</button>
+                                </div>
+                            </div>
                         </div>
 
                         <button class="clear-filters" on:click=clear_filters>
@@ -223,6 +314,9 @@ pub fn DiscoveryMap() -> impl IntoView {
                         cities=cities
                         selected_styles=selected_styles
                         map_bounds=map_bounds
+                        price_min=selected_price_min
+                        price_max=selected_price_max
+                        distance_radius=distance_radius
                     />
 
                     // Map legend
