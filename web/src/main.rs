@@ -30,3 +30,8 @@ async fn main() {
         .await
         .unwrap();
 }
+
+#[cfg(not(feature = "ssr"))]
+fn main() {
+    // This function is required for the binary target but not used in WASM builds
+}

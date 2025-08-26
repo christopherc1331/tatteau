@@ -1,4 +1,4 @@
-use crate::server::EnhancedLocationInfo;
+use crate::server::{EnhancedLocationInfo, get_location_details};
 use leptos::prelude::*;
 use leptos_leaflet::prelude::*;
 
@@ -66,6 +66,16 @@ pub fn EnhancedMapMarker(location: EnhancedLocationInfo) -> impl IntoView {
 
 #[component]
 pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
+    let location_id = location.location.id;
+    
+    // Fetch detailed location data with artist thumbnails
+    let location_details = Resource::new(
+        move || location_id,
+        move |id| async move {
+            get_location_details(id).await.ok()
+        },
+    );
+
     view! {
         <div class="location-popup">
             <div class="popup-header">
@@ -88,8 +98,78 @@ pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
                 } else {
                     view! {}.into_any()
                 }}
+                
+                // Show price range if available from detailed data
+                <Suspense>
+                    {move || {
+                        location_details.get().and_then(|details_opt| {
+                            details_opt.and_then(|details| {
+                                if details.min_price.is_some() || details.max_price.is_some() {
+                                    Some(view! {
+                                        <div class="stat price-stat">
+                                            <span class="stat-label">"Price: "</span>
+                                            <span class="stat-value">
+                                                {match (details.min_price, details.max_price) {
+                                                    (Some(min), Some(max)) => format!("${}-${}", min as i32, max as i32),
+                                                    (Some(min), None) => format!("${min}+", min = min as i32),
+                                                    (None, Some(max)) => format!("Up to ${max}", max = max as i32),
+                                                    (None, None) => "Contact for pricing".to_string(),
+                                                }}
+                                            </span>
+                                        </div>
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                        })
+                    }}
+                </Suspense>
             </div>
             
+            // Artist thumbnails section
+            <Suspense fallback=|| view! { <div class="loading">"Loading artists..."</div> }>
+                {move || {
+                    location_details.get().map(|details_opt| {
+                        if let Some(details) = details_opt {
+                            if !details.artists.is_empty() {
+                                view! {
+                                    <div class="popup-artists">
+                                        <h4>"Featured Artists"</h4>
+                                        <div class="artist-thumbnails">
+                                            {details.artists.into_iter().take(4).map(|artist| {
+                                                view! {
+                                                    <div class="artist-thumb">
+                                                        {if let Some(image_url) = &artist.image_url {
+                                                            view! {
+                                                                <img 
+                                                                    src={image_url.clone()}
+                                                                    alt={format!("Portfolio by {}", artist.artist_name)}
+                                                                    title={format!("{} - {}", artist.artist_name, artist.primary_style.unwrap_or_else(|| "Artist".to_string()))}
+                                                                />
+                                                            }.into_any()
+                                                        } else {
+                                                            view! {
+                                                                <div class="artist-placeholder">
+                                                                    <span>{artist.artist_name.chars().next().unwrap_or('A')}</span>
+                                                                </div>
+                                                            }.into_any()
+                                                        }}
+                                                    </div>
+                                                }
+                                            }).collect_view()}
+                                        </div>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! {}.into_any()
+                            }
+                        } else {
+                            view! {}.into_any()
+                        }
+                    })
+                }}
+            </Suspense>
             
             {if !location.styles.is_empty() {
                 view! {

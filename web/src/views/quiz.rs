@@ -1,12 +1,13 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 use thaw::*;
+use std::collections::HashSet;
 
 #[component]
 pub fn GetMatchedQuiz() -> impl IntoView {
     let navigate = use_navigate();
     
-    let style_preference = RwSignal::new(String::new());
+    let style_preferences = RwSignal::new(HashSet::<String>::new());
     let body_placement = RwSignal::new(String::new());
     let pain_tolerance = RwSignal::new(5);
     let budget_min = RwSignal::new(100.0);
@@ -14,53 +15,74 @@ pub fn GetMatchedQuiz() -> impl IntoView {
     let vibe_preference = RwSignal::new(String::new());
 
     let on_submit = move |_| {
-        // TODO: Save to database via server function
-        #[cfg(feature = "ssr")]
-        {
-            use crate::db::repository::save_quiz_session;
-            let _ = save_quiz_session(
-                style_preference.get(),
-                body_placement.get(),
-                pain_tolerance.get(),
-                budget_min.get(),
-                budget_max.get(),
-                vibe_preference.get(),
-            );
-        }
+        let styles_vec: Vec<String> = style_preferences.get().into_iter().collect();
+        let location = "Washington".to_string(); // TODO: Add location selection to form
+        let price_range = Some((budget_min.get(), budget_max.get()));
         
-        navigate("/match/results", Default::default());
+        // Navigate with query parameters to pass data to match results
+        let styles_param = styles_vec.join(",");
+        let navigate_url = format!(
+            "/match/results?styles={}&location={}&min_price={}&max_price={}",
+            urlencoding::encode(&styles_param),
+            urlencoding::encode(&location),
+            budget_min.get(),
+            budget_max.get()
+        );
+        
+        navigate(&navigate_url, Default::default());
     };
 
     view! {
-        <div style="max-width: 800px; margin: 0 auto; padding: 2rem;">
-            <h1 style="text-align: center; margin-bottom: 2rem;">"Find Your Perfect Artist"</h1>
+        <div class="quiz-container">
+            <h1>"Find Your Perfect Artist"</h1>
             
-            <div style="background: #f9f9f9; padding: 2rem; border-radius: 8px;">
+            <div class="quiz-form-wrapper">
                 <form on:submit=on_submit>
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">
-                            "What style are you looking for?"
+                    <div class="quiz-question">
+                        <label>
+                            "What styles are you looking for? (Select multiple)"
                         </label>
-                        <select 
-                            on:change=move |ev| {
-                                style_preference.set(event_target_value(&ev));
-                            }
-                            class="form-input"
-                        >
-                            <option value="">"Select a style..."</option>
-                            <option value="traditional">"Traditional"</option>
-                            <option value="neo-traditional">"Neo-Traditional"</option>
-                            <option value="realism">"Realism"</option>
-                            <option value="watercolor">"Watercolor"</option>
-                            <option value="blackwork">"Blackwork"</option>
-                            <option value="japanese">"Japanese"</option>
-                            <option value="minimalist">"Minimalist"</option>
-                            <option value="geometric">"Geometric"</option>
-                        </select>
+                        <div class="quiz-style-grid">
+                            {[
+                                ("Traditional", "Traditional"),
+                                ("Neo-Traditional", "Neo-Traditional"),
+                                ("Realism", "Realism"),
+                                ("Watercolor", "Watercolor"),
+                                ("Blackwork", "Blackwork"),
+                                ("Japanese", "Japanese"),
+                                ("Minimalist", "Minimalist"),
+                                ("Geometric", "Geometric"),
+                            ].iter().map(|(value, label)| {
+                                let value_str = value.to_string();
+                                let value_for_selected = value_str.clone();
+                                let value_for_checked = value_str.clone();
+                                let value_for_change = value_str.clone();
+                                let value_for_input = value_str.clone();
+                                view! {
+                                    <label class="quiz-style-option" class:selected=move || style_preferences.get().contains(&value_for_selected)>
+                                        <input 
+                                            type="checkbox"
+                                            value=value_for_input
+                                            checked=move || style_preferences.get().contains(&value_for_checked)
+                                            on:change=move |ev| {
+                                                let mut current = style_preferences.get();
+                                                if event_target_checked(&ev) {
+                                                    current.insert(value_for_change.clone());
+                                                } else {
+                                                    current.remove(&value_for_change);
+                                                }
+                                                style_preferences.set(current);
+                                            }
+                                        />
+                                        {*label}
+                                    </label>
+                                }
+                            }).collect_view()}
+                        </div>
                     </div>
 
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">
+                    <div class="quiz-question">
+                        <label>
                             "Where on your body?"
                         </label>
                         <select 
@@ -81,8 +103,8 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                         </select>
                     </div>
 
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">
+                    <div class="quiz-question">
+                        <label>
                             "Pain tolerance (1-10)"
                         </label>
                         <input 
@@ -96,18 +118,18 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                     pain_tolerance.set(val);
                                 }
                             }
-                            style="width: 100%;"
+                            class="quiz-range-slider"
                         />
-                        <p style="text-align: center; margin-top: 0.5rem;">
+                        <p class="quiz-range-value">
                             {move || pain_tolerance.get()}
                         </p>
                     </div>
 
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">
+                    <div class="quiz-question">
+                        <label>
                             "Budget range"
                         </label>
-                        <div style="display: flex; gap: 1rem; align-items: center;">
+                        <div class="quiz-budget-inputs">
                             <input 
                                 type="number"
                                 placeholder="Min"
@@ -117,8 +139,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                         budget_min.set(val);
                                     }
                                 }
-                                class="form-input"
-                                style="flex: 1;"
+                                class="form-input quiz-budget-input"
                             />
                             <span>"to"</span>
                             <input 
@@ -130,18 +151,17 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                         budget_max.set(val);
                                     }
                                 }
-                                class="form-input"
-                                style="flex: 1;"
+                                class="form-input quiz-budget-input"
                             />
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: bold;">
+                    <div class="quiz-question">
+                        <label>
                             "What vibe are you looking for?"
                         </label>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div class="quiz-vibe-options">
+                            <label>
                                 <input 
                                     type="radio"
                                     name="vibe"
@@ -154,7 +174,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                 />
                                 "Professional & Clean"
                             </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label>
                                 <input 
                                     type="radio"
                                     name="vibe"
@@ -167,7 +187,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                 />
                                 "Artistic & Creative"
                             </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label>
                                 <input 
                                     type="radio"
                                     name="vibe"
@@ -180,7 +200,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                 />
                                 "Friendly & Relaxed"
                             </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label>
                                 <input 
                                     type="radio"
                                     name="vibe"
@@ -196,7 +216,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                         </div>
                     </div>
 
-                    <div style="text-align: center; margin-top: 2rem;">
+                    <div class="quiz-submit-section">
                         <button type="submit" class="btn-primary">
                             "Find My Artists"
                         </button>

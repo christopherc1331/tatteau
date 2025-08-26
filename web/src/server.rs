@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
 use crate::db::repository::{
-    get_artist_by_id, get_artist_images_with_styles, get_artist_location, get_artist_styles,
-    get_cities_and_coords, get_city_coordinates, get_states, query_locations,
-    get_location_by_id, get_artists_by_location, get_all_styles_by_location, get_all_images_with_styles_by_location,
+    get_all_images_with_styles_by_location, get_all_styles_by_location, get_artist_by_id,
+    get_artist_images_with_styles, get_artist_location, get_artist_styles, get_artists_by_location,
+    get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
 };
 
 #[server]
@@ -117,16 +117,16 @@ pub struct ShopData {
 pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnError> {
     let artist = get_artist_by_id(artist_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch artist: {}", e)))?;
-    
+
     let location = get_artist_location(artist.location_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch location: {}", e)))?;
-    
+
     let styles = get_artist_styles(artist_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
-    
+
     let images_with_styles = get_artist_images_with_styles(artist_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
-    
+
     Ok(ArtistData {
         artist,
         location,
@@ -139,16 +139,16 @@ pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnErr
 pub async fn fetch_shop_data(location_id: i32) -> Result<ShopData, ServerFnError> {
     let location = get_location_by_id(location_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch location: {}", e)))?;
-    
+
     let artists = get_artists_by_location(location_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch artists: {}", e)))?;
-    
+
     let all_styles = get_all_styles_by_location(location_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
-    
+
     let all_images_with_styles = get_all_images_with_styles_by_location(location_id)
         .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
-    
+
     Ok(ShopData {
         location,
         artists,
@@ -165,13 +165,19 @@ pub struct LocationStats {
 }
 
 #[server]
-pub async fn get_location_stats(city: String, state: String) -> Result<LocationStats, ServerFnError> {
+pub async fn get_location_stats(
+    city: String,
+    state: String,
+) -> Result<LocationStats, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::repository::get_location_stats_for_city;
         match get_location_stats_for_city(city, state) {
             Ok(stats) => Ok(stats),
-            Err(e) => Err(ServerFnError::new(format!("Failed to fetch location stats: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch location stats: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -214,7 +220,10 @@ pub async fn get_styles_in_bounds(bounds: MapBounds) -> Result<Vec<StyleWithCoun
         use crate::db::repository::get_styles_with_counts_in_bounds;
         match get_styles_with_counts_in_bounds(bounds) {
             Ok(styles) => Ok(styles),
-            Err(e) => Err(ServerFnError::new(format!("Failed to fetch styles in bounds: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch styles in bounds: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -233,6 +242,26 @@ pub struct EnhancedLocationInfo {
     pub max_price: Option<f64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ArtistThumbnail {
+    pub artist_id: i64,
+    pub artist_name: String,
+    pub image_url: Option<String>,
+    pub primary_style: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct LocationDetailInfo {
+    pub location: LocationInfo,
+    pub artist_count: i32,
+    pub image_count: i32,
+    pub styles: Vec<String>,
+    pub artists: Vec<ArtistThumbnail>,
+    pub min_price: Option<f64>,
+    pub max_price: Option<f64>,
+    pub average_rating: Option<f64>,
+}
+
 #[server]
 pub async fn get_locations_with_details(
     state: String,
@@ -245,7 +274,10 @@ pub async fn get_locations_with_details(
         use crate::db::repository::query_locations_with_details;
         match query_locations_with_details(state, city, bounds, style_filter) {
             Ok(locations) => Ok(locations),
-            Err(e) => Err(ServerFnError::new(format!("Failed to fetch locations: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch locations: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -262,9 +294,15 @@ pub struct MatchedArtist {
     pub city: String,
     pub state: String,
     pub primary_style: String,
+    pub all_styles: Vec<String>,
     pub image_count: i32,
+    pub portfolio_images: Vec<String>, // First 4 portfolio images
+    pub avatar_url: Option<String>,    // First portfolio image as avatar
     pub avg_rating: f64,
     pub match_score: i32,
+    pub years_experience: Option<i32>,
+    pub min_price: Option<f64>,
+    pub max_price: Option<f64>,
 }
 
 #[server]
@@ -278,12 +316,36 @@ pub async fn get_matched_artists(
         use crate::db::repository::query_matched_artists;
         match query_matched_artists(style_preferences, location, price_range) {
             Ok(artists) => Ok(artists),
-            Err(e) => Err(ServerFnError::new(format!("Failed to fetch matched artists: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch matched artists: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
     {
         Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn get_location_details(location_id: i64) -> Result<LocationDetailInfo, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::repository::get_location_with_artist_details;
+        match get_location_with_artist_details(location_id) {
+            Ok(details) => Ok(details),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get location details: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Server-side rendering not available".to_string(),
+        ))
     }
 }
 
@@ -294,7 +356,10 @@ pub async fn search_by_postal_code(postal_code: String) -> Result<CityCoords, Se
         use crate::db::repository::get_coords_by_postal_code;
         match get_coords_by_postal_code(postal_code) {
             Ok(coords) => Ok(coords),
-            Err(e) => Err(ServerFnError::new(format!("Failed to find postal code: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to find postal code: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -331,7 +396,10 @@ pub async fn get_search_suggestions(query: String) -> Result<Vec<String>, Server
         use crate::db::search_repository::get_search_suggestions as get_suggestions;
         match get_suggestions(query, 10) {
             Ok(suggestions) => Ok(suggestions),
-            Err(e) => Err(ServerFnError::new(format!("Failed to get suggestions: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get suggestions: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]

@@ -1,10 +1,12 @@
-use super::entities::{Artist, ArtistImage, ArtistImageStyle, ArtistStyle, CityCoords, Location, Style};
+use super::entities::{
+    Artist, ArtistImage, ArtistImageStyle, ArtistStyle, CityCoords, Location, Style,
+};
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
-use shared_types::{LocationInfo, MapBounds};
-use std::path::Path;
 #[cfg(feature = "ssr")]
 use serde_json;
+use shared_types::{LocationInfo, MapBounds};
+use std::path::Path;
 
 #[cfg(feature = "ssr")]
 pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
@@ -154,57 +156,57 @@ pub fn get_states() -> SqliteResult<Vec<LocationState>> {
     res.into_iter().collect()
 }
 
-    //     "Washington".to_string(),
-    //     "Virginia".to_string(),
-    //     "Vermont".to_string(),
-    //     "Utah".to_string(),
-    //     "Texas".to_string(),
-    //     "Tennessee".to_string(),
-    //     "South Dakota".to_string(),
-    //     "South Carolina".to_string(),
-    //     "Rhode Island".to_string(),
-    //     "Pennsylvania".to_string(),
-    //     "Oregon".to_string(),
-    //     "Oklahoma".to_string(),
-    //     "Ohio".to_string(),
-    //     "North Dakota".to_string(),
-    //     "North Carolina".to_string(),
-    //     "New York".to_string(),
-    //     "New Mexico".to_string(),
-    //     "New Jersey".to_string(),
-    //     "New Hampshire".to_string(),
-    //     "Nevada".to_string(),
-    //     "Nebraska".to_string(),
-    //     "Montana".to_string(),
-    //     "Missouri".to_string(),
-    //     "Mississippi".to_string(),
-    //     "Minnesota".to_string(),
-    //     "Michigan".to_string(),
-    //     "Massachusetts".to_string(),
-    //     "Maryland".to_string(),
-    //     "Maine".to_string(),
-    //     "MI".to_string(),
-    //     "Louisiana".to_string(),
-    //     "Kentucky".to_string(),
-    //     "Kansas".to_string(),
-    //     "Iowa".to_string(),
-    //     "Indiana".to_string(),
-    //     "Illinois".to_string(),
-    //     "Idaho".to_string(),
-    //     "IL".to_string(),
-    //     "Hawaii".to_string(),
-    //     "Georgia".to_string(),
-    //     "Florida".to_string(),
-    //     "District of Columbia".to_string(),
-    //     "Delaware".to_string(),
-    //     "Connecticut".to_string(),
-    //     "Colorado".to_string(),
-    //     "California".to_string(),
-    //     "Arkansas".to_string(),
-    //     "Arizona".to_string(),
-    //     "Alaska".to_string(),
-    //     "Alabama".to_string(),
-    // ])
+//     "Washington".to_string(),
+//     "Virginia".to_string(),
+//     "Vermont".to_string(),
+//     "Utah".to_string(),
+//     "Texas".to_string(),
+//     "Tennessee".to_string(),
+//     "South Dakota".to_string(),
+//     "South Carolina".to_string(),
+//     "Rhode Island".to_string(),
+//     "Pennsylvania".to_string(),
+//     "Oregon".to_string(),
+//     "Oklahoma".to_string(),
+//     "Ohio".to_string(),
+//     "North Dakota".to_string(),
+//     "North Carolina".to_string(),
+//     "New York".to_string(),
+//     "New Mexico".to_string(),
+//     "New Jersey".to_string(),
+//     "New Hampshire".to_string(),
+//     "Nevada".to_string(),
+//     "Nebraska".to_string(),
+//     "Montana".to_string(),
+//     "Missouri".to_string(),
+//     "Mississippi".to_string(),
+//     "Minnesota".to_string(),
+//     "Michigan".to_string(),
+//     "Massachusetts".to_string(),
+//     "Maryland".to_string(),
+//     "Maine".to_string(),
+//     "MI".to_string(),
+//     "Louisiana".to_string(),
+//     "Kentucky".to_string(),
+//     "Kansas".to_string(),
+//     "Iowa".to_string(),
+//     "Indiana".to_string(),
+//     "Illinois".to_string(),
+//     "Idaho".to_string(),
+//     "IL".to_string(),
+//     "Hawaii".to_string(),
+//     "Georgia".to_string(),
+//     "Florida".to_string(),
+//     "District of Columbia".to_string(),
+//     "Delaware".to_string(),
+//     "Connecticut".to_string(),
+//     "Colorado".to_string(),
+//     "California".to_string(),
+//     "Arkansas".to_string(),
+//     "Arizona".to_string(),
+//     "Alaska".to_string(),
+//     "Alabama".to_string(),
+// ])
 
 #[cfg(feature = "ssr")]
 pub fn get_city_coordinates(city_name: String) -> SqliteResult<CityCoords> {
@@ -253,16 +255,16 @@ pub fn get_city_coordinates(city_name: String) -> SqliteResult<CityCoords> {
 #[cfg(feature = "ssr")]
 pub fn get_artist_by_id(artist_id: i32) -> SqliteResult<Artist> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT id, name, location_id, social_links, email, phone, years_experience, styles_extracted
          FROM artists
          WHERE id = ?1"
     )?;
-    
+
     stmt.query_row(params![artist_id], |row| {
         Ok(Artist {
             id: row.get(0)?,
@@ -280,16 +282,16 @@ pub fn get_artist_by_id(artist_id: i32) -> SqliteResult<Artist> {
 #[cfg(feature = "ssr")]
 pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT id, name, lat, long, city, state, address, website_uri
          FROM locations
-         WHERE id = ?1"
+         WHERE id = ?1",
     )?;
-    
+
     stmt.query_row(params![location_id], |row| {
         Ok(Location {
             id: row.get(0)?,
@@ -307,41 +309,43 @@ pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
 #[cfg(feature = "ssr")]
 pub fn get_artist_styles(artist_id: i32) -> SqliteResult<Vec<Style>> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT s.id, s.name
          FROM styles s
          JOIN artists_styles ast ON s.id = ast.style_id
-         WHERE ast.artist_id = ?1"
+         WHERE ast.artist_id = ?1",
     )?;
-    
+
     let styles = stmt.query_map(params![artist_id], |row| {
         Ok(Style {
             id: row.get(0)?,
             name: row.get(1)?,
         })
     })?;
-    
+
     styles.collect()
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_images_with_styles(artist_id: i32) -> SqliteResult<Vec<(ArtistImage, Vec<Style>)>> {
+pub fn get_artist_images_with_styles(
+    artist_id: i32,
+) -> SqliteResult<Vec<(ArtistImage, Vec<Style>)>> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     // First get all images for the artist
     let mut images_stmt = conn.prepare(
         "SELECT id, short_code, artist_id
          FROM artists_images
-         WHERE artist_id = ?1"
+         WHERE artist_id = ?1",
     )?;
-    
+
     let images = images_stmt.query_map(params![artist_id], |row| {
         Ok(ArtistImage {
             id: row.get(0)?,
@@ -349,48 +353,48 @@ pub fn get_artist_images_with_styles(artist_id: i32) -> SqliteResult<Vec<(Artist
             artist_id: row.get(2)?,
         })
     })?;
-    
+
     let mut result = Vec::new();
-    
+
     // For each image, get its styles
     for image in images {
         let img = image?;
         let img_id = img.id;
-        
+
         let mut styles_stmt = conn.prepare(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = ?1"
+             WHERE ais.artists_images_id = ?1",
         )?;
-        
+
         let styles = styles_stmt.query_map(params![img_id], |row| {
             Ok(Style {
                 id: row.get(0)?,
                 name: row.get(1)?,
             })
         })?;
-        
+
         let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
         result.push((img, styles_vec?));
     }
-    
+
     Ok(result)
 }
 
 #[cfg(feature = "ssr")]
 pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT id, name, lat, long, city, state, address, website_uri
          FROM locations
-         WHERE id = ?1"
+         WHERE id = ?1",
     )?;
-    
+
     stmt.query_row(params![location_id], |row| {
         Ok(Location {
             id: row.get(0)?,
@@ -408,10 +412,10 @@ pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
 #[cfg(feature = "ssr")]
 pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     // Updated query to join with locations and ensure we're getting artists for actual shops, not persons
     let mut stmt = conn.prepare(
         "SELECT a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
@@ -422,7 +426,7 @@ pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
          AND a.name IS NOT NULL
          AND a.name != ''"
     )?;
-    
+
     let artists = stmt.query_map(params![location_id], |row| {
         Ok(Artist {
             id: row.get(0)?,
@@ -435,17 +439,17 @@ pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
             styles_extracted: row.get(7)?,
         })
     })?;
-    
+
     artists.collect()
 }
 
 #[cfg(feature = "ssr")]
 pub fn get_all_styles_by_location(location_id: i32) -> SqliteResult<Vec<Style>> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT DISTINCT s.id, s.name
          FROM styles s
@@ -456,26 +460,28 @@ pub fn get_all_styles_by_location(location_id: i32) -> SqliteResult<Vec<Style>> 
          AND (l.is_person IS NULL OR l.is_person != 1)
          AND a.name IS NOT NULL
          AND a.name != ''
-         ORDER BY s.name"
+         ORDER BY s.name",
     )?;
-    
+
     let styles = stmt.query_map(params![location_id], |row| {
         Ok(Style {
             id: row.get(0)?,
             name: row.get(1)?,
         })
     })?;
-    
+
     styles.collect()
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_all_images_with_styles_by_location(location_id: i32) -> SqliteResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
+pub fn get_all_images_with_styles_by_location(
+    location_id: i32,
+) -> SqliteResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
     use rusqlite::params;
-    
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     // First get all images for artists at this location, filtering out person locations
     let mut stmt = conn.prepare(
         "SELECT ai.id, ai.short_code, ai.artist_id, a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
@@ -487,14 +493,14 @@ pub fn get_all_images_with_styles_by_location(location_id: i32) -> SqliteResult<
          AND a.name IS NOT NULL
          AND a.name != ''"
     )?;
-    
+
     let images = stmt.query_map(params![location_id], |row| {
         let image = ArtistImage {
             id: row.get(0)?,
             short_code: row.get(1)?,
             artist_id: row.get(2)?,
         };
-        
+
         let artist = Artist {
             id: row.get(3)?,
             name: row.get(4)?,
@@ -505,35 +511,35 @@ pub fn get_all_images_with_styles_by_location(location_id: i32) -> SqliteResult<
             years_experience: row.get(9)?,
             styles_extracted: row.get(10)?,
         };
-        
+
         Ok((image, artist))
     })?;
-    
+
     let mut result = Vec::new();
-    
+
     // For each image, get its styles
     for item in images {
         let (image, artist) = item?;
         let img_id = image.id;
-        
+
         let mut styles_stmt = conn.prepare(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = ?1"
+             WHERE ais.artists_images_id = ?1",
         )?;
-        
+
         let styles = styles_stmt.query_map(params![img_id], |row| {
             Ok(Style {
                 id: row.get(0)?,
                 name: row.get(1)?,
             })
         })?;
-        
+
         let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
         result.push((image, styles_vec?, artist));
     }
-    
+
     Ok(result)
 }
 
@@ -560,11 +566,14 @@ pub fn save_quiz_session(
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_location_stats_for_city(city: String, state: String) -> SqliteResult<crate::server::LocationStats> {
+pub fn get_location_stats_for_city(
+    city: String,
+    state: String,
+) -> SqliteResult<crate::server::LocationStats> {
     use rusqlite::params;
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT 
             COUNT(DISTINCT l.id) as shop_count,
@@ -575,9 +584,9 @@ pub fn get_location_stats_for_city(city: String, state: String) -> SqliteResult<
          LEFT JOIN artists_styles ast ON a.id = ast.artist_id
          LEFT JOIN styles s ON ast.style_id = s.id
          WHERE l.city = ?1 AND l.state = ?2
-         AND (l.is_person IS NULL OR l.is_person != 1)"
+         AND (l.is_person IS NULL OR l.is_person != 1)",
     )?;
-    
+
     stmt.query_row(params![city, state], |row| {
         Ok(crate::server::LocationStats {
             shop_count: row.get(0)?,
@@ -591,7 +600,7 @@ pub fn get_location_stats_for_city(city: String, state: String) -> SqliteResult<
 pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWithCount>> {
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT 
             s.id,
@@ -600,9 +609,9 @@ pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWith
          FROM styles s
          LEFT JOIN artists_styles ast ON s.id = ast.style_id
          GROUP BY s.id, s.name
-         ORDER BY artist_count DESC, s.name ASC"
+         ORDER BY artist_count DESC, s.name ASC",
     )?;
-    
+
     let styles = stmt.query_map([], |row| {
         Ok(crate::server::StyleWithCount {
             id: row.get(0)?,
@@ -610,15 +619,17 @@ pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWith
             artist_count: row.get(2)?,
         })
     })?;
-    
+
     styles.collect()
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_styles_with_counts_in_bounds(bounds: shared_types::MapBounds) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
+pub fn get_styles_with_counts_in_bounds(
+    bounds: shared_types::MapBounds,
+) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     let mut stmt = conn.prepare(
         "SELECT 
             s.id,
@@ -632,22 +643,25 @@ pub fn get_styles_with_counts_in_bounds(bounds: shared_types::MapBounds) -> Sqli
            AND l.long BETWEEN ?3 AND ?4
          GROUP BY s.id, s.name
          HAVING artist_count > 0
-         ORDER BY artist_count DESC, s.name ASC"
+         ORDER BY artist_count DESC, s.name ASC",
     )?;
-    
-    let styles = stmt.query_map([
-        bounds.south_west.lat,
-        bounds.north_east.lat,
-        bounds.south_west.long,
-        bounds.north_east.long,
-    ], |row| {
-        Ok(crate::server::StyleWithCount {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            artist_count: row.get(2)?,
-        })
-    })?;
-    
+
+    let styles = stmt.query_map(
+        [
+            bounds.south_west.lat,
+            bounds.north_east.lat,
+            bounds.south_west.long,
+            bounds.north_east.long,
+        ],
+        |row| {
+            Ok(crate::server::StyleWithCount {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                artist_count: row.get(2)?,
+            })
+        },
+    )?;
+
     styles.collect()
 }
 
@@ -686,7 +700,7 @@ pub fn query_locations_with_details(
     use rusqlite::params;
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     // Build the query based on whether we have style filters
     let query = if style_filter.is_some() && !style_filter.as_ref().unwrap().is_empty() {
         "SELECT DISTINCT
@@ -721,9 +735,9 @@ pub fn query_locations_with_details(
          AND (l.is_person IS NULL OR l.is_person != 1)
          GROUP BY l.id"
     };
-    
+
     let mut stmt = conn.prepare(query)?;
-    
+
     let locations = if let Some(ref styles) = style_filter {
         if !styles.is_empty() {
             let style_json = serde_json::to_string(&styles).unwrap();
@@ -759,36 +773,36 @@ pub fn query_locations_with_details(
             map_location_row,
         )?
     };
-    
+
     let mut result = Vec::new();
     for location_result in locations {
         let (location_info, artist_count) = location_result?;
-        
+
         // Get image count and styles for this location
         let mut image_count_stmt = conn.prepare(
             "SELECT COUNT(DISTINCT ai.id)
              FROM artists_images ai
              JOIN artists a ON ai.artist_id = a.id
-             WHERE a.location_id = ?1"
+             WHERE a.location_id = ?1",
         )?;
-        
-        let image_count: i32 = image_count_stmt
-            .query_row(params![location_info.id], |row| row.get(0))?;
-        
+
+        let image_count: i32 =
+            image_count_stmt.query_row(params![location_info.id], |row| row.get(0))?;
+
         let mut styles_stmt = conn.prepare(
             "SELECT DISTINCT s.name
              FROM styles s
              JOIN artists_styles ast ON s.id = ast.style_id
              JOIN artists a ON ast.artist_id = a.id
              WHERE a.location_id = ?1
-             LIMIT 5"
+             LIMIT 5",
         )?;
-        
+
         let styles: Vec<String> = styles_stmt
             .query_map(params![location_info.id], |row| row.get(0))?
             .filter_map(Result::ok)
             .collect();
-        
+
         result.push(crate::server::EnhancedLocationInfo {
             location: location_info,
             artist_count,
@@ -798,7 +812,7 @@ pub fn query_locations_with_details(
             max_price: None, // TODO: Add when artist_pricing table exists
         });
     }
-    
+
     Ok(result)
 }
 
@@ -809,82 +823,140 @@ pub fn query_matched_artists(
     price_range: Option<(f64, f64)>,
 ) -> SqliteResult<Vec<crate::server::MatchedArtist>> {
     use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
+    let db_path = std::path::Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
 
-    // Build query with style filtering
-    let mut query = "
-        SELECT DISTINCT
+    // Start with a simple query to get artists, then we'll add filtering later
+    let query = "
+        SELECT DISTINCT 
             a.id,
             a.name,
-            l.name as location_name,
             l.city,
             l.state,
-            (SELECT s.name 
-             FROM styles s 
-             JOIN artists_styles ast ON s.id = ast.style_id 
-             WHERE ast.artist_id = a.id 
-             LIMIT 1) as primary_style,
-            COUNT(DISTINCT ai.id) as image_count,
-            COALESCE(AVG(CASE WHEN ar.rating > 0 THEN ar.rating END), 0.0) as avg_rating
+            l.name as location_name,
+            a.years_experience,
+            COUNT(DISTINCT ai.id) as image_count
         FROM artists a
         LEFT JOIN locations l ON a.location_id = l.id
         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-        LEFT JOIN artist_reviews ar ON a.id = ar.artist_id
-        LEFT JOIN artists_styles ast2 ON a.id = ast2.artist_id
-        LEFT JOIN styles s2 ON ast2.style_id = s2.id
-        WHERE 1=1".to_string();
+        WHERE (l.is_person IS NULL OR l.is_person != 1)
+        AND a.name IS NOT NULL
+        AND a.name != ''
+        GROUP BY a.id, a.name, l.city, l.state, l.name, a.years_experience
+        ORDER BY image_count DESC, a.name ASC 
+        LIMIT 10
+    ";
 
-    let mut params = Vec::new();
-    let mut param_index = 1;
+    let mut stmt = conn.prepare(query)?;
 
-    // Add location filter if specified
-    if !location.is_empty() && location != "Any" {
-        query.push_str(&format!(" AND (l.city LIKE ?{} OR l.state LIKE ?{})", param_index, param_index + 1));
-        params.push(format!("%{}%", location));
-        params.push(format!("%{}%", location));
-        param_index += 2;
-    }
+    let artist_iter = stmt.query_map([], |row| {
+        let artist_id: i64 = row.get(0)?;
+        let artist_name: String = row.get(1)?;
+        let city: String = row.get(2).unwrap_or_else(|_| "Unknown".to_string());
+        let state: String = row.get(3).unwrap_or_else(|_| "Unknown".to_string());
+        let location_name: String = row.get(4).unwrap_or_else(|_| "Unknown Studio".to_string());
+        let years_experience: Option<i32> = row.get(5).ok();
+        let image_count: i32 = row.get(6).unwrap_or(0);
 
-    // Add style filter if preferences specified
-    if !style_preferences.is_empty() {
-        let style_placeholders: Vec<String> = (0..style_preferences.len())
-            .map(|i| format!("?{}", param_index + i))
-            .collect();
-        query.push_str(&format!(" AND s2.name IN ({})", style_placeholders.join(",")));
-        for style in &style_preferences {
-            params.push(style.clone());
-        }
-        param_index += style_preferences.len();
-    }
+        // Get styles for this artist
+        let styles = get_artist_styles_by_id(&conn, artist_id).unwrap_or_default();
 
-    query.push_str(" GROUP BY a.id, a.name, l.name, l.city, l.state ORDER BY image_count DESC, avg_rating DESC LIMIT 20");
+        // Get portfolio images for this artist
+        let portfolio_images =
+            get_artist_portfolio_images_by_id(&conn, artist_id).unwrap_or_default();
 
-    let mut stmt = conn.prepare(&query)?;
-    
-    // Convert params to rusqlite format
-    let rusqlite_params: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
-    
-    let artists = stmt.query_map(&rusqlite_params[..], |row| {
-        // Calculate a basic match score (this could be more sophisticated)
-        let image_count: i32 = row.get(6)?;
-        let avg_rating: f64 = row.get(7)?;
-        let match_score = std::cmp::min(100, (image_count * 10 + (avg_rating * 10.0) as i32).max(50));
-        
+        // Calculate match score based on style overlap and image count
+        let match_score = calculate_match_score(&styles, &style_preferences, image_count);
+
         Ok(crate::server::MatchedArtist {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            location_name: row.get(2)?,
-            city: row.get(3)?,
-            state: row.get(4)?,
-            primary_style: row.get::<_, Option<String>>(5)?.unwrap_or_else(|| "Various".to_string()),
+            id: artist_id,
+            name: artist_name,
+            all_styles: styles.clone(),
+            portfolio_images,
+            avatar_url: None, // TODO: Add avatar support in database
+            years_experience,
+            min_price: Some(150.0), // TODO: Get from artist pricing table
+            max_price: Some(400.0), // TODO: Get from artist pricing table
+            avg_rating: 4.2,        // TODO: Calculate from reviews
             image_count,
-            avg_rating,
             match_score,
+            city,
+            state,
+            location_name,
+            primary_style: styles.first().unwrap_or(&"Various".to_string()).clone(),
         })
     })?;
 
-    artists.collect()
+    artist_iter.collect()
+}
+
+#[cfg(feature = "ssr")]
+fn get_artist_styles_by_id(conn: &Connection, artist_id: i64) -> SqliteResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.name FROM styles s 
+         JOIN artists_styles ars ON s.id = ars.style_id 
+         WHERE ars.artist_id = ?",
+    )?;
+
+    let style_iter = stmt.query_map([artist_id], |row| Ok(row.get::<_, String>(0)?))?;
+
+    style_iter.collect()
+}
+
+#[cfg(feature = "ssr")]
+fn get_artist_portfolio_images_by_id(
+    conn: &Connection,
+    artist_id: i64,
+) -> SqliteResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT short_code FROM artists_images 
+         WHERE artist_id = ? 
+         ORDER BY id DESC 
+         LIMIT 4",
+    )?;
+
+    let image_iter = stmt.query_map([artist_id], |row| {
+        let short_code: String = row.get(0)?;
+        // Return the Instagram post URL so we can create proper embeds
+        // We'll handle the embedding in the frontend component
+        Ok(format!(
+            "https://www.instagram.com/p/{}/",
+            short_code
+        ))
+    })?;
+
+    image_iter.collect()
+}
+
+#[cfg(feature = "ssr")]
+fn calculate_match_score(
+    artist_styles: &[String],
+    user_preferences: &[String],
+    image_count: i32,
+) -> i32 {
+    let mut score = 60; // Base score
+
+    // Add points for image count
+    score += std::cmp::min(20, image_count * 2);
+
+    // Add points for style matches
+    if !user_preferences.is_empty() {
+        let matches = artist_styles
+            .iter()
+            .filter(|style| {
+                user_preferences.iter().any(|pref| {
+                    style.to_lowercase().contains(&pref.to_lowercase())
+                        || pref.to_lowercase().contains(&style.to_lowercase())
+                })
+            })
+            .count();
+
+        score += (matches as f32 / user_preferences.len() as f32 * 20.0) as i32;
+    } else {
+        score += 10; // Slight bonus when no preferences (shows all artists)
+    }
+
+    score.max(50).min(95) // Ensure reasonable score range
 }
 
 #[cfg(feature = "ssr")]
@@ -892,26 +964,24 @@ pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords
     use rusqlite::params;
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
-    
+
     // First check if the postal code exists
-    let mut check_stmt = conn.prepare(
-        "SELECT COUNT(*) FROM locations WHERE postal_code = ?1"
-    )?;
-    
+    let mut check_stmt = conn.prepare("SELECT COUNT(*) FROM locations WHERE postal_code = ?1")?;
+
     let count: i32 = check_stmt.query_row(params![postal_code], |row| row.get(0))?;
-    
+
     if count == 0 {
         return Err(rusqlite::Error::QueryReturnedNoRows);
     }
-    
+
     let mut stmt = conn.prepare(
         "SELECT DISTINCT city, state, lat, long
          FROM locations
          WHERE postal_code = ?1
          AND (is_person IS NULL OR is_person != 1)
-         LIMIT 1"
+         LIMIT 1",
     )?;
-    
+
     stmt.query_row(params![postal_code], |row| {
         Ok(CityCoords {
             city: row.get(0)?,
@@ -919,5 +989,117 @@ pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords
             lat: row.get(2)?,
             long: row.get(3)?,
         })
+    })
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_location_with_artist_details(
+    location_id: i64,
+) -> SqliteResult<crate::server::LocationDetailInfo> {
+    use crate::server::{ArtistThumbnail, LocationDetailInfo};
+    use rusqlite::params;
+    let db_path = std::path::Path::new("tatteau.db");
+    let conn = rusqlite::Connection::open(db_path)?;
+
+    // Get location info
+    let location_query = "
+        SELECT id, name, lat, long, city, county, state, country_code, 
+               postal_code, is_open, address, category, website_uri, _id
+        FROM locations 
+        WHERE id = ?1
+    ";
+
+    let location = conn.query_row(location_query, params![location_id], |row| {
+        Ok(shared_types::LocationInfo {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            lat: row.get(2)?,
+            long: row.get(3)?,
+            city: row.get(4)?,
+            county: row.get(5)?,
+            state: row.get(6)?,
+            country_code: row.get(7)?,
+            postal_code: row.get(8)?,
+            is_open: row.get(9)?,
+            address: row.get(10)?,
+            category: row.get(11)?,
+            website_uri: row.get(12)?,
+            _id: row.get(13)?,
+            has_artists: None,
+            artist_images_count: None,
+        })
+    })?;
+
+    // Get artists with their primary image and style
+    let artists_query = "
+        SELECT DISTINCT a.id, a.name,
+               (SELECT ai.image_url 
+                FROM artists_images ai 
+                WHERE ai.artist_id = a.id 
+                LIMIT 1) as image_url,
+               (SELECT s.name 
+                FROM styles s 
+                JOIN artists_styles ast ON s.id = ast.style_id 
+                WHERE ast.artist_id = a.id 
+                LIMIT 1) as primary_style
+        FROM artists a
+        WHERE a.location_id = ?1
+        ORDER BY a.name
+        LIMIT 4
+    ";
+
+    let mut stmt = conn.prepare(artists_query)?;
+    let artist_rows = stmt.query_map(params![location_id], |row| {
+        Ok(ArtistThumbnail {
+            artist_id: row.get(0)?,
+            artist_name: row.get(1)?,
+            image_url: row.get(2)?,
+            primary_style: row.get(3)?,
+        })
+    })?;
+
+    let artists: Vec<ArtistThumbnail> = artist_rows.collect::<Result<Vec<_>, _>>()?;
+
+    // Get counts and stats
+    let stats_query = "
+        SELECT 
+            COUNT(DISTINCT a.id) as artist_count,
+            COUNT(DISTINCT ai.id) as image_count,
+            AVG(CASE WHEN ar.rating > 0 THEN ar.rating END) as avg_rating
+        FROM artists a
+        LEFT JOIN artists_images ai ON a.id = ai.artist_id
+        LEFT JOIN artist_reviews ar ON a.id = ar.artist_id
+        WHERE a.location_id = ?1
+    ";
+
+    let (artist_count, image_count, avg_rating): (i32, i32, Option<f64>) =
+        conn.query_row(stats_query, params![location_id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+
+    // Get styles
+    let styles_query = "
+        SELECT DISTINCT s.name
+        FROM styles s
+        JOIN artists_styles ast ON s.id = ast.style_id
+        JOIN artists a ON ast.artist_id = a.id
+        WHERE a.location_id = ?1
+        ORDER BY s.name
+        LIMIT 5
+    ";
+
+    let mut styles_stmt = conn.prepare(styles_query)?;
+    let style_rows = styles_stmt.query_map(params![location_id], |row| row.get::<_, String>(0))?;
+    let styles: Vec<String> = style_rows.collect::<Result<Vec<_>, _>>()?;
+
+    Ok(LocationDetailInfo {
+        location,
+        artist_count,
+        image_count,
+        styles,
+        artists,
+        min_price: None, // TODO: Add when pricing table exists
+        max_price: None, // TODO: Add when pricing table exists
+        average_rating: avg_rating,
     })
 }

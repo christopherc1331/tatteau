@@ -1,0 +1,99 @@
+// Quiz Page Styles
+.quiz-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+
+  h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+}
+
+.quiz-form-wrapper {
+  background: #f9f9f9;
+  padding: 2rem;
+  border-radius: 8px;
+}
+
+.quiz-question {
+  margin-bottom: 1.5rem;
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+  }
+}
+
+.quiz-style-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.quiz-style-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  &.selected {
+    background: #7c3aed !important;
+    color: white !important;
+    border-color: #7c3aed !important;
+  }
+
+  &.selected:hover {
+    background: #6d28d9 !important;
+  }
+}
+
+.quiz-budget-inputs {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+
+  span {
+    flex-shrink: 0;
+  }
+}
+
+.quiz-budget-input {
+  flex: 1;
+}
+
+.quiz-range-slider {
+  width: 100%;
+}
+
+.quiz-range-value {
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.quiz-vibe-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: normal;
+  }
+}
+
+.quiz-submit-section {
+  text-align: center;
+  margin-top: 2rem;
+}
