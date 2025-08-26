@@ -5,7 +5,7 @@ use crate::{
     components::{loading::LoadingView, location_search::LocationSearch},
     db::entities::CityCoords,
     server::{
-        get_available_styles, get_cities, get_location_stats, search_by_postal_code, LocationStats,
+        get_available_styles, get_styles_in_bounds, get_cities, get_location_stats, search_by_postal_code, LocationStats,
         StyleWithCount,
     },
     views::map::{
@@ -13,6 +13,7 @@ use crate::{
         map_renderer::MapRenderer,
     },
 };
+use shared_types::MapBounds;
 
 #[component]
 pub fn DiscoveryMap() -> impl IntoView {
@@ -33,6 +34,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     let selected_styles = RwSignal::new(Vec::<i32>::new());
     let sidebar_collapsed = RwSignal::new(false);
     let map_center = RwSignal::new(default_location.clone());
+    let map_bounds = RwSignal::new(MapBounds::default());
 
     // Fetch location stats (use LocalResource to avoid hydration issues)
     let location_stats = Resource::new(
@@ -40,10 +42,18 @@ pub fn DiscoveryMap() -> impl IntoView {
         move |(city, state)| async move { get_location_stats(city, state).await.unwrap_or_default() },
     );
 
-    // Fetch available styles (use LocalResource to avoid hydration issues)
+    // Fetch available styles based on current map bounds
     let available_styles = Resource::new(
-        || (),
-        |_| async move { get_available_styles().await.unwrap_or_default() },
+        move || map_bounds.get(),
+        move |bounds| async move { 
+            if bounds.north_east.lat != 0.0 || bounds.south_west.lat != 0.0 {
+                // Use bounds-based query when bounds are available
+                get_styles_in_bounds(bounds).await.unwrap_or_default()
+            } else {
+                // Fallback to all styles when bounds are not yet initialized
+                get_available_styles().await.unwrap_or_default()
+            }
+        },
     );
 
     // Handle location selection from search
@@ -212,6 +222,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                         default_location=map_center.get()
                         cities=cities
                         selected_styles=selected_styles
+                        map_bounds=map_bounds
                     />
 
                     // Map legend

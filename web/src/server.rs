@@ -207,6 +207,22 @@ pub async fn get_available_styles() -> Result<Vec<StyleWithCount>, ServerFnError
     }
 }
 
+#[server]
+pub async fn get_styles_in_bounds(bounds: MapBounds) -> Result<Vec<StyleWithCount>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::repository::get_styles_with_counts_in_bounds;
+        match get_styles_with_counts_in_bounds(bounds) {
+            Ok(styles) => Ok(styles),
+            Err(e) => Err(ServerFnError::new(format!("Failed to fetch styles in bounds: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct EnhancedLocationInfo {
     pub location: LocationInfo,

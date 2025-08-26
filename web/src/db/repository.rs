@@ -615,6 +615,43 @@ pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWith
 }
 
 #[cfg(feature = "ssr")]
+pub fn get_styles_with_counts_in_bounds(bounds: shared_types::MapBounds) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT 
+            s.id,
+            s.name,
+            COUNT(DISTINCT ast.artist_id) as artist_count
+         FROM styles s
+         INNER JOIN artists_styles ast ON s.id = ast.style_id
+         INNER JOIN artists a ON ast.artist_id = a.id
+         INNER JOIN locations l ON a.location_id = l.id
+         WHERE l.lat BETWEEN ?1 AND ?2
+           AND l.long BETWEEN ?3 AND ?4
+         GROUP BY s.id, s.name
+         HAVING artist_count > 0
+         ORDER BY artist_count DESC, s.name ASC"
+    )?;
+    
+    let styles = stmt.query_map([
+        bounds.south_west.lat,
+        bounds.north_east.lat,
+        bounds.south_west.long,
+        bounds.north_east.long,
+    ], |row| {
+        Ok(crate::server::StyleWithCount {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            artist_count: row.get(2)?,
+        })
+    })?;
+    
+    styles.collect()
+}
+
+#[cfg(feature = "ssr")]
 fn map_location_row(row: &rusqlite::Row) -> rusqlite::Result<(shared_types::LocationInfo, i32)> {
     use shared_types::LocationInfo;
     let location_id: i64 = row.get(0)?;

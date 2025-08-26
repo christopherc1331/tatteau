@@ -228,40 +228,114 @@ pub fn get_search_suggestions(query: String, limit: usize) -> rusqlite::Result<V
     let normalized_query = query.trim().to_lowercase();
     let mut suggestions = Vec::new();
     
-    // Get city suggestions
-    let mut stmt = conn.prepare(
+    // Helper function to check if a suggestion already exists
+    let suggestion_exists = |suggestions: &Vec<String>, new_suggestion: &str| {
+        suggestions.iter().any(|s| s.eq_ignore_ascii_case(new_suggestion))
+    };
+    
+    // 1. Get city suggestions (highest priority)
+    let mut city_stmt = conn.prepare(
         "SELECT DISTINCT city || ', ' || state as suggestion
          FROM locations
          WHERE LOWER(city) LIKE ?1
          AND (is_person IS NULL OR is_person != 1)
-         ORDER BY LENGTH(city)
-         LIMIT ?2"
+         ORDER BY 
+            CASE WHEN LOWER(city) = ?2 THEN 0 ELSE 1 END,
+            LENGTH(city)
+         LIMIT ?3"
     )?;
     
-    let pattern = format!("{}%", normalized_query);
-    let city_suggestions = stmt.query_map(params![pattern, limit as i32], |row| {
+    let city_pattern = format!("{}%", normalized_query);
+    let city_suggestions = city_stmt.query_map(params![city_pattern, normalized_query, limit as i32], |row| {
         row.get::<_, String>(0)
     })?;
     
     for suggestion in city_suggestions {
         if let Ok(s) = suggestion {
-            suggestions.push(s);
-            if suggestions.len() >= limit {
-                break;
+            if !suggestion_exists(&suggestions, &s) {
+                suggestions.push(s);
+                if suggestions.len() >= limit { break; }
             }
         }
     }
     
-    // If we don't have enough suggestions, add postal codes
-    if suggestions.len() < limit && normalized_query.chars().all(|c| c.is_numeric()) {
-        let mut postal_stmt = conn.prepare(
-            "SELECT DISTINCT postal_code || ' - ' || city || ', ' || state as suggestion
+    // 2. Get state suggestions
+    if suggestions.len() < limit {
+        let mut state_stmt = conn.prepare(
+            "SELECT DISTINCT state || ' (State)' as suggestion
              FROM locations
-             WHERE postal_code LIKE ?1
+             WHERE (LOWER(state) LIKE ?1 OR LOWER(state) LIKE ?2)
              AND (is_person IS NULL OR is_person != 1)
+             ORDER BY LENGTH(state)
+             LIMIT ?3"
+        )?;
+        
+        let state_pattern = format!("{}%", normalized_query);
+        let state_full_pattern = format!("%{}%", normalized_query); // For partial matches like "wash" -> "Washington"
+        let remaining = (limit - suggestions.len()) as i32;
+        let state_suggestions = state_stmt.query_map(params![state_pattern, state_full_pattern, remaining], |row| {
+            row.get::<_, String>(0)
+        })?;
+        
+        for suggestion in state_suggestions {
+            if let Ok(s) = suggestion {
+                if !suggestion_exists(&suggestions, &s) {
+                    suggestions.push(s);
+                    if suggestions.len() >= limit { break; }
+                }
+            }
+        }
+    }
+    
+    // 3. Get county suggestions
+    if suggestions.len() < limit {
+        let mut county_stmt = conn.prepare(
+            "SELECT DISTINCT county || ' County, ' || state as suggestion
+             FROM locations
+             WHERE LOWER(county) LIKE ?1
+             AND county IS NOT NULL
+             AND (is_person IS NULL OR is_person != 1)
+             ORDER BY LENGTH(county)
              LIMIT ?2"
         )?;
         
+        let county_pattern = format!("{}%", normalized_query);
+        let remaining = (limit - suggestions.len()) as i32;
+        let county_suggestions = county_stmt.query_map(params![county_pattern, remaining], |row| {
+            row.get::<_, String>(0)
+        })?;
+        
+        for suggestion in county_suggestions {
+            if let Ok(s) = suggestion {
+                if !suggestion_exists(&suggestions, &s) {
+                    suggestions.push(s);
+                    if suggestions.len() >= limit { break; }
+                }
+            }
+        }
+    }
+    
+    // 4. Get postal code suggestions (both numeric and partial)
+    if suggestions.len() < limit {
+        let postal_condition = if normalized_query.chars().all(|c| c.is_numeric()) {
+            // If query is all numeric, match postal codes that start with it
+            "postal_code LIKE ?1"
+        } else {
+            // If query contains letters, skip postal codes
+            "1 = 0"
+        };
+        
+        let postal_query = format!(
+            "SELECT DISTINCT postal_code || ' - ' || city || ', ' || state as suggestion
+             FROM locations
+             WHERE {}
+             AND postal_code IS NOT NULL
+             AND (is_person IS NULL OR is_person != 1)
+             ORDER BY postal_code
+             LIMIT ?2", postal_condition
+        );
+        
+        let mut postal_stmt = conn.prepare(&postal_query)?;
         let postal_pattern = format!("{}%", normalized_query);
         let remaining = (limit - suggestions.len()) as i32;
         let postal_suggestions = postal_stmt.query_map(params![postal_pattern, remaining], |row| {
@@ -270,7 +344,10 @@ pub fn get_search_suggestions(query: String, limit: usize) -> rusqlite::Result<V
         
         for suggestion in postal_suggestions {
             if let Ok(s) = suggestion {
-                suggestions.push(s);
+                if !suggestion_exists(&suggestions, &s) {
+                    suggestions.push(s);
+                    if suggestions.len() >= limit { break; }
+                }
             }
         }
     }

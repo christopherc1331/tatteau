@@ -21,6 +21,7 @@ pub fn MapRenderer(
     default_location: CityCoords,
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
     selected_styles: RwSignal<Vec<i32>>,
+    map_bounds: RwSignal<MapBounds>,
 ) -> impl IntoView {
     let selected_city_coords = RwSignal::new(default_location.clone());
 
@@ -29,14 +30,13 @@ pub fn MapRenderer(
         Position::new(lat, long)
     });
 
-    let bounds: RwSignal<MapBounds> = RwSignal::new(MapBounds::default());
     let map: JsRwSignal<Option<Map>> = JsRwSignal::new_local(None::<Map>);
     let update_bounds = move |_| {
         if let Some(map) = map.get_untracked() {
-            let map_bounds: LatLngBounds = map.get_bounds();
-            let north_east: LatLng = map_bounds.get_north_east();
-            let south_west: LatLng = map_bounds.get_south_west();
-            bounds.set(MapBounds {
+            let leaflet_bounds: LatLngBounds = map.get_bounds();
+            let north_east: LatLng = leaflet_bounds.get_north_east();
+            let south_west: LatLng = leaflet_bounds.get_south_west();
+            map_bounds.set(MapBounds {
                 north_east: LatLong {
                     lat: north_east.lat(),
                     long: north_east.lng(),
@@ -75,7 +75,7 @@ pub fn MapRenderer(
     });
 
     let locations = Resource::new(
-        move || (state.get(), city.get(), bounds.get(), selected_styles.get()),
+        move || (state.get(), city.get(), map_bounds.get(), selected_styles.get()),
         move |(state, city, bounds, styles)| async move {
             get_locations_with_details(
                 state,
@@ -138,59 +138,67 @@ pub fn MapRenderer(
     });
 
     view! {
-        {move || if map_ready.get() {
-            view! {
-                <MapContainer
-                    style="height: 100%; width: 100%; flex: 1"
-                    center=center.get()
-                    zoom=12.0
-                    set_view=true
-                    map=map.write_only()
-                >
-                    <TileLayer
-                        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
-                    />
-                    // Loading overlay for when locations are being fetched
-                    {move || {
-                        if locations.get().is_none() {
-                            view! {
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; background: rgba(255, 255, 255, 0.9); padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                        <div style="width: 20px; height: 20px; border: 2px solid #e5e7eb; border-top-color: #7c3aed; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-                                        <span style="color: #374151; font-weight: 500;">"Loading markers..."</span>
-                                    </div>
+        <div style="position: relative; height: 100%; width: 100%; flex: 1;">
+            {move || if map_ready.get() {
+                view! {
+                    <MapContainer
+                        style="height: 100%; width: 100%"
+                        center=center.get()
+                        zoom=12.0
+                        set_view=true
+                        map=map.write_only()
+                    >
+                        <TileLayer
+                            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
+                        />
+                        
+                        {move ||
+                            match locations.get() {
+                                Some(Ok(locations)) => view! {
+                                        {locations.into_iter().map(|enhanced_loc| {
+                                            view! {
+                                                <EnhancedMapMarker location=enhanced_loc />
+                                            }
+                                        }).collect_view()}
+                                }.into_any(),
+                                Some(Err(err)) => {
+                                    leptos::logging::log!("Error occurred while fetching locations: {}", err);
+                                    view! { <></> }.into_any()
+                                },
+                                None => view! { <></> }.into_any(),
+                            }
+                        }
+                    </MapContainer>
+                }.into_any()
+            } else {
+                view! {
+                    <div style="height: 100%; width: 100%; display: flex; align-items: center; justify-content: center;">
+                        <LoadingView message=Some("Initializing map...".to_string()) />
+                    </div>
+                }.into_any()
+            }}
+            
+            // Loading overlay for when locations are being fetched (positioned absolutely over the map)
+            {move || {
+                match locations.get() {
+                    None => {
+                        // Resource is loading
+                        view! {
+                            <div class="map-loading-overlay">
+                                <div class="map-loading-content">
+                                    <div class="map-loading-spinner"></div>
+                                    <span>"Loading markers..."</span>
                                 </div>
-                            }.into_any()
-                        } else {
-                            view! { <></> }.into_any()
-                        }
-                    }}
-                    
-                    {move ||
-                        match locations.get() {
-                            Some(Ok(locations)) => view! {
-                                    {locations.into_iter().map(|enhanced_loc| {
-                                        view! {
-                                            <EnhancedMapMarker location=enhanced_loc />
-                                        }
-                                    }).collect_view()}
-                            }.into_any(),
-                            Some(Err(err)) => {
-                                leptos::logging::log!("Error occurred while fetching locations: {}", err);
-                                view! { <></> }.into_any()
-                            },
-                            None => view! { <></> }.into_any(),
-                        }
+                            </div>
+                        }.into_any()
+                    },
+                    Some(_) => {
+                        // Resource has loaded (either success or error)
+                        view! { <></> }.into_any()
                     }
-                </MapContainer>
-            }.into_any()
-        } else {
-            view! {
-                <div style="height: 100%; width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;">
-                    <LoadingView message=Some("Initializing map...".to_string()) />
-                </div>
-            }.into_any()
-        }}
+                }
+            }}
+        </div>
     }
 }
