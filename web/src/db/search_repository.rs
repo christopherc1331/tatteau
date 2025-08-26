@@ -119,10 +119,12 @@ pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchRe
     let mut city_stmt = conn.prepare(city_query)?;
     
     let city_pattern = format!("%{}%", city_search);
-    let city_results = if let Some(ref state) = state_search {
+    
+    // Handle the city search based on whether we have state filter
+    if let Some(ref state) = state_search {
         // For state searches, also check state abbreviations
         let state_pattern = format!("%{}%", state);
-        city_stmt.query_map(params![city_pattern, state, state_pattern, city_search], |row| {
+        let city_results = city_stmt.query_map(params![city_pattern, state, state_pattern, city_search], |row| {
             Ok(SearchResult {
                 city: row.get(0)?,
                 state: row.get(1)?,
@@ -134,9 +136,20 @@ pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchRe
                 artist_count: row.get(6)?,
                 shop_count: row.get(7)?,
             })
-        })?
+        })?;
+        
+        for result in city_results {
+            if let Ok(r) = result {
+                // Don't add duplicates if we already found it via postal code
+                if !results.iter().any(|existing| 
+                    existing.city == r.city && existing.state == r.state
+                ) {
+                    results.push(r);
+                }
+            }
+        }
     } else {
-        city_stmt.query_map(params![city_pattern, city_search], |row| {
+        let city_results = city_stmt.query_map(params![city_pattern, city_search], |row| {
             Ok(SearchResult {
                 city: row.get(0)?,
                 state: row.get(1)?,
@@ -148,16 +161,16 @@ pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchRe
                 artist_count: row.get(6)?,
                 shop_count: row.get(7)?,
             })
-        })?
-    };
-    
-    for result in city_results {
-        if let Ok(r) = result {
-            // Don't add duplicates if we already found it via postal code
-            if !results.iter().any(|existing| 
-                existing.city == r.city && existing.state == r.state
-            ) {
-                results.push(r);
+        })?;
+        
+        for result in city_results {
+            if let Ok(r) = result {
+                // Don't add duplicates if we already found it via postal code
+                if !results.iter().any(|existing| 
+                    existing.city == r.city && existing.state == r.state
+                ) {
+                    results.push(r);
+                }
             }
         }
     }

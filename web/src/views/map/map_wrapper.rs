@@ -48,6 +48,8 @@ pub fn DiscoveryMap() -> impl IntoView {
 
     // Handle location selection from search
     let handle_location_selected = move |coords: CityCoords| {
+        city.set(coords.city.clone());
+        state.set(coords.state.clone());
         map_center.set(coords);
     };
 

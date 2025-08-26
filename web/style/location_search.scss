@@ -3,6 +3,7 @@
     width: 100%;
     max-width: 600px;
     margin: 0 auto;
+    z-index: 10000; // Create a high stacking context for the entire container
 
     .search-input-wrapper {
         display: flex;
@@ -71,17 +72,18 @@
     }
 
     .search-suggestions {
-        position: absolute;
-        top: calc(100% + 0.5rem);
-        left: 0;
-        right: 0;
+        position: fixed; // Changed from absolute to fixed to escape stacking context
+        top: auto; // Will be set via JavaScript
+        left: auto; // Will be set via JavaScript
+        right: auto;
         background: white;
         border: 1px solid #e5e7eb;
         border-radius: 8px;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
         max-height: 300px;
         overflow-y: auto;
-        z-index: 1000;
+        z-index: 999999; // Very high z-index to ensure it's above everything
+        min-width: 300px; // Ensure minimum width since we're using fixed positioning
 
         .suggestion-item {
             padding: 0.75rem 1rem;
@@ -149,6 +151,46 @@
                 border-color: #7c3aed;
                 transform: translateY(-1px);
             }
+        }
+    }
+}
+
+// Portal-based suggestions dropdown (rendered at document root)
+.search-suggestions-portal {
+    position: fixed !important;
+    background: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15) !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    z-index: 2147483647 !important; // Maximum possible z-index value
+    min-width: 300px !important;
+
+    .suggestion-item {
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.15s;
+
+        &:hover,
+        &.selected {
+            background-color: #f3f4f6;
+        }
+
+        &:first-child {
+            border-radius: 8px 8px 0 0;
+        }
+
+        &:last-child {
+            border-radius: 0 0 8px 8px;
+        }
+
+        .suggestion-icon {
+            font-size: 1rem;
+            opacity: 0.7;
         }
     }
 }
