@@ -2,7 +2,10 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
 use crate::{
-    components::instagram_posts_grid::{InstagramPostsGrid, PostWithArtist},
+    components::{
+        instagram_embed::process_instagram_embeds,
+        instagram_posts_grid::{InstagramPostsGrid, PostWithArtist}
+    },
     db::entities::{Artist, ArtistImage, Style},
     server::{MatchedArtist, TattooPost},
 };
@@ -145,10 +148,15 @@ pub fn TattooGallery(
                 {
                     let (force_rerender, set_force_rerender) = signal(0);
                     
-                    // Watch for page changes and trigger a complete re-render
+                    // Watch for page changes and trigger Instagram embed processing
                     Effect::new(move |_| {
                         let _ = current_page.get();
                         set_force_rerender.update(|x| *x += 1);
+                        
+                        // Trigger Instagram embed processing after a short delay to ensure DOM is updated
+                        set_timeout(move || {
+                            process_instagram_embeds();
+                        }, std::time::Duration::from_millis(100));
                     });
                     
                     move || {
