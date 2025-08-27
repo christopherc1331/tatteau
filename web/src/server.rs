@@ -9,6 +9,17 @@ use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style};
 use crate::db::search_repository::{SearchResult, SearchResultType};
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize)]
+struct InstagramOEmbedResponse {
+    html: String,
+    width: Option<u32>,
+    height: Option<u32>,
+    #[serde(rename = "type")]
+    embed_type: String,
+    version: String,
+    provider_name: String,
+}
+
 #[cfg(feature = "ssr")]
 use crate::db::repository::{
     get_all_images_with_styles_by_location, get_all_styles_by_location, get_artist_by_id,
@@ -405,5 +416,61 @@ pub async fn get_search_suggestions(query: String) -> Result<Vec<String>, Server
     #[cfg(not(feature = "ssr"))]
     {
         Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn get_instagram_embed(short_code: String) -> Result<String, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        let url = format!(
+            "https://www.instagram.com/p/{}/oembed/?url=https://www.instagram.com/p/{}/",
+            short_code, short_code
+        );
+        
+        let client = reqwest::Client::new();
+        
+        match client.get(&url).send().await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    match response.json::<InstagramOEmbedResponse>().await {
+                        Ok(oembed_data) => {
+                            // Return the HTML embed code
+                            Ok(oembed_data.html)
+                        }
+                        Err(e) => {
+                            leptos::logging::log!("Failed to parse Instagram oEmbed JSON: {}", e);
+                            Err(ServerFnError::new(format!(
+                                "Failed to parse Instagram embed data for post: {}",
+                                short_code
+                            )))
+                        }
+                    }
+                } else {
+                    leptos::logging::log!(
+                        "Instagram oEmbed API returned error status: {} for post: {}", 
+                        response.status(), 
+                        short_code
+                    );
+                    Err(ServerFnError::new(format!(
+                        "Instagram post not found or not accessible: {}",
+                        short_code
+                    )))
+                }
+            }
+            Err(e) => {
+                leptos::logging::log!("HTTP request to Instagram oEmbed failed: {}", e);
+                Err(ServerFnError::new(format!(
+                    "Failed to fetch Instagram embed for post: {}",
+                    short_code
+                )))
+            }
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Server-side rendering not available".to_string(),
+        ))
     }
 }

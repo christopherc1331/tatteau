@@ -3,11 +3,9 @@ use leptos::prelude::*;
 #[component]
 pub fn InstagramFallbackCta(
     short_code: String,
-    #[prop(optional)] message: Option<String>,
-    #[prop(optional)] min_height: Option<String>,
+    #[prop(default = "This tattoo image is available on Instagram".to_string())] message: String,
+    #[prop(default = "200px".to_string())] min_height: String,
 ) -> impl IntoView {
-    let message = message.unwrap_or_else(|| "This tattoo image is available on Instagram".to_string());
-    let min_height = min_height.unwrap_or_else(|| "200px".to_string());
     
     view! {
         <div style={format!(
