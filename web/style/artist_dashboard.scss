@@ -1,0 +1,623 @@
+// Artist Dashboard Styles
+.artist-dashboard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    background: #f8fafc;
+    min-height: 100vh;
+}
+
+.dashboard-header {
+    margin-bottom: 2rem;
+    
+    .back-button {
+        display: inline-block;
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        
+        &:hover {
+            color: #5a6fd8;
+        }
+    }
+
+    h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 0.5rem 0;
+    }
+
+    .dashboard-subtitle {
+        color: #6b7280;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+}
+
+// Dashboard Tiles
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.dashboard-tile {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s ease;
+    border-left: 4px solid transparent;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+
+    &.tile-purple {
+        border-left-color: #667eea;
+        
+        .tile-icon {
+            background: rgba(102, 126, 234, 0.1);
+        }
+    }
+
+    &.tile-orange {
+        border-left-color: #f97316;
+        
+        .tile-icon {
+            background: rgba(249, 115, 22, 0.1);
+        }
+    }
+
+    &.tile-blue {
+        border-left-color: #3b82f6;
+        
+        .tile-icon {
+            background: rgba(59, 130, 246, 0.1);
+        }
+    }
+
+    &.tile-green {
+        border-left-color: #10b981;
+        
+        .tile-icon {
+            background: rgba(16, 185, 129, 0.1);
+        }
+    }
+
+    .tile-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .tile-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .tile-title {
+        font-weight: 600;
+        color: #374151;
+        font-size: 1rem;
+    }
+
+    .tile-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin-bottom: 0.25rem;
+    }
+
+    .tile-subtitle {
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+}
+
+// Recent Activity
+.recent-activity {
+    margin-bottom: 2rem;
+
+    h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 1rem 0;
+    }
+
+    .activity-list {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .activity-item {
+        padding: 1.5rem;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        gap: 1rem;
+
+        &:last-child {
+            border-bottom: none;
+        }
+    }
+
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(102, 126, 234, 0.1);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-title {
+        font-weight: 600;
+        color: #1a202c;
+        margin-bottom: 0.25rem;
+    }
+
+    .activity-subtitle {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .activity-time {
+        color: #9ca3af;
+        font-size: 0.8rem;
+    }
+
+    .empty-state {
+        padding: 2rem;
+        text-align: center;
+        color: #6b7280;
+    }
+}
+
+// Quick Actions
+.quick-actions {
+    h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 1rem 0;
+    }
+
+    .actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .action-button {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        transition: all 0.2s ease;
+
+        &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+    }
+
+    .action-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .action-text {
+        font-weight: 600;
+        color: #374151;
+    }
+}
+
+// Calendar Placeholder
+.calendar-container {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    padding: 2rem;
+
+    .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #f3f4f6;
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1a202c;
+            margin: 0;
+        }
+
+        .calendar-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+    }
+}
+
+// Requests
+.requests-tabs {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+
+    .tab-buttons {
+        display: flex;
+        border-bottom: 1px solid #f3f4f6;
+        background: #f9fafb;
+    }
+
+    .tab-button {
+        flex: 1;
+        padding: 1rem 1.5rem;
+        background: none;
+        border: none;
+        font-weight: 600;
+        color: #6b7280;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &.active {
+            color: #667eea;
+            background: white;
+            border-bottom: 2px solid #667eea;
+        }
+
+        &:hover:not(.active) {
+            color: #374151;
+            background: #f3f4f6;
+        }
+    }
+
+    .tab-content {
+        padding: 2rem;
+    }
+}
+
+.requests-list {
+    .request-item {
+        padding: 1.5rem;
+        border: 1px solid #f3f4f6;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    .request-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .client-info {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .client-avatar {
+        width: 48px;
+        height: 48px;
+        background: #667eea;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.2rem;
+    }
+
+    .client-details {
+        h3 {
+            margin: 0 0 0.25rem 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1a202c;
+        }
+
+        .request-type {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            margin-right: 0.5rem;
+        }
+
+        .request-time {
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+    }
+
+    .request-status {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+
+        &.pending {
+            background: rgba(249, 115, 22, 0.1);
+            color: #f97316;
+        }
+    }
+
+    .request-details {
+        margin-bottom: 1.5rem;
+
+        p {
+            margin: 0.5rem 0;
+            color: #374151;
+
+            strong {
+                color: #1a202c;
+            }
+        }
+    }
+
+    .request-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+}
+
+// Settings
+.settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    
+    @media (min-width: 768px) {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.settings-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+    h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 1.5rem 0;
+    }
+
+    .setting-group {
+        margin-bottom: 1.5rem;
+
+        &:last-child {
+            margin-bottom: 0;
+        }
+    }
+
+    .setting-label {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+    }
+
+    .setting-description {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin: 0;
+        margin-left: 2.25rem; // Align with switch
+    }
+
+    .setting-actions {
+        margin-top: 1.5rem;
+    }
+
+    .price-input {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .currency {
+            font-weight: 700;
+            color: #374151;
+        }
+    }
+}
+
+.hours-grid {
+    .day-setting {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+
+        .day-label {
+            min-width: 80px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .time-inputs {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+
+            span {
+                color: #6b7280;
+                font-weight: 600;
+            }
+        }
+    }
+}
+
+// Coming Soon Cards
+.coming-soon-card {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    margin: 2rem 0;
+
+    .coming-soon-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+
+    h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0 0 1rem 0;
+    }
+
+    p {
+        opacity: 0.9;
+        margin-bottom: 1.5rem;
+        font-size: 1.1rem;
+    }
+
+    .feature-list {
+        list-style: none;
+        padding: 0;
+        text-align: left;
+        max-width: 400px;
+        margin: 0 auto 2rem auto;
+
+        li {
+            padding: 0.5rem 0;
+            position: relative;
+            padding-left: 1.5rem;
+
+            &::before {
+                content: "✓";
+                position: absolute;
+                left: 0;
+                color: rgba(255, 255, 255, 0.8);
+                font-weight: 700;
+            }
+        }
+    }
+
+    .placeholder-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+}
+
+// Error State
+.error-state {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+    h3 {
+        color: #dc2626;
+        margin-bottom: 0.5rem;
+    }
+
+    p {
+        color: #6b7280;
+        margin: 0;
+    }
+}
+
+// Button Styles
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    text-align: center;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &.btn-primary {
+        background: #667eea;
+        color: white;
+
+        &:hover {
+            background: #5a6fd8;
+        }
+    }
+
+    &.btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+
+        &:hover {
+            background: #e5e7eb;
+        }
+    }
+
+    &.btn-outlined {
+        background: transparent;
+        color: #667eea;
+        border: 1px solid #667eea;
+
+        &:hover {
+            background: #667eea;
+            color: white;
+        }
+    }
+
+    &.btn-outline-danger {
+        background: transparent;
+        color: #dc2626;
+        border: 1px solid #dc2626;
+
+        &:hover {
+            background: #dc2626;
+            color: white;
+        }
+    }
+}

@@ -8,6 +8,7 @@ use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::masonry_gallery::MasonryGallery;
+use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::home::HomePage;
@@ -15,6 +16,7 @@ use crate::views::map::map_wrapper::DiscoveryMap;
 use crate::views::match_results::MatchResults;
 use crate::views::quiz::GetMatchedQuiz;
 use crate::views::shop::Shop;
+use crate::views::styles::StylesShowcase;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -70,6 +72,10 @@ pub fn App() -> impl IntoView {
                         <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
                         <Route path=StaticSegment("styles") view=StylesPage/>
                         <Route path=StaticSegment("gallery") view=GalleryPage/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard")) view=ArtistHome/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ArtistCalendar/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ArtistRequests/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ArtistSettings/>
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
                         <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
@@ -93,10 +99,7 @@ fn ExplorePage() -> impl IntoView {
 #[component]
 fn StylesPage() -> impl IntoView {
     view! {
-        <div style="max-width: 1200px; margin: 0 auto; padding: 2rem;">
-            <h1 style="text-align: center; margin-bottom: 2rem;">"Tattoo Styles"</h1>
-            <MasonryGallery/>
-        </div>
+        <StylesShowcase />
     }
 }
 

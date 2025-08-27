@@ -6,17 +6,21 @@
 
   .page-header {
     text-align: center;
-    margin-bottom: 3rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    line-height: 1;
 
     h1 {
-      font-size: 2.5rem;
+      font-size: 2rem;
       font-weight: 700;
       color: #1f2937;
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.025em;
     }
 
     .subtitle {
-      font-size: 1.125rem;
+      font-size: 0.95rem;
       color: #6b7280;
       margin-bottom: 0;
     }
@@ -39,13 +43,17 @@
 .artist-card {
   background: white;
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
   border: 1px solid #f3f4f6;
   transition: all 0.2s ease-in-out;
   overflow: hidden;
 
   &:hover {
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -2px rgba(0, 0, 0, 0.05);
     transform: translateY(-2px);
     border-color: #e5e7eb;
   }
@@ -133,12 +141,12 @@
     // Styles section with chips
     .styles-section {
       margin-bottom: 1.5rem;
-      
+
       .style-chips {
         display: flex;
         gap: 0.5rem;
         flex-wrap: wrap;
-        
+
         .style-chip {
           background: #f3f4f6;
           color: #374151;
@@ -148,7 +156,7 @@
           font-size: 0.75rem;
           font-weight: 500;
           transition: all 0.2s ease-in-out;
-          
+
           &:hover {
             background: #e5e7eb;
             border-color: #d1d5db;
@@ -188,19 +196,19 @@
           position: relative;
           background: #f9fafb;
           border: 1px solid #e5e7eb;
-          
+
           // Hide Instagram captions and interactions for thumbnail view
           :global(.instagram-media) {
             border-radius: 0 !important;
             box-shadow: none !important;
             margin: 0 !important;
             background: transparent !important;
-            
+
             // Hide caption and interaction elements
             :global(div[style*="padding"]) {
               display: none !important;
             }
-            
+
             // Keep only the image visible
             :global(img) {
               border-radius: 6px;
@@ -360,7 +368,7 @@
         &.btn-primary {
           background: linear-gradient(135deg, #7c3aed, #5b21b6);
           color: white;
-          
+
           &:hover {
             background: linear-gradient(135deg, #6d28d9, #4c1d95);
             transform: translateY(-1px);
@@ -514,7 +522,7 @@
       flex-wrap: wrap;
       gap: 0.75rem;
       margin-bottom: 1rem;
-      
+
       .thumbnail {
         flex: 1 1 calc(50% - 0.375rem);
         min-height: 160px;
@@ -523,7 +531,7 @@
 
     .styles-section {
       margin-bottom: 1rem;
-      
+
       .style-chips .style-chip {
         font-size: 0.7rem;
         padding: 0.25rem 0.5rem;
@@ -547,10 +555,243 @@
       grid-template-columns: repeat(2, 1fr);
       gap: 0.75rem;
       margin-bottom: 1.5rem;
-      
+
       .stat:last-child {
         grid-column: span 2;
       }
     }
   }
 }
+
+// New Gallery Footer
+.gallery-footer {
+  text-align: center;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 2rem;
+}
+
+.refine-button {
+  display: inline-block;
+  padding: 0.75rem 2rem;
+  background: #7c3aed;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: #6d28d9;
+  }
+}
+
+// Modal Styles
+.artist-card-modal {
+  padding: 2rem;
+
+  .artist-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+
+    .artist-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #7c3aed;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .artist-basic-info {
+      flex: 1;
+
+      h3 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.5rem;
+        color: #1f2937;
+      }
+
+      .location {
+        color: #6b7280;
+        margin: 0 0 0.25rem 0;
+        font-size: 0.875rem;
+      }
+
+      .shop-name {
+        color: #9ca3af;
+        margin: 0;
+        font-size: 0.75rem;
+      }
+    }
+
+    .match-percentage {
+      background: #10b981;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+  }
+
+  .artist-styles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+
+    .style-chip {
+      background: #f3f4f6;
+      color: #6b7280;
+      padding: 0.375rem 0.75rem;
+      border-radius: 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+  }
+
+  .modal-portfolio {
+    margin-bottom: 1.5rem;
+
+    h4 {
+      margin: 0 0 1rem 0;
+      color: #1f2937;
+      font-size: 1.125rem;
+    }
+
+    .portfolio-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+
+      .portfolio-placeholder {
+        aspect-ratio: 1;
+        background: #f9fafb;
+        border: 1px dashed #d1d5db;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        font-size: 0.875rem;
+      }
+    }
+  }
+
+  .pricing-info {
+    margin-bottom: 1.5rem;
+
+    .pricing-range {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      background: #f9fafb;
+      border-radius: 8px;
+
+      .label {
+        font-weight: 600;
+        color: #374151;
+      }
+
+      .price-value {
+        font-size: 1.125rem;
+        font-weight: bold;
+        color: #10b981;
+      }
+    }
+  }
+
+  .artist-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+
+    .stat {
+      text-align: center;
+      padding: 1rem;
+      background: #f9fafb;
+      border-radius: 8px;
+
+      .stat-value {
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: #7c3aed;
+        margin-bottom: 0.25rem;
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    }
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 1rem;
+
+    .action-button {
+      flex: 1;
+      display: block;
+      text-align: center;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+
+      &.profile-button {
+        background: #f3f4f6;
+        color: #374151;
+
+        &:hover {
+          background: #e5e7eb;
+        }
+      }
+
+      &.book-button {
+        background: #7c3aed;
+        color: white;
+
+        &:hover {
+          background: #6d28d9;
+        }
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+
+    .artist-header {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+
+      .artist-basic-info {
+        text-align: center;
+      }
+    }
+
+    .artist-stats {
+      grid-template-columns: 1fr;
+    }
+
+    .modal-actions {
+      flex-direction: column;
+    }
+  }
+}
+

@@ -616,7 +616,9 @@ pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWith
         Ok(crate::server::StyleWithCount {
             id: row.get(0)?,
             name: row.get(1)?,
+            description: None,
             artist_count: row.get(2)?,
+            sample_images: None,
         })
     })?;
 
@@ -657,7 +659,9 @@ pub fn get_styles_with_counts_in_bounds(
             Ok(crate::server::StyleWithCount {
                 id: row.get(0)?,
                 name: row.get(1)?,
+                description: None,
                 artist_count: row.get(2)?,
+                sample_images: None,
             })
         },
     )?;

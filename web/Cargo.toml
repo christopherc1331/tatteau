@@ -32,6 +32,7 @@ reqwest = { version = "0.11", features = ["json"], optional = true }
 thaw_utils = "0.1.2"
 web-sys = "0.3.77"
 urlencoding = "2.1"
+chrono = { version = "0.4", optional = true }
 
 [features]
 default = []
@@ -44,6 +45,7 @@ ssr = [
   "dep:leptos_axum",
   "dep:rusqlite",
   "dep:reqwest",
+  "dep:chrono",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",

@@ -9,6 +9,9 @@ use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style};
 use crate::db::search_repository::{SearchResult, SearchResultType};
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "ssr")]
+use chrono::{NaiveDateTime, Utc};
+
 #[derive(Deserialize)]
 struct InstagramOEmbedResponse {
     html: String,
@@ -201,12 +204,6 @@ pub async fn get_location_stats(
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct StyleWithCount {
-    pub id: i32,
-    pub name: String,
-    pub artist_count: i32,
-}
 
 #[server]
 pub async fn get_available_styles() -> Result<Vec<StyleWithCount>, ServerFnError> {
@@ -472,5 +469,366 @@ pub async fn get_instagram_embed(short_code: String) -> Result<String, ServerFnE
         Err(ServerFnError::new(
             "Server-side rendering not available".to_string(),
         ))
+    }
+}
+
+// Artist Dashboard Data Structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArtistDashboardData {
+    pub todays_bookings: i32,
+    pub pending_sketches: i32,
+    pub unread_messages: i32,
+    pub monthly_revenue: f64,
+    pub recent_bookings: Vec<RecentBooking>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentBooking {
+    pub id: i32,
+    pub client_name: Option<String>,
+    pub placement: Option<String>,
+    pub created_at: String,
+}
+
+#[server]
+pub async fn get_artist_dashboard_data(artist_id: i32) -> Result<ArtistDashboardData, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_dashboard_data(artist_id: i32) -> SqliteResult<ArtistDashboardData> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+
+            // Get today's bookings count
+            let today = Utc::now().naive_utc().date();
+            let today_str = today.to_string();
+            let mut stmt = conn.prepare(
+                "SELECT COUNT(*) FROM bookings 
+                 WHERE artist_id = ?1 AND DATE(created_at) = ?2"
+            )?;
+            let todays_bookings: i32 = stmt.query_row([&artist_id.to_string(), &today_str], |row| {
+                row.get(0)
+            }).unwrap_or(0);
+
+            // Get pending sketch requests count (placeholder - would need sketch_requests table)
+            let pending_sketches = 3; // Placeholder
+
+            // Get unread messages count (placeholder - would need messages table)
+            let unread_messages = 7; // Placeholder
+
+            // Get monthly revenue (placeholder calculation)
+            let monthly_revenue = 1250.0; // Placeholder
+
+            // Get recent bookings
+            let mut recent_stmt = conn.prepare(
+                "SELECT b.id, b.client_name, b.placement, b.created_at
+                 FROM bookings b
+                 WHERE b.artist_id = ?1
+                 ORDER BY b.created_at DESC
+                 LIMIT 5"
+            )?;
+
+            let recent_booking_iter = recent_stmt.query_map([&artist_id], |row| {
+                let created_at_str: String = row.get(3)?;
+                // Try to parse the date string and format it, fallback to original if parsing fails
+                let formatted_date = if let Ok(naive_date) = NaiveDateTime::parse_from_str(&created_at_str, "%Y-%m-%d %H:%M:%S") {
+                    naive_date.format("%B %d, %Y").to_string()
+                } else {
+                    created_at_str.clone()
+                };
+                
+                Ok(RecentBooking {
+                    id: row.get(0)?,
+                    client_name: row.get(1)?,
+                    placement: row.get(2)?,
+                    created_at: formatted_date,
+                })
+            })?;
+
+            let mut recent_bookings = Vec::new();
+            for booking in recent_booking_iter {
+                if let Ok(booking) = booking {
+                    recent_bookings.push(booking);
+                }
+            }
+
+            Ok(ArtistDashboardData {
+                todays_bookings,
+                pending_sketches,
+                unread_messages,
+                monthly_revenue,
+                recent_bookings,
+            })
+        }
+
+        match query_dashboard_data(artist_id) {
+            Ok(data) => Ok(data),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch artist dashboard data: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        // Return placeholder data for client-side
+        Ok(ArtistDashboardData {
+            todays_bookings: 0,
+            pending_sketches: 0,
+            unread_messages: 0,
+            monthly_revenue: 0.0,
+            recent_bookings: Vec::new(),
+        })
+    }
+}
+
+#[server]
+pub async fn log_match_impression(
+    session_id: Option<i32>,
+    artist_id: i64,
+    impression_type: String, // "view" or "click"
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, params};
+        use std::path::Path;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // Use session ID if available, otherwise create a temp session ID based on timestamp
+        let session_id = session_id.unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i32
+        });
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path).map_err(|e| {
+            ServerFnError::new(format!("Database connection error: {}", e))
+        })?;
+
+        conn.execute(
+            "INSERT INTO client_match_impressions (session_id, artist_id, impression_type)
+             VALUES (?1, ?2, ?3)",
+            params![session_id, artist_id, impression_type],
+        ).map_err(|e| {
+            ServerFnError::new(format!("Failed to log impression: {}", e))
+        })?;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StyleWithCount {
+    pub id: i32,
+    pub name: String,
+    pub description: Option<String>,
+    pub artist_count: i32,
+    pub sample_images: Option<Vec<String>>,
+}
+
+#[server]
+pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, params};
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path).map_err(|e| {
+            ServerFnError::new(format!("Database connection error: {}", e))
+        })?;
+
+        let mut stmt = conn.prepare("
+            SELECT 
+                s.id,
+                s.name,
+                s.description,
+                COUNT(DISTINCT ast.artist_id) as artist_count,
+                GROUP_CONCAT(DISTINCT ai.instagram_url, '|') as sample_images
+            FROM styles s
+            LEFT JOIN artists_styles ast ON s.id = ast.style_id
+            LEFT JOIN artists a ON ast.artist_id = a.id
+            LEFT JOIN artists_images ai ON a.id = ai.artist_id
+            GROUP BY s.id, s.name, s.description
+            HAVING artist_count > 0
+            ORDER BY artist_count DESC, s.name ASC
+        ").map_err(|e| {
+            ServerFnError::new(format!("Failed to prepare statement: {}", e))
+        })?;
+
+        let styles = stmt.query_map([], |row| {
+            let sample_images_str: Option<String> = row.get(4).ok();
+            let sample_images = sample_images_str
+                .and_then(|s| if s.trim().is_empty() { None } else { Some(s) })
+                .map(|s| s.split('|').map(|url| url.trim().to_string()).filter(|url| !url.is_empty()).collect::<Vec<_>>());
+
+            Ok(StyleWithCount {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2).ok(),
+                artist_count: row.get(3)?,
+                sample_images,
+            })
+        }).map_err(|e| {
+            ServerFnError::new(format!("Failed to query styles: {}", e))
+        })?;
+
+        let mut result = Vec::new();
+        for style in styles {
+            match style {
+                Ok(style_info) => result.push(style_info),
+                Err(e) => return Err(ServerFnError::new(format!("Row error: {}", e))),
+            }
+        }
+
+        Ok(result)
+    }
+    
+    #[cfg(not(feature = "ssr"))]
+    {
+        // Return placeholder data for client-side
+        Ok(vec![
+            StyleWithCount {
+                id: 1,
+                name: "Traditional".to_string(),
+                description: Some("Classic American tattoo style with bold lines and bright colors".to_string()),
+                artist_count: 12,
+                sample_images: None,
+            },
+            StyleWithCount {
+                id: 2,
+                name: "Neo-Traditional".to_string(),
+                description: Some("Modern take on traditional tattoos with enhanced detail and color".to_string()),
+                artist_count: 8,
+                sample_images: None,
+            }
+        ])
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TattooPost {
+    pub id: i64,
+    pub short_code: String,
+    pub artist_id: i64,
+    pub artist_name: String,
+    pub artist_instagram: Option<String>,
+    pub styles: Vec<String>,
+}
+
+#[server]
+pub async fn get_tattoo_posts_by_style(
+    style_names: Vec<String>,
+    limit: Option<i64>,
+) -> Result<Vec<TattooPost>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, params};
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path).map_err(|e| {
+            ServerFnError::new(format!("Database connection error: {}", e))
+        })?;
+
+        let limit_value = limit.unwrap_or(100);
+
+        // Simple approach: just use the first style for now to get it working
+        let target_style = style_names.first().unwrap_or(&"japanese".to_string()).to_lowercase();
+
+        let query = "
+            SELECT DISTINCT 
+                ai.id,
+                ai.short_code,
+                ai.artist_id,
+                a.name as artist_name,
+                a.instagram_handle as artist_instagram
+            FROM artists_images ai
+            JOIN artists a ON ai.artist_id = a.id
+            JOIN artists_images_styles ais ON ai.id = ais.artists_images_id
+            JOIN styles s ON ais.style_id = s.id
+            WHERE LOWER(s.name) = ?
+            ORDER BY ai.id DESC
+            LIMIT ?
+        ";
+
+        let mut stmt = conn.prepare(query).map_err(|e| {
+            ServerFnError::new(format!("Failed to prepare statement: {}", e))
+        })?;
+
+        let post_iter = stmt.query_map(params![target_style, limit_value], |row| {
+            let image_id: i64 = row.get(0)?;
+            let short_code: String = row.get(1)?;
+            let artist_id: i64 = row.get(2)?;
+            let artist_name: String = row.get(3)?;
+            let artist_instagram: Option<String> = row.get(4)?;
+
+            Ok((image_id, short_code, artist_id, artist_name, artist_instagram))
+        }).map_err(|e| {
+            ServerFnError::new(format!("Failed to query posts: {}", e))
+        })?;
+
+        let mut posts = Vec::new();
+        for post_result in post_iter {
+            match post_result {
+                Ok((image_id, short_code, artist_id, artist_name, artist_instagram)) => {
+                    // Get styles for this specific image
+                    let style_query = "
+                        SELECT s.name
+                        FROM styles s
+                        JOIN artists_images_styles ais ON s.id = ais.style_id
+                        WHERE ais.artists_images_id = ?
+                    ";
+                    
+                    let mut style_stmt = conn.prepare(style_query).map_err(|e| {
+                        ServerFnError::new(format!("Failed to prepare style query: {}", e))
+                    })?;
+                    
+                    let style_iter = style_stmt.query_map([image_id], |row| {
+                        Ok(row.get::<_, String>(0)?)
+                    }).map_err(|e| {
+                        ServerFnError::new(format!("Failed to query styles: {}", e))
+                    })?;
+                    
+                    let mut styles = Vec::new();
+                    for style_result in style_iter {
+                        if let Ok(style_name) = style_result {
+                            styles.push(style_name);
+                        }
+                    }
+
+                    posts.push(TattooPost {
+                        id: image_id,
+                        short_code,
+                        artist_id,
+                        artist_name,
+                        artist_instagram,
+                        styles,
+                    });
+                },
+                Err(e) => return Err(ServerFnError::new(format!("Row error: {}", e))),
+            }
+        }
+
+        Ok(posts)
+    }
+
+    #[cfg(not(feature = "ssr"))]
+    {
+        // Return placeholder data for client-side
+        Ok(vec![
+            TattooPost {
+                id: 1,
+                short_code: "ABC123".to_string(),
+                artist_id: 1,
+                artist_name: "Sample Artist".to_string(),
+                artist_instagram: Some("sample_artist".to_string()),
+                styles: vec!["Japanese".to_string(), "Traditional".to_string()],
+            }
+        ])
     }
 }

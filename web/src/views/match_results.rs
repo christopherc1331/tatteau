@@ -1,261 +1,225 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_query_map;
+use leptos::task::spawn_local;
 use thaw::*;
 
 use crate::{
-    components::{instagram_embed::{InstagramEmbed, InstagramEmbedSize}, loading::LoadingView},
-    server::{get_matched_artists, MatchedArtist},
+    components::{instagram_embed::{InstagramEmbed, InstagramEmbedSize}, loading::LoadingView, TattooGallery},
+    server::{get_tattoo_posts_by_style, get_matched_artists, MatchedArtist, TattooPost},
 };
 
 #[component]
 pub fn MatchResults() -> impl IntoView {
     let query_map = use_query_map();
     
-    // Fetch matched artists from database based on user preferences from URL params
-    let matched_artists = Resource::new(
+    // Modal state
+    let (show_modal, set_show_modal) = signal(false);
+    let (selected_artist, set_selected_artist) = signal(None::<MatchedArtist>);
+    
+    // Fetch tattoo posts filtered by style
+    let tattoo_posts = Resource::new(
         move || (query_map.get(), ),
         move |(query, )| async move {
             // Parse styles from query parameters
             let styles = query.get("styles")
                 .map(|s| s.split(',').map(|style| style.trim().to_string()).collect())
-                .unwrap_or_else(|| vec!["Traditional".to_string(), "Neo-Traditional".to_string()]);
+                .unwrap_or_else(|| vec!["Traditional".to_string()]);
             
-            let location = query.get("location")
-                .map(|s| s.clone())
-                .unwrap_or_else(|| "Washington".to_string());
-            
-            let price_range = {
-                let min_price = query.get("min_price")
-                    .and_then(|s| s.parse::<f64>().ok());
-                let max_price = query.get("max_price")
-                    .and_then(|s| s.parse::<f64>().ok());
-                    
-                match (min_price, max_price) {
-                    (Some(min), Some(max)) => Some((min, max)),
-                    _ => None,
-                }
-            };
-            
-            get_matched_artists(styles, location, price_range).await
+            get_tattoo_posts_by_style(styles, Some(50)).await
         },
     );
+
+    // Fetch full artist data when artist is clicked
+    let load_artist_details = move |artist_id: i64| {
+        spawn_local(async move {
+            // For now, create a minimal artist - in a real app you'd fetch full details
+            let matched_artist = MatchedArtist {
+                id: artist_id,
+                name: "Loading...".to_string(),
+                location_name: "Loading...".to_string(),
+                city: "Loading...".to_string(),
+                state: "Loading...".to_string(),
+                primary_style: "Traditional".to_string(),
+                all_styles: vec![],
+                image_count: 25,
+                portfolio_images: vec![],
+                avatar_url: None,
+                avg_rating: 4.2,
+                match_score: 95,
+                years_experience: Some(5),
+                min_price: Some(150.0),
+                max_price: Some(400.0),
+            };
+            set_selected_artist.set(Some(matched_artist));
+            set_show_modal.set(true);
+        });
+    };
+
+    let on_artist_click = Callback::new(move |artist: MatchedArtist| {
+        set_selected_artist.set(Some(artist));
+        set_show_modal.set(true);
+    });
 
     view! {
         <div class="match-results-container">
             <div class="page-header">
-                <h1>"Your Perfect Matches"</h1>
+                <h1>"Tattoo Gallery"</h1>
                 <p class="subtitle">
-                    "Based on your preferences, here are your top artist matches"
+                    "Discover amazing tattoo work in your selected style"
                 </p>
             </div>
 
-            <Suspense fallback=|| view! { <LoadingView message=Some("Finding your perfect matches...".to_string()) /> }>
+            <Suspense fallback=move || view! { 
+                <LoadingView message=Some("Loading tattoo gallery...".to_string()) /> 
+            }>
                 {move || {
-                    match matched_artists.get() {
-                        Some(Ok(artists)) => {
-                            if artists.is_empty() {
+                    match tattoo_posts.get() {
+                        Some(Ok(posts)) => {
+                            if posts.is_empty() {
                                 view! {
-                                    <div class="no-matches">
-                                        <h3>"No matches found"</h3>
-                                        <p>"Try adjusting your preferences to find more artists."</p>
-                                        <A href="/match">
-                                            <div class="btn-outlined">
-                                                "Update Preferences"
-                                            </div>
+                                    <div class="empty-state">
+                                        <h3>"No tattoos found"</h3>
+                                        <p>"Try selecting different styles or check back later."</p>
+                                        <A href="/match" attr:class="btn-primary">
+                                            "Refine Your Search"
                                         </A>
                                     </div>
                                 }.into_any()
                             } else {
                                 view! {
-                                    <>
-                                        <div class="artists-grid">
-                                            {artists.into_iter().map(|artist| {
-                                                view! {
-                                                    <ArtistCard artist=artist />
-                                                }
-                                            }).collect_view()}
-                                        </div>
-
-                                        <div class="refine-section">
-                                            <A href="/match">
-                                                <div class="btn-outlined">
-                                                    "Refine Your Preferences"
-                                                </div>
-                                            </A>
-                                        </div>
-                                    </>
+                                    <TattooGallery 
+                                        posts=posts
+                                        on_artist_click=on_artist_click
+                                    />
                                 }.into_any()
                             }
                         },
                         Some(Err(_)) => view! {
-                            <div class="no-matches">
-                                <h3>"Something went wrong"</h3>
-                                <p>"We couldn't load your matches right now. Please try again."</p>
-                                <A href="/match">
-                                    <div class="btn-outlined">
-                                        "Back to Preferences"
-                                    </div>
-                                </A>
+                            <div class="error-state">
+                                <h3>"Unable to load tattoo gallery"</h3>
+                                <p>"Please try refreshing the page or contact support if the problem persists."</p>
                             </div>
                         }.into_any(),
                         None => view! {
-                            <LoadingView message=Some("Loading matches...".to_string()) />
+                            <LoadingView message=Some("Loading tattoo gallery...".to_string()) />
                         }.into_any(),
                     }
                 }}
             </Suspense>
+
+            <div class="gallery-footer">
+                <A href="/match" attr:class="refine-button">
+                    "Refine Your Preferences"
+                </A>
+            </div>
+
+            // Artist Modal
+            {move || {
+                if show_modal.get() {
+                    view! {
+                        <div class="artist-modal-overlay" on:click=move |_| set_show_modal.set(false)>
+                            <div class="artist-modal" on:click=move |e| e.stop_propagation()>
+                                <button 
+                                    class="modal-close"
+                                    on:click=move |_| set_show_modal.set(false)
+                                >
+                                    "×"
+                                </button>
+                                {move || {
+                                    if let Some(artist) = selected_artist.get() {
+                                        view! {
+                                            <ArtistModalContent artist=artist />
+                                        }.into_any()
+                                    } else {
+                                        view! { <div>"Loading artist details..."</div> }.into_any()
+                                    }
+                                }}
+                            </div>
+                        </div>
+                    }.into_any()
+                } else {
+                    view! { <div></div> }.into_any()
+                }
+            }}
         </div>
     }
 }
 
 #[component]
-pub fn ArtistCard(artist: MatchedArtist) -> impl IntoView {
-    // Calculate pricing percentage for progress meter (0-100 based on max possible)
-    let pricing_percentage = if let (Some(min), Some(max)) = (artist.min_price, artist.max_price) {
-        let avg_price = (min + max) / 2.0;
-        (avg_price / 500.0 * 100.0).min(100.0) as u32 // Normalize to 500 as max
-    } else {
-        50 // Default to middle if no pricing available
-    };
-
+fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
     view! {
-        <div class="artist-card">
-            <div class="card-content">
-                // Artist avatar and header
-                <div class="card-header">
-                    <div class="artist-info">
-                        {if let Some(avatar_url) = &artist.avatar_url {
-                            view! {
-                                <img src={avatar_url.clone()} alt={format!("{} avatar", artist.name)} class="artist-avatar" />
-                            }.into_any()
-                        } else {
-                            view! {
-                                <div class="artist-avatar-placeholder">
-                                    {artist.name.chars().next().unwrap_or('?').to_uppercase().to_string()}
-                                </div>
-                            }.into_any()
-                        }}
-                        <div class="artist-header-text">
-                            <h3 class="artist-name">{artist.name.clone()}</h3>
-                            <div class="artist-location">{format!("{}, {}", artist.city, artist.state)}</div>
-                            <div class="artist-shop">{artist.location_name}</div>
-                        </div>
-                    </div>
-                    <div class="match-badge">
-                        {format!("{}%", artist.match_score)}
-                    </div>
+        <div class="artist-card-modal">
+            <div class="artist-header">
+                <div class="artist-avatar">
+                    {artist.name.chars().next().unwrap_or('A').to_string().to_uppercase()}
                 </div>
-
-                // Style tags using div-based chips
-                <div class="styles-section">
-                    <div class="style-chips">
-                        {artist.all_styles.into_iter().map(|style| {
-                            view! {
-                                <div class="style-chip">
-                                    {style}
-                                </div>
-                            }
-                        }).collect_view()}
-                    </div>
+                <div class="artist-basic-info">
+                    <h3>{artist.name.clone()}</h3>
+                    <p class="location">{format!("{}, {}", artist.city.clone(), artist.state.clone())}</p>
                 </div>
+                <div class="match-percentage">
+                    {format!("{}%", artist.match_score)}
+                </div>
+            </div>
 
-                // Portfolio thumbnails (Instagram embeds)
-                {if !artist.portfolio_images.is_empty() {
+            <div class="artist-styles">
+                {artist.all_styles.iter().map(|style| {
                     view! {
-                        <div class="portfolio-thumbnails">
-                            {artist.portfolio_images.into_iter().take(4).map(|post_url| {
-                                // Extract short code from Instagram URL
-                                let short_code = post_url.split("/p/").nth(1)
-                                    .unwrap_or("")
-                                    .split("/").next()
-                                    .unwrap_or("")
-                                    .to_string();
+                        <span class="style-chip">{style.clone()}</span>
+                    }
+                }).collect_view()}
+            </div>
 
-                                if !short_code.is_empty() {
-                                    view! {
-                                        <div class="thumbnail instagram-thumbnail">
-                                            <InstagramEmbed short_code={short_code} size=InstagramEmbedSize::Thumbnail />
-                                        </div>
-                                    }.into_any()
-                                } else {
-                                    view! {
-                                        <div class="thumbnail portfolio-fallback">
-                                            <div class="fallback-content">
-                                                <div class="fallback-icon">IG</div>
-                                                <div class="fallback-text">Portfolio</div>
-                                            </div>
-                                        </div>
-                                    }.into_any()
-                                }
-                            }).collect_view()}
-                        </div>
-                    }.into_any()
-                } else {
-                    view! { <div></div> }.into_any()
-                }}
-
-                // Pricing meter
-                <div class="pricing-section">
-                    <div class="pricing-label">"Pricing Range"</div>
-                    {if let (Some(min), Some(max)) = (artist.min_price, artist.max_price) {
+            // Sample work would go here - for now just placeholder
+            <div class="modal-portfolio">
+                <h4>"Portfolio Preview"</h4>
+                <div class="portfolio-grid">
+                    {(0..4).map(|_| {
                         view! {
-                            <div class="pricing-info">
-                                <div class="price-range">{format!("${:.0} - ${:.0}", min, max)}</div>
-                                <div class="pricing-progress">
-                                    <div class="pricing-progress-bar" style={format!("width: {}%", pricing_percentage)}></div>
-                                </div>
+                            <div class="portfolio-placeholder">
+                                "Sample Work"
                             </div>
-                        }.into_any()
-                    } else {
-                        view! {
-                            <div class="pricing-info">
-                                <div class="price-range">"Price on consultation"</div>
-                                <div class="pricing-progress">
-                                    <div class="pricing-progress-bar" style="width: 50%"></div>
-                                </div>
-                            </div>
-                        }.into_any()
-                    }}
+                        }
+                    }).collect_view()}
                 </div>
+            </div>
 
-                // Stats row
-                <div class="artist-stats">
-                    <div class="stat">
-                        <span class="stat-number">{artist.image_count}</span>
-                        <span class="stat-label">"Portfolio"</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-number">{format!("{:.1}", artist.avg_rating)}</span>
-                        <span class="stat-label">"Rating"</span>
-                    </div>
-                    {if let Some(years) = artist.years_experience {
-                        view! {
-                            <div class="stat">
-                                <span class="stat-number">{years}</span>
-                                <span class="stat-label">"Years"</span>
-                            </div>
-                        }.into_any()
-                    } else {
-                        view! { <div></div> }.into_any()
-                    }}
+            <div class="pricing-info">
+                <div class="pricing-range">
+                    <span class="label">"Pricing Range"</span>
+                    <span class="price-value">
+                        {match (artist.min_price, artist.max_price) {
+                            (Some(min), Some(max)) => format!("${} - ${}", min as i32, max as i32),
+                            _ => "Contact for pricing".to_string()
+                        }}
+                    </span>
                 </div>
+            </div>
 
-                // Action buttons
-                <div class="card-actions">
-                    <A href={format!("/artist/{}", artist.id)}>
-                        <div class="btn btn-primary">
-                            "View Profile"
-                        </div>
-                    </A>
-                    <A href={format!("/book/artist/{}", artist.id)}>
-                        <div class="btn btn-secondary">
-                            "Book Now"
-                        </div>
-                    </A>
+            <div class="artist-stats">
+                <div class="stat">
+                    <div class="stat-value">{artist.image_count.to_string()}</div>
+                    <div class="stat-label">"Portfolio"</div>
                 </div>
+                <div class="stat">
+                    <div class="stat-value">{artist.avg_rating.to_string()}</div>
+                    <div class="stat-label">"Rating"</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{artist.years_experience.map(|y| y.to_string()).unwrap_or_else(|| "N/A".to_string())}</div>
+                    <div class="stat-label">"Years"</div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <A href=format!("/artist/{}", artist.id) attr:class="action-button profile-button">
+                    "View Profile"
+                </A>
+                <A href=format!("/book/artist/{}", artist.id) attr:class="action-button book-button">
+                    "Book Now"
+                </A>
             </div>
         </div>
     }
 }
-
