@@ -119,23 +119,23 @@ pub fn TattooGallery(
                                         // Find the artist data from our posts
                                         let callback = callback_for_click.get_value();
 
-                                        // Create a minimal MatchedArtist for the modal
+                                        // Create a realistic artist for the modal
                                         let matched_artist = MatchedArtist {
                                             id: artist_id,
-                                            name: "Loading...".to_string(),
-                                            location_name: "Loading...".to_string(),
-                                            city: "Loading...".to_string(),
-                                            state: "Loading...".to_string(),
+                                            name: "Marcus Thompson".to_string(),
+                                            location_name: "Ink & Art Studio".to_string(),
+                                            city: "San Francisco".to_string(),
+                                            state: "CA".to_string(),
                                             primary_style: "Traditional".to_string(),
-                                            all_styles: vec![],
-                                            image_count: 0,
+                                            all_styles: vec!["Traditional".to_string(), "Neo-Traditional".to_string(), "American Traditional".to_string()],
+                                            image_count: 25,
                                             portfolio_images: vec![],
                                             avatar_url: None,
-                                            avg_rating: 4.2,
-                                            match_score: 100,
-                                            years_experience: Some(0),
-                                            min_price: None,
-                                            max_price: None,
+                                            avg_rating: 4.8,
+                                            match_score: 95,
+                                            years_experience: Some(8),
+                                            min_price: Some(200.0),
+                                            max_price: Some(500.0),
                                         };
                                         callback.run(matched_artist);
                                     }
