@@ -91,7 +91,7 @@ pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchRe
          FROM locations l
          LEFT JOIN artists a ON l.id = a.location_id
          WHERE LOWER(l.city) LIKE ?1
-         AND (LOWER(l.state) = ?2 OR LOWER(l.state) LIKE ?3)
+         AND (LOWER(l.state) LIKE ?2 OR LOWER(l.state) LIKE ?3)
          AND (l.is_person IS NULL OR l.is_person != 1)
          GROUP BY l.city, l.state
          ORDER BY 
@@ -122,9 +122,10 @@ pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchRe
     
     // Handle the city search based on whether we have state filter
     if let Some(ref state) = state_search {
-        // For state searches, also check state abbreviations
-        let state_pattern = format!("%{}%", state);
-        let city_results = city_stmt.query_map(params![city_pattern, state, state_pattern, city_search], |row| {
+        // For state searches, handle both full state names and abbreviations
+        let state_exact_pattern = format!("{}%", state);  // Match start of state name
+        let state_fuzzy_pattern = format!("%{}%", state); // Fuzzy match anywhere
+        let city_results = city_stmt.query_map(params![city_pattern, state_exact_pattern, state_fuzzy_pattern, city_search], |row| {
             Ok(SearchResult {
                 city: row.get(0)?,
                 state: row.get(1)?,

@@ -64,11 +64,6 @@ pub fn InstagramEmbed(
                     return;
                 }}
                 
-                if (elem.hasAttribute('data-instagram-processed')) {{
-                    return;
-                }}
-                elem.setAttribute('data-instagram-processed', 'true');
-                
                 function hideLoadingSpinner(element) {{
                     setTimeout(() => {{
                         const loadingDiv = element.querySelector('[data-instagram-loading]');
@@ -77,6 +72,18 @@ pub fn InstagramEmbed(
                         }}
                     }}, 2000); // Hide loading after 2 seconds
                 }}
+                
+                if (elem.hasAttribute('data-instagram-processed')) {{
+                    return;
+                }}
+                
+                // If Instagram already processed this, just hide the spinner and mark as processed
+                if (elem.querySelector('.instagram-media[data-instgrm-permalink]')) {{
+                    hideLoadingSpinner(elem);
+                    elem.setAttribute('data-instagram-processed', 'true');
+                    return;
+                }}
+                elem.setAttribute('data-instagram-processed', 'true');
                 
                 // Ensure Instagram script is loaded
                 if (!window.instgrm) {{
