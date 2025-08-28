@@ -7,6 +7,317 @@
     min-height: 100vh;
 }
 
+// Calendar booking request styles
+.time-block {
+    &.booking-pending {
+        background-color: #fbbf24;
+        color: #92400e;
+        border: 1px solid #f59e0b;
+    }
+    
+    &.booking-accepted {
+        background-color: #34d399;
+        color: #065f46;
+        border: 1px solid #10b981;
+    }
+}
+
+.legend-color {
+    &.booking-pending {
+        background-color: #fbbf24;
+    }
+    
+    &.booking-accepted {
+        background-color: #34d399;
+    }
+}
+
+.booking-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border-left: 4px solid #e5e7eb;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transform: translateY(-1px);
+    }
+    
+    &.booking-pending {
+        border-left-color: #fbbf24;
+        
+        .booking-status {
+            color: #92400e;
+        }
+    }
+    
+    &.booking-accepted {
+        border-left-color: #34d399;
+        
+        .booking-status {
+            color: #065f46;
+        }
+    }
+    
+    .booking-client {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 0.25rem;
+        color: #1f2937;
+    }
+    
+    .booking-date {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .booking-time {
+        color: #374151;
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    
+    .booking-tattoo {
+        color: #6b7280;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+        font-style: italic;
+    }
+    
+    .booking-status {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+}
+
+// Booking Details Page Styles
+.booking-details {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    background: #f8fafc;
+    min-height: 100vh;
+}
+
+.booking-details-header {
+    margin-bottom: 2rem;
+    
+    .back-button {
+        display: inline-block;
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        
+        &:hover {
+            color: #5a6fd8;
+        }
+    }
+    
+    h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0;
+    }
+}
+
+.booking-details-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+.booking-overview-card,
+.tattoo-details-card,
+.client-message-card,
+.artist-response-card,
+.booking-actions-card,
+.booking-timeline-card {
+    background: white;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    
+    h2 {
+        margin: 0 0 1rem 0;
+        color: #1f2937;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    
+    h2 {
+        margin: 0;
+    }
+}
+
+.booking-status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    
+    &.status-accepted {
+        background-color: #d1fae5;
+        color: #065f46;
+        border: 1px solid #10b981;
+    }
+    
+    &.status-pending {
+        background-color: #fef3c7;
+        color: #92400e;
+        border: 1px solid #f59e0b;
+    }
+}
+
+.booking-overview-grid,
+.tattoo-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.overview-item,
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    
+    label {
+        font-weight: 600;
+        color: #6b7280;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .value {
+        color: #1f2937;
+        font-weight: 500;
+    }
+    
+    .description {
+        color: #374151;
+        line-height: 1.5;
+        margin: 0;
+    }
+}
+
+.message-content,
+.response-content {
+    background: #f9fafb;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #e5e7eb;
+    color: #374151;
+    line-height: 1.6;
+    
+    .estimated-price {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e5e7eb;
+        color: #059669;
+    }
+}
+
+.actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+    
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0.75rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e5e7eb;
+    }
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+    
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -2rem;
+    top: 0.25rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background: #6b7280;
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px #e5e7eb;
+    
+    &.accepted {
+        background: #10b981;
+        box-shadow: 0 0 0 2px #10b981;
+    }
+}
+
+.timeline-content {
+    .timeline-title {
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.25rem;
+    }
+    
+    .timeline-date {
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+}
+
+.booking-not-found {
+    text-align: center;
+    padding: 3rem;
+    background: white;
+    border-radius: 16px;
+    
+    h2 {
+        color: #ef4444;
+        margin-bottom: 1rem;
+    }
+    
+    p {
+        color: #6b7280;
+        margin-bottom: 2rem;
+    }
+}
+
+.time-block.clickable {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+}
+
 .dashboard-header {
     margin-bottom: 2rem;
     

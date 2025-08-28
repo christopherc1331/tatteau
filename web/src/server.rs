@@ -1505,3 +1505,59 @@ pub async fn delete_recurring_rule(rule_id: i32) -> Result<(), ServerFnError> {
         Ok(())
     }
 }
+
+#[server]
+pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+        
+        fn query_booking_by_id(booking_id: i32) -> SqliteResult<BookingRequest> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            let mut stmt = conn.prepare("
+                SELECT id, artist_id, client_name, client_email, client_phone,
+                       requested_date, requested_start_time, requested_end_time,
+                       tattoo_description, placement, size_inches, reference_images,
+                       message_from_client, status, artist_response, estimated_price,
+                       created_at, updated_at
+                FROM booking_requests 
+                WHERE id = ?1
+            ")?;
+            
+            stmt.query_row([booking_id], |row| {
+                Ok(BookingRequest {
+                    id: row.get(0)?,
+                    artist_id: row.get(1)?,
+                    client_name: row.get(2)?,
+                    client_email: row.get(3)?,
+                    client_phone: row.get(4)?,
+                    requested_date: row.get(5)?,
+                    requested_start_time: row.get(6)?,
+                    requested_end_time: row.get(7)?,
+                    tattoo_description: row.get(8)?,
+                    placement: row.get(9)?,
+                    size_inches: row.get(10)?,
+                    reference_images: row.get(11)?,
+                    message_from_client: row.get(12)?,
+                    status: row.get(13)?,
+                    artist_response: row.get(14)?,
+                    estimated_price: row.get(15)?,
+                    created_at: row.get(16)?,
+                    updated_at: row.get(17)?,
+                })
+            })
+        }
+        
+        match query_booking_by_id(booking_id) {
+            Ok(booking) => Ok(booking),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get booking: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}

@@ -37,6 +37,14 @@ pub fn ArtistCalendar() -> impl IntoView {
             get_recurring_rules(artist_id).await.unwrap_or_else(|_| vec![])
         }
     );
+    
+    // Resource for booking requests
+    let booking_requests_resource = Resource::new_blocking(
+        move || (),
+        move |_| async move {
+            get_booking_requests(artist_id).await.unwrap_or_else(|_| vec![])
+        }
+    );
 
     let navigate_month = move |direction: i32| {
         if direction > 0 {
@@ -146,6 +154,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                 let first_day_weekday = day_of_week(year, month, 1);
                                 let availability_data = availability_resource.get().unwrap_or_default();
                                 let recurring_rules = recurring_rules_resource.get().unwrap_or_default();
+                                let booking_requests = booking_requests_resource.get().unwrap_or_default();
                                 let mut days = Vec::new();
                                 
                                 // Empty cells before month starts
@@ -169,11 +178,30 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         (a.day_of_week == Some(dow) && a.is_recurring)
                                     });
                                     
-                                    // Check if this day is blocked by recurring rules
-                                    let blocked_by_recurring = check_recurring_rules(&recurring_rules, year, month, day, dow);
+                                    // Check if this day is blocked by FULL DAY recurring rules only
+                                    let blocked_by_full_day_rule = check_full_day_blocking_rules(&recurring_rules, year, month, day, dow);
                                     
                                     // Get time blocks for this day
-                                    let time_blocks = get_day_time_blocks(&recurring_rules, year, month, day, dow);
+                                    let mut time_blocks = get_day_time_blocks(&recurring_rules, year, month, day, dow);
+                                    
+                                    // Add booking requests for this day
+                                    let day_booking_requests = booking_requests.iter().filter(|req| {
+                                        let req_date = req.requested_date.clone();
+                                        req_date == format!("{}-{:02}-{:02}", year, month, day)
+                                    }).collect::<Vec<_>>();
+                                    
+                                    // Add booking requests as time blocks
+                                    for booking in &day_booking_requests {
+                                        let status = booking.status.clone();
+                                        let block_name = format!("{}", booking.client_name);
+                                        let action = if status == "accepted" { "accepted".to_string() } else { "pending".to_string() };
+                                        time_blocks.push((
+                                            block_name,
+                                            Some(booking.requested_start_time.clone()),
+                                            booking.requested_end_time.clone(),
+                                            action
+                                        ));
+                                    }
                                     
                                     let mut day_classes = "calendar-day".to_string();
                                     
@@ -186,18 +214,17 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         } else {
                                             day_classes.push_str(" blocked");
                                         }
-                                    } else if blocked_by_recurring {
-                                        // Blocked by recurring rule
+                                    } else if blocked_by_full_day_rule {
+                                        // Blocked by full-day recurring rule only
                                         day_classes.push_str(" blocked");
                                     } else {
-                                        // Default available
+                                        // Default available (even if it has time blocks)
                                         day_classes.push_str(" available");
                                     }
                                     
                                     days.push(view! {
                                         <div class=day_classes on:click=move |_| handle_day_click(year, month, day)>
                                             <span class="day-number">{day.to_string()}</span>
-                                            <div class="availability-indicator"></div>
                                             {explicit_availability.as_ref().map(|_| {
                                                 view! {
                                                     <div class="explicit-indicator" title="Explicitly set availability"></div>
@@ -207,21 +234,49 @@ pub fn ArtistCalendar() -> impl IntoView {
                                             // Time blocks display
                                             <div class="time-blocks">
                                                 {time_blocks.into_iter().map(|(name, start_time, end_time, action)| {
-                                                    let block_class = if action == "blocked" { "time-block blocked" } else { "time-block available" };
-                                                    let time_display = if let (Some(start), Some(end)) = (&start_time, &end_time) {
+                                                    let block_class = match action.as_str() {
+                                                        "blocked" => "time-block blocked",
+                                                        "available" => "time-block available", 
+                                                        "accepted" => "time-block booking-accepted clickable",
+                                                        "pending" => "time-block booking-pending clickable",
+                                                        _ => "time-block available"
+                                                    };
+                                                    let time_display = if start_time.is_none() && end_time.is_none() {
+                                                        "All Day".to_string()
+                                                    } else if let (Some(start), Some(end)) = (&start_time, &end_time) {
                                                         format!("{}-{}", start, end)
                                                     } else if let Some(start) = &start_time {
                                                         format!("{}+", start)
                                                     } else {
                                                         "All Day".to_string()
                                                     };
+                                                    
+                                                    // Find booking ID for this time block if it's a booking request
+                                                    let booking_id = if action == "accepted" || action == "pending" {
+                                                        day_booking_requests.iter().find(|req| req.client_name == name).map(|req| req.id)
+                                                    } else {
+                                                        None
+                                                    };
+                                                    
+                                                    let handle_block_click = move |e: web_sys::Event| {
+                                                        e.stop_propagation();
+                                                        if let Some(id) = booking_id {
+                                                            // Navigate to booking details page
+                                                            if let Some(window) = web_sys::window() {
+                                                                let location = window.location();
+                                                                let _ = location.set_href(&format!("/artist/dashboard/booking/{}", id));
+                                                            }
+                                                        }
+                                                    };
+                                                    
                                                     view! {
-                                                        <div class=block_class title=format!("{}: {}", name, time_display)>
+                                                        <div class=block_class 
+                                                             title=format!("{}: {}", name, time_display)>
                                                             <div class="time-block-name">{name.clone()}</div>
                                                             <div class="time-block-time">{time_display.clone()}</div>
                                                         </div>
                                                     }
-                                                }).collect::<Vec<_>>()}
+                                                }).collect_view()}
                                             </div>
                                         </div>
                                     }.into_any());
@@ -245,8 +300,12 @@ pub fn ArtistCalendar() -> impl IntoView {
                                 <span>"Explicit override"</span>
                             </div>
                             <div class="legend-item">
-                                <div class="legend-color has-request"></div>
-                                <span>"Has Request"</span>
+                                <div class="legend-color booking-pending"></div>
+                                <span>"Pending Request"</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color booking-accepted"></div>
+                                <span>"Accepted Request"</span>
                             </div>
                         </div>
                     </div>
@@ -259,7 +318,52 @@ pub fn ArtistCalendar() -> impl IntoView {
                         </div>
                         
                         <div class="booking-list">
-                            <div class="no-bookings">"No booking requests currently"</div>
+                            <Suspense fallback=move || view! { <div>"Loading booking requests..."</div> }>
+                                {move || {
+                                    booking_requests_resource.get().map(|bookings| {
+                                        if bookings.is_empty() {
+                                            view! {
+                                                <div class="no-bookings">"No booking requests currently"</div>
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <div class="bookings-container">
+                                                    {bookings.into_iter().map(|booking| {
+                                                        let status_class = if booking.status == "accepted" { "booking-accepted" } else { "booking-pending" };
+                                                        let navigate_to_month = {
+                                                            let req_date = booking.requested_date.clone();
+                                                            move |_| {
+                                                                // Parse date and navigate to that month
+                                                                let parts: Vec<&str> = req_date.split('-').collect();
+                                                                if parts.len() >= 2 {
+                                                                    if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
+                                                                        current_year.set(year);
+                                                                        current_month.set(month);
+                                                                    }
+                                                                }
+                                                            }
+                                                        };
+                                                        view! {
+                                                            <div class=format!("booking-item {}", status_class) on:click=navigate_to_month>
+                                                                <div class="booking-client">{booking.client_name.clone()}</div>
+                                                                <div class="booking-date">{booking.requested_date.clone()}</div>
+                                                                <div class="booking-time">
+                                                                    {booking.requested_start_time.clone()}
+                                                                    {booking.requested_end_time.as_ref().map(|end| format!(" - {}", end)).unwrap_or_default()}
+                                                                </div>
+                                                                <div class="booking-tattoo">{booking.tattoo_description.clone().unwrap_or_else(|| "No description".to_string())}</div>
+                                                                <div class=format!("booking-status {}", booking.status.clone())>
+                                                                    {if booking.status == "accepted" { "✅ Accepted" } else { "⏳ Pending" }}
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    }).collect_view()}
+                                                </div>
+                                            }.into_any()
+                                        }
+                                    })
+                                }}
+                            </Suspense>
                         </div>
                     </div>
                 </Show>
@@ -333,6 +437,51 @@ pub fn ArtistCalendar() -> impl IntoView {
             </Show>
         </div>
     }
+}
+
+// Helper function to check if a day is blocked by FULL DAY recurring rules only
+fn check_full_day_blocking_rules(rules: &[RecurringRule], year: i32, month: u32, day: u32, dow: i32) -> bool {
+    for rule in rules {
+        // Only check active rules that block availability AND have no specific times (full day)
+        if !rule.active || rule.action != "blocked" || rule.start_time.is_some() || rule.end_time.is_some() {
+            continue;
+        }
+        
+        match rule.rule_type.as_str() {
+            "weekdays" => {
+                // Check if this day of week is in the blocked pattern
+                if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
+                    if days.contains(&dow) {
+                        return true;
+                    }
+                }
+            },
+            "dates" => {
+                // Check if this month/day matches any annual date
+                let date_str = format!("{:02}/{:02}", month, day);
+                if rule.pattern.contains(&date_str) {
+                    return true;
+                }
+                // Also check full month name format
+                let month_names = ["January", "February", "March", "April", "May", "June", 
+                                  "July", "August", "September", "October", "November", "December"];
+                if month > 0 && month <= 12 {
+                    let month_day = format!("{} {}", month_names[(month - 1) as usize], day);
+                    if rule.pattern.contains(&month_day) {
+                        return true;
+                    }
+                }
+            },
+            "monthly" => {
+                // Check if this day of month matches the pattern
+                if rule.pattern.contains(&day.to_string()) {
+                    return true;
+                }
+            },
+            _ => {}
+        }
+    }
+    false
 }
 
 // Helper function to check if a day is blocked by recurring rules

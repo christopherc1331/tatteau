@@ -204,22 +204,23 @@ pub fn ArtistRecurring() -> impl IntoView {
                                     view! {
                                         <div class="rules-list">
                                             {rules.into_iter().map(|rule| {
+                                                let rule_for_display = rule.clone();
                                                 let rule_clone_toggle = rule.clone();
                                                 let rule_clone_delete = rule.clone();
+                                                let rule_active = rule.active;
+                                                let rule_action = rule.action.clone();
                                                 view! {
-                                                    <div class="rule-card" class:inactive=move || !rule.active>
+                                                    <div class="rule-card" class:inactive=move || !rule_active>
                                                         <div class="rule-info">
-                                                            <h3>{rule.name.clone()}</h3>
+                                                            <h3>{rule_for_display.name.clone()}</h3>
                                                             <div class="rule-details">
-                                                                <span class="rule-pattern">{rule.pattern.clone()}</span>
-                                                                <span class="rule-action" class:blocked=move || rule.action == "blocked">
-                                                                    {if rule.action == "blocked" { "🚫 Blocked" } else { "✅ Available" }}
+                                                                <span class="rule-pattern">{format_rule_pattern(&rule_for_display)}</span>
+                                                                <span class="rule-action" class:blocked=move || rule_action == "blocked">
+                                                                    {if rule_action == "blocked" { "🚫 Blocked" } else { "✅ Available" }}
                                                                 </span>
-                                                                {rule.start_time.clone().map(|time| {
-                                                                    view! {
-                                                                        <span class="rule-time">{time}</span>
-                                                                    }
-                                                                })}
+                                                                <span class="rule-time">
+                                                                    {format_rule_time(&rule_for_display)}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                         <div class="rule-actions">
@@ -227,7 +228,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                                                 "Edit"
                                                             </Button>
                                                             <Button size=ButtonSize::Small on_click=move |_| toggle_rule_active(rule_clone_toggle.clone())>
-                                                                {if rule.active { "Disable" } else { "Enable" }}
+                                                                {if rule_active { "Disable" } else { "Enable" }}
                                                             </Button>
                                                             <Button size=ButtonSize::Small on_click=move |_| delete_rule(rule_clone_delete.id)>
                                                                 "Delete"
@@ -400,5 +401,68 @@ pub fn ArtistRecurring() -> impl IntoView {
                 </div>
             </Show>
         </div>
+    }
+}
+
+// Helper function to format rule pattern for human readability
+fn format_rule_pattern(rule: &RecurringRule) -> String {
+    match rule.rule_type.as_str() {
+        "weekdays" => {
+            if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
+                let day_names: Vec<String> = days.iter().map(|&day| {
+                    match day {
+                        0 => "Sunday",
+                        1 => "Monday", 
+                        2 => "Tuesday",
+                        3 => "Wednesday",
+                        4 => "Thursday",
+                        5 => "Friday",
+                        6 => "Saturday",
+                        _ => "Unknown"
+                    }.to_string()
+                }).collect();
+                
+                if day_names.is_empty() {
+                    "No days selected".to_string()
+                } else if day_names.len() == 7 {
+                    "Every day".to_string()
+                } else if day_names == vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] {
+                    "Weekdays (Mon-Fri)".to_string()
+                } else if day_names == vec!["Saturday", "Sunday"] || day_names == vec!["Sunday", "Saturday"] {
+                    "Weekends".to_string()
+                } else {
+                    day_names.join(", ")
+                }
+            } else {
+                "Invalid weekday pattern".to_string()
+            }
+        },
+        "dates" => {
+            let dates_str = rule.pattern.clone();
+            if dates_str.is_empty() {
+                "No dates specified".to_string()
+            } else {
+                format!("Annual dates: {}", dates_str)
+            }
+        },
+        "monthly" => {
+            let pattern = rule.pattern.clone();
+            if pattern.is_empty() {
+                "No monthly pattern specified".to_string()
+            } else {
+                format!("Monthly: {}", pattern)
+            }
+        },
+        _ => rule.pattern.clone()
+    }
+}
+
+// Helper function to format rule time for human readability
+fn format_rule_time(rule: &RecurringRule) -> String {
+    match (&rule.start_time, &rule.end_time) {
+        (Some(start), Some(end)) => format!("{} - {}", start, end),
+        (Some(start), None) => format!("Starting at {}", start),
+        (None, Some(end)) => format!("Until {}", end),
+        (None, None) => "All day".to_string(),
     }
 }
