@@ -32,11 +32,11 @@ reqwest = { version = "0.11", features = ["json"], optional = true }
 thaw_utils = "0.1.2"
 web-sys = "0.3.77"
 urlencoding = "2.1"
-chrono = { version = "0.4", optional = true }
+chrono = { version = "0.4", optional = true, features = ["serde"] }
 
 [features]
 default = []
-hydrate = ["leptos/hydrate", "thaw/hydrate", "leptos-leaflet/hydrate"]
+hydrate = ["leptos/hydrate", "thaw/hydrate", "leptos-leaflet/hydrate", "dep:chrono"]
 ssr = [
   "dep:axum",
   "dep:tokio",

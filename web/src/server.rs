@@ -1,12 +1,10 @@
-use leptos::leptos_dom::logging::console_log;
 use leptos::prelude::*;
 use leptos::server;
-use leptos_leaflet::leaflet::LatLngBounds;
 use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
-use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style};
-use crate::db::search_repository::{SearchResult, SearchResultType};
+use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style, AvailabilitySlot, BookingRequest, BookingMessage, AvailabilityUpdate};
+use crate::db::search_repository::{SearchResult};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
@@ -830,5 +828,299 @@ pub async fn get_tattoo_posts_by_style(
                 styles: vec!["Japanese".to_string(), "Traditional".to_string()],
             }
         ])
+    }
+}
+
+#[server]
+pub async fn get_artist_availability(
+    artist_id: i32,
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<AvailabilitySlot>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{params, Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_availability(artist_id: i32, start_date: String, end_date: String) -> SqliteResult<Vec<AvailabilitySlot>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            let mut stmt = conn.prepare("
+                SELECT id, artist_id, day_of_week, specific_date, start_time, end_time, 
+                       is_available, is_recurring, created_at
+                FROM artist_availability 
+                WHERE artist_id = ?1 
+                AND (specific_date IS NULL OR (specific_date >= ?2 AND specific_date <= ?3))
+                ORDER BY day_of_week, start_time
+            ")?;
+            
+            let availability_iter = stmt.query_map(params![artist_id, start_date, end_date], |row| {
+                Ok(AvailabilitySlot {
+                    id: row.get(0)?,
+                    artist_id: row.get(1)?,
+                    day_of_week: row.get(2)?,
+                    specific_date: row.get(3)?,
+                    start_time: row.get(4)?,
+                    end_time: row.get(5)?,
+                    is_available: row.get(6)?,
+                    is_recurring: row.get(7)?,
+                    created_at: row.get(8)?,
+                })
+            })?;
+            
+            let mut slots = Vec::new();
+            for slot in availability_iter {
+                slots.push(slot?);
+            }
+            
+            Ok(slots)
+        }
+
+        match query_availability(artist_id, start_date, end_date) {
+            Ok(availability) => Ok(availability),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get availability: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn set_artist_availability(
+    availability: AvailabilityUpdate,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn update_availability(availability: AvailabilityUpdate) -> SqliteResult<()> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            conn.execute("
+                INSERT INTO artist_availability 
+                (artist_id, day_of_week, specific_date, start_time, end_time, is_available, is_recurring)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ", (
+                availability.artist_id,
+                availability.day_of_week,
+                availability.date,
+                availability.start_time,
+                availability.end_time,
+                availability.is_available,
+                availability.is_recurring,
+            ))?;
+            
+            Ok(())
+        }
+
+        match update_availability(availability) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Failed to set availability: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[server]
+pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_bookings(artist_id: i32) -> SqliteResult<Vec<BookingRequest>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            let mut stmt = conn.prepare("
+                SELECT id, artist_id, client_name, client_email, client_phone,
+                       requested_date, requested_start_time, requested_end_time,
+                       tattoo_description, placement, size_inches, reference_images,
+                       message_from_client, status, artist_response, estimated_price,
+                       created_at, updated_at
+                FROM booking_requests 
+                WHERE artist_id = ?1 
+                ORDER BY created_at DESC
+            ")?;
+            
+            let booking_iter = stmt.query_map([artist_id], |row| {
+                Ok(BookingRequest {
+                    id: row.get(0)?,
+                    artist_id: row.get(1)?,
+                    client_name: row.get(2)?,
+                    client_email: row.get(3)?,
+                    client_phone: row.get(4)?,
+                    requested_date: row.get(5)?,
+                    requested_start_time: row.get(6)?,
+                    requested_end_time: row.get(7)?,
+                    tattoo_description: row.get(8)?,
+                    placement: row.get(9)?,
+                    size_inches: row.get(10)?,
+                    reference_images: row.get(11)?,
+                    message_from_client: row.get(12)?,
+                    status: row.get(13)?,
+                    artist_response: row.get(14)?,
+                    estimated_price: row.get(15)?,
+                    created_at: row.get(16)?,
+                    updated_at: row.get(17)?,
+                })
+            })?;
+            
+            let mut bookings = Vec::new();
+            for booking in booking_iter {
+                bookings.push(booking?);
+            }
+            
+            Ok(bookings)
+        }
+
+        match query_bookings(artist_id) {
+            Ok(bookings) => Ok(bookings),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get booking requests: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct BookingResponse {
+    pub booking_id: i32,
+    pub status: String,
+    pub artist_response: Option<String>,
+    pub estimated_price: Option<f64>,
+}
+
+#[server]
+pub async fn respond_to_booking(response: BookingResponse) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn update_booking(response: BookingResponse) -> SqliteResult<()> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            conn.execute("
+                UPDATE booking_requests 
+                SET status = ?1, artist_response = ?2, estimated_price = ?3, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?4
+            ", (
+                response.status,
+                response.artist_response,
+                response.estimated_price,
+                response.booking_id,
+            ))?;
+            
+            Ok(())
+        }
+
+        match update_booking(response) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Failed to respond to booking: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NewBookingMessage {
+    pub booking_request_id: i32,
+    pub sender_type: String,
+    pub message: String,
+}
+
+#[server]
+pub async fn send_booking_message(message_data: NewBookingMessage) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn insert_message(message_data: NewBookingMessage) -> SqliteResult<()> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            conn.execute("
+                INSERT INTO booking_messages (booking_request_id, sender_type, message)
+                VALUES (?1, ?2, ?3)
+            ", (
+                message_data.booking_request_id,
+                message_data.sender_type,
+                message_data.message,
+            ))?;
+            
+            Ok(())
+        }
+
+        match insert_message(message_data) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Failed to send message: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[server]
+pub async fn get_booking_messages(booking_request_id: i32) -> Result<Vec<BookingMessage>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_messages(booking_request_id: i32) -> SqliteResult<Vec<BookingMessage>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            let mut stmt = conn.prepare("
+                SELECT id, booking_request_id, sender_type, message, created_at
+                FROM booking_messages 
+                WHERE booking_request_id = ?1 
+                ORDER BY created_at ASC
+            ")?;
+            
+            let message_iter = stmt.query_map([booking_request_id], |row| {
+                Ok(BookingMessage {
+                    id: row.get(0)?,
+                    booking_request_id: row.get(1)?,
+                    sender_type: row.get(2)?,
+                    message: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?;
+            
+            let mut messages = Vec::new();
+            for message in message_iter {
+                messages.push(message?);
+            }
+            
+            Ok(messages)
+        }
+
+        match query_messages(booking_request_id) {
+            Ok(messages) => Ok(messages),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get messages: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
     }
 }
