@@ -1,13 +1,14 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use thaw::*;
-use crate::db::entities::{BookingRequest, AvailabilitySlot, AvailabilityUpdate};
-use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability};
+use serde_json;
+use crate::db::entities::{BookingRequest, AvailabilitySlot, AvailabilityUpdate, RecurringRule};
+use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability, get_recurring_rules};
 
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
-    let artist_id = -1; // Frank Reynolds test artist
+    let artist_id = 1; // For now, hardcode artist_id as 1 - same as recurring.rs
     
     let current_year = RwSignal::new(2024);
     let current_month = RwSignal::new(8); // August
@@ -26,6 +27,14 @@ pub fn ArtistCalendar() -> impl IntoView {
             let start_date = format!("{}-{:02}-01", year, month);
             let end_date = format!("{}-{:02}-31", year, month);
             get_artist_availability(artist_id, start_date, end_date).await.unwrap_or_else(|_| vec![])
+        }
+    );
+    
+    // Resource for recurring rules
+    let recurring_rules_resource = Resource::new_blocking(
+        move || (),
+        move |_| async move {
+            get_recurring_rules(artist_id).await.unwrap_or_else(|_| vec![])
         }
     );
 
@@ -136,6 +145,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                 let days_count = days_in_month(year, month);
                                 let first_day_weekday = day_of_week(year, month, 1);
                                 let availability_data = availability_resource.get().unwrap_or_default();
+                                let recurring_rules = recurring_rules_resource.get().unwrap_or_default();
                                 let mut days = Vec::new();
                                 
                                 // Empty cells before month starts
@@ -159,9 +169,15 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         (a.day_of_week == Some(dow) && a.is_recurring)
                                     });
                                     
+                                    // Check if this day is blocked by recurring rules
+                                    let blocked_by_recurring = check_recurring_rules(&recurring_rules, year, month, day, dow);
+                                    
+                                    // Get time blocks for this day
+                                    let time_blocks = get_day_time_blocks(&recurring_rules, year, month, day, dow);
+                                    
                                     let mut day_classes = "calendar-day".to_string();
                                     
-                                    // Show default as available with visual indicator
+                                    // Determine the day's availability status
                                     if explicit_availability.is_some() {
                                         // Has explicit override
                                         day_classes.push_str(" has-explicit");
@@ -170,8 +186,11 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         } else {
                                             day_classes.push_str(" blocked");
                                         }
+                                    } else if blocked_by_recurring {
+                                        // Blocked by recurring rule
+                                        day_classes.push_str(" blocked");
                                     } else {
-                                        // Default available, may be affected by recurring rules
+                                        // Default available
                                         day_classes.push_str(" available");
                                     }
                                     
@@ -184,6 +203,26 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                     <div class="explicit-indicator" title="Explicitly set availability"></div>
                                                 }
                                             })}
+                                            
+                                            // Time blocks display
+                                            <div class="time-blocks">
+                                                {time_blocks.into_iter().map(|(name, start_time, end_time, action)| {
+                                                    let block_class = if action == "blocked" { "time-block blocked" } else { "time-block available" };
+                                                    let time_display = if let (Some(start), Some(end)) = (&start_time, &end_time) {
+                                                        format!("{}-{}", start, end)
+                                                    } else if let Some(start) = &start_time {
+                                                        format!("{}+", start)
+                                                    } else {
+                                                        "All Day".to_string()
+                                                    };
+                                                    view! {
+                                                        <div class=block_class title=format!("{}: {}", name, time_display)>
+                                                            <div class="time-block-name">{name.clone()}</div>
+                                                            <div class="time-block-time">{time_display.clone()}</div>
+                                                        </div>
+                                                    }
+                                                }).collect::<Vec<_>>()}
+                                            </div>
                                         </div>
                                     }.into_any());
                                 }
@@ -296,6 +335,51 @@ pub fn ArtistCalendar() -> impl IntoView {
     }
 }
 
+// Helper function to check if a day is blocked by recurring rules
+fn check_recurring_rules(rules: &[RecurringRule], year: i32, month: u32, day: u32, dow: i32) -> bool {
+    for rule in rules {
+        // Only check active rules that block availability
+        if !rule.active || rule.action != "blocked" {
+            continue;
+        }
+        
+        match rule.rule_type.as_str() {
+            "weekdays" => {
+                // Check if this day of week is in the blocked pattern
+                if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
+                    if days.contains(&dow) {
+                        return true;
+                    }
+                }
+            },
+            "dates" => {
+                // Check if this month/day matches any annual date
+                let date_str = format!("{:02}/{:02}", month, day);
+                if rule.pattern.contains(&date_str) {
+                    return true;
+                }
+                // Also check full month name format
+                let month_names = ["January", "February", "March", "April", "May", "June", 
+                                  "July", "August", "September", "October", "November", "December"];
+                if month > 0 && month <= 12 {
+                    let month_day = format!("{} {}", month_names[(month - 1) as usize], day);
+                    if rule.pattern.contains(&month_day) {
+                        return true;
+                    }
+                }
+            },
+            "monthly" => {
+                // Check if this day of month matches the pattern
+                if rule.pattern.contains(&day.to_string()) {
+                    return true;
+                }
+            },
+            _ => {}
+        }
+    }
+    false
+}
+
 // Helper functions for date calculations
 fn is_leap_year(year: i32) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
@@ -327,4 +411,73 @@ fn day_of_week(year: i32, month: u32, day: u32) -> u32 {
     
     // Convert to 0=Sunday format
     ((h + 5) % 7) as u32
+}
+
+// Helper function to get all applicable time blocks for a specific day
+fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32, dow: i32) -> Vec<(String, Option<String>, Option<String>, String)> {
+    let mut time_blocks = Vec::new();
+    
+    // Debug logging
+    leptos::logging::log!("get_day_time_blocks called for month={}, day={}, dow={}", month, day, dow);
+    leptos::logging::log!("Number of rules: {}", rules.len());
+    
+    for rule in rules {
+        leptos::logging::log!("Checking rule: {} (active: {}, type: {})", rule.name, rule.active, rule.rule_type);
+        
+        // Only check active rules
+        if !rule.active {
+            leptos::logging::log!("Skipping inactive rule: {}", rule.name);
+            continue;
+        }
+        
+        let applies_to_day = match rule.rule_type.as_str() {
+            "weekdays" => {
+                leptos::logging::log!("Checking weekdays rule '{}' with pattern: {}", rule.name, rule.pattern);
+                if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
+                    leptos::logging::log!("Parsed days: {:?}, checking if contains dow={}", days, dow);
+                    let applies = days.contains(&dow);
+                    leptos::logging::log!("Rule '{}' applies to day: {}", rule.name, applies);
+                    applies
+                } else {
+                    leptos::logging::log!("Failed to parse pattern: {}", rule.pattern);
+                    false
+                }
+            },
+            "dates" => {
+                // Check if this month/day matches any annual date
+                let date_str = format!("{:02}/{:02}", month, day);
+                rule.pattern.contains(&date_str) ||
+                {
+                    // Also check full month name format
+                    let month_names = ["January", "February", "March", "April", "May", "June", 
+                                      "July", "August", "September", "October", "November", "December"];
+                    if month > 0 && month <= 12 {
+                        let month_day = format!("{} {}", month_names[(month - 1) as usize], day);
+                        rule.pattern.contains(&month_day)
+                    } else {
+                        false
+                    }
+                }
+            },
+            "monthly" => {
+                // Check if this day of month matches the pattern
+                rule.pattern.contains(&day.to_string())
+            },
+            _ => false
+        };
+        
+        if applies_to_day {
+            leptos::logging::log!("Adding time block for rule: {}", rule.name);
+            // Add this rule as a time block
+            time_blocks.push((
+                rule.name.clone(),
+                rule.start_time.clone(),
+                rule.end_time.clone(),
+                rule.action.clone()
+            ));
+        }
+    }
+    
+    leptos::logging::log!("Returning {} time blocks", time_blocks.len());
+    time_blocks
 }

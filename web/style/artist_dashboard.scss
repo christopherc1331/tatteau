@@ -1458,3 +1458,77 @@
     }
   }
 }
+
+// Time Blocks Styles
+.time-blocks {
+  position: absolute;
+  top: 1.75rem;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  pointer-events: none;
+  
+  .time-block {
+    background: rgba(124, 58, 237, 0.9);
+    color: white;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    min-height: 32px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: all 0.2s ease;
+    
+    &.blocked {
+      background: rgba(239, 68, 68, 0.9);
+    }
+    
+    &.available {
+      background: rgba(16, 185, 129, 0.9);
+    }
+    
+    .time-block-name {
+      font-weight: 600;
+      font-size: 0.65rem;
+      margin-bottom: 0.125rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .time-block-time {
+      font-size: 0.6rem;
+      opacity: 0.9;
+      font-weight: 500;
+    }
+    
+    // Hover effects for better visibility
+    &:hover {
+      transform: scale(1.02);
+      z-index: 10;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+  }
+  
+  // When multiple blocks stack, make them slightly smaller
+  &:has(.time-block + .time-block) {
+    .time-block {
+      min-height: 28px;
+      padding: 0.2rem 0.4rem;
+      
+      .time-block-name {
+        font-size: 0.6rem;
+      }
+      
+      .time-block-time {
+        font-size: 0.55rem;
+      }
+    }
+  }
+}

@@ -1263,7 +1263,7 @@ pub async fn create_recurring_rule(
             Ok(conn.last_insert_rowid() as i32)
         }
 
-        match insert_recurring_rule(artist_id, name, rule_type, pattern, action, start_time, end_time) {
+        match insert_recurring_rule(artist_id, name, rule_type, pattern.clone(), action, start_time, end_time) {
             Ok(id) => Ok(id),
             Err(e) => Err(ServerFnError::new(format!("Failed to create recurring rule - Error: {} - Pattern: {} - Artist ID: {}", e, pattern, artist_id))),
         }

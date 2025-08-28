@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use thaw::*;
+use serde_json;
 use crate::server::*;
 use crate::db::entities::{RecurringRule};
 
@@ -87,9 +88,24 @@ pub fn ArtistRecurring() -> impl IntoView {
             "weekdays" => {
                 let days = selected_weekdays.get();
                 if days.is_empty() {
-                    "No days selected".to_string()
+                    "[]".to_string()
                 } else {
-                    days.join(", ")
+                    // Convert day names to numbers for JSON array
+                    let day_numbers: Vec<i32> = days.iter().map(|day| {
+                        match day.as_str() {
+                            "Sunday" => 0,
+                            "Monday" => 1,
+                            "Tuesday" => 2,
+                            "Wednesday" => 3,
+                            "Thursday" => 4,
+                            "Friday" => 5,
+                            "Saturday" => 6,
+                            _ => -1
+                        }
+                    }).filter(|&n| n != -1).collect();
+                    
+                    // Create JSON array
+                    serde_json::to_string(&day_numbers).unwrap_or_else(|_| "[]".to_string())
                 }
             },
             "dates" => selected_dates.get(),
