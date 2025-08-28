@@ -233,7 +233,15 @@ pub fn ArtistCalendar() -> impl IntoView {
                                             
                                             // Time blocks display
                                             <div class="time-blocks">
-                                                {time_blocks.into_iter().map(|(name, start_time, end_time, action)| {
+                                                {
+                                                    let max_visible_blocks = 2;
+                                                    let total_blocks = time_blocks.len();
+                                                    let visible_blocks = time_blocks.iter().take(max_visible_blocks).cloned().collect::<Vec<_>>();
+                                                    let remaining_count = if total_blocks > max_visible_blocks { total_blocks - max_visible_blocks } else { 0 };
+                                                    
+                                                    view! {
+                                                        <div class="time-blocks-container">
+                                                            {visible_blocks.into_iter().map(|(name, start_time, end_time, action)| {
                                                     let block_class = match action.as_str() {
                                                         "blocked" => "time-block blocked",
                                                         "available" => "time-block available", 
@@ -277,6 +285,19 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                         </div>
                                                     }
                                                 }).collect_view()}
+                                                            
+                                                            {if remaining_count > 0 {
+                                                                view! {
+                                                                    <div class="time-block more-indicator">
+                                                                        <div class="more-count">"+"{remaining_count}" more"</div>
+                                                                    </div>
+                                                                }.into_any()
+                                                            } else {
+                                                                view! {}.into_any()
+                                                            }}
+                                                        </div>
+                                                    }
+                                                }
                                             </div>
                                         </div>
                                     }.into_any());
@@ -289,23 +310,19 @@ pub fn ArtistCalendar() -> impl IntoView {
                         <div class="calendar-legend">
                             <div class="legend-item">
                                 <div class="legend-color available"></div>
-                                <span>"Available (default or recurring rule)"</span>
+                                <span>"Open"</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color blocked"></div>
-                                <span>"Blocked (recurring rule)"</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color has-explicit"></div>
-                                <span>"Explicit override"</span>
+                                <span>"Unavailable"</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color booking-pending"></div>
-                                <span>"Pending Request"</span>
+                                <span>"Needs Review"</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color booking-accepted"></div>
-                                <span>"Accepted Request"</span>
+                                <span>"Booked"</span>
                             </div>
                         </div>
                     </div>
@@ -328,7 +345,9 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         } else {
                                             view! {
                                                 <div class="bookings-container">
-                                                    {bookings.into_iter().map(|booking| {
+                                                    {bookings.into_iter()
+                                                        .filter(|booking| booking.status == "pending")
+                                                        .map(|booking| {
                                                         let status_class = if booking.status == "accepted" { "booking-accepted" } else { "booking-pending" };
                                                         let navigate_to_month = {
                                                             let req_date = booking.requested_date.clone();
