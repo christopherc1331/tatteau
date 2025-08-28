@@ -3,7 +3,7 @@ use leptos::server;
 use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
-use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style, AvailabilitySlot, BookingRequest, BookingMessage, AvailabilityUpdate};
+use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style, AvailabilitySlot, BookingRequest, BookingMessage, AvailabilityUpdate, RecurringRule};
 use crate::db::search_repository::{SearchResult};
 use serde::{Deserialize, Serialize};
 
@@ -1122,5 +1122,237 @@ pub async fn get_booking_messages(booking_request_id: i32) -> Result<Vec<Booking
     #[cfg(not(feature = "ssr"))]
     {
         Ok(vec![])
+    }
+}
+
+// Recurring Rule Server Functions
+
+#[server]
+pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_recurring_rules(artist_id: i32) -> SqliteResult<Vec<RecurringRule>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            // Create table if it doesn't exist
+            conn.execute("
+                CREATE TABLE IF NOT EXISTS recurring_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    artist_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    rule_type TEXT NOT NULL,
+                    pattern TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    start_time TEXT,
+                    end_time TEXT,
+                    active BOOLEAN NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (artist_id) REFERENCES artists (id)
+                )
+            ", [])?;
+            
+            let mut stmt = conn.prepare("
+                SELECT id, artist_id, name, rule_type, pattern, action, 
+                       start_time, end_time, active, created_at
+                FROM recurring_rules 
+                WHERE artist_id = ?1 
+                ORDER BY created_at DESC
+            ")?;
+            
+            let rule_iter = stmt.query_map([artist_id], |row| {
+                Ok(RecurringRule {
+                    id: row.get(0)?,
+                    artist_id: row.get(1)?,
+                    name: row.get(2)?,
+                    rule_type: row.get(3)?,
+                    pattern: row.get(4)?,
+                    action: row.get(5)?,
+                    start_time: row.get(6)?,
+                    end_time: row.get(7)?,
+                    active: row.get(8)?,
+                    created_at: row.get(9)?,
+                })
+            })?;
+            
+            let mut rules = Vec::new();
+            for rule in rule_iter {
+                rules.push(rule?);
+            }
+            
+            Ok(rules)
+        }
+
+        match query_recurring_rules(artist_id) {
+            Ok(rules) => Ok(rules),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get recurring rules: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn create_recurring_rule(
+    artist_id: i32,
+    name: String,
+    rule_type: String,
+    pattern: String,
+    action: String,
+    start_time: Option<String>,
+    end_time: Option<String>
+) -> Result<i32, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn insert_recurring_rule(
+            artist_id: i32,
+            name: String,
+            rule_type: String,
+            pattern: String,
+            action: String,
+            start_time: Option<String>,
+            end_time: Option<String>
+        ) -> SqliteResult<i32> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            let mut stmt = conn.prepare("
+                INSERT INTO recurring_rules (artist_id, name, rule_type, pattern, action, start_time, end_time)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            ")?;
+            
+            stmt.execute([
+                &artist_id.to_string(),
+                &name,
+                &rule_type,
+                &pattern,
+                &action,
+                &start_time.unwrap_or_default(),
+                &end_time.unwrap_or_default(),
+            ])?;
+            
+            Ok(conn.last_insert_rowid() as i32)
+        }
+
+        match insert_recurring_rule(artist_id, name, rule_type, pattern, action, start_time, end_time) {
+            Ok(id) => Ok(id),
+            Err(e) => Err(ServerFnError::new(format!("Failed to create recurring rule: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(0)
+    }
+}
+
+#[server]
+pub async fn update_recurring_rule(
+    id: i32,
+    name: Option<String>,
+    pattern: Option<String>,
+    action: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    active: Option<bool>
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn update_rule(
+            id: i32,
+            name: Option<String>,
+            pattern: Option<String>,
+            action: Option<String>,
+            start_time: Option<String>,
+            end_time: Option<String>,
+            active: Option<bool>
+        ) -> SqliteResult<()> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            let mut updates = Vec::new();
+            let mut params = Vec::new();
+            
+            if let Some(name) = &name {
+                updates.push("name = ?");
+                params.push(name.as_str());
+            }
+            if let Some(pattern) = &pattern {
+                updates.push("pattern = ?");
+                params.push(pattern.as_str());
+            }
+            if let Some(action) = &action {
+                updates.push("action = ?");
+                params.push(action.as_str());
+            }
+            if let Some(start_time) = &start_time {
+                updates.push("start_time = ?");
+                params.push(start_time.as_str());
+            }
+            if let Some(end_time) = &end_time {
+                updates.push("end_time = ?");
+                params.push(end_time.as_str());
+            }
+            if let Some(active) = active {
+                updates.push("active = ?");
+                params.push(if active { "1" } else { "0" });
+            }
+            
+            if updates.is_empty() {
+                return Ok(());
+            }
+            
+            let sql = format!("UPDATE recurring_rules SET {} WHERE id = ?", updates.join(", "));
+            let id_string = id.to_string();
+            params.push(&id_string);
+            
+            conn.execute(&sql, rusqlite::params_from_iter(params))?;
+            Ok(())
+        }
+
+        match update_rule(id, name, pattern, action, start_time, end_time, active) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Failed to update recurring rule: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[server]
+pub async fn delete_recurring_rule(rule_id: i32) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn delete_rule(rule_id: i32) -> SqliteResult<()> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            conn.execute("DELETE FROM recurring_rules WHERE id = ?1", [rule_id])?;
+            Ok(())
+        }
+
+        match delete_rule(rule_id) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Failed to delete recurring rule: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
     }
 }

@@ -147,3 +147,39 @@ pub struct AvailabilityUpdate {
     pub is_available: bool,
     pub is_recurring: bool,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RecurringRule {
+    pub id: i32,
+    pub artist_id: i32,
+    pub name: String,
+    pub rule_type: String, // "weekdays", "dates", "monthly"
+    pub pattern: String, // JSON string for flexible pattern storage
+    pub action: String, // "available" or "blocked"
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub active: bool,
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CreateRecurringRule {
+    pub artist_id: i32,
+    pub name: String,
+    pub rule_type: String,
+    pub pattern: String,
+    pub action: String,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateRecurringRule {
+    pub id: i32,
+    pub name: Option<String>,
+    pub pattern: Option<String>,
+    pub action: Option<String>,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub active: Option<bool>,
+}

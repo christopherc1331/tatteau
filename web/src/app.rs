@@ -8,7 +8,7 @@ use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::masonry_gallery::MasonryGallery;
-use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings};
+use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::home::HomePage;
@@ -76,6 +76,7 @@ pub fn App() -> impl IntoView {
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ArtistCalendar/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ArtistRequests/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ArtistSettings/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ArtistRecurring/>
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
                         <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
