@@ -1138,6 +1138,9 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
             
+            // Disable foreign key constraints
+            conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+            
             // Create table if it doesn't exist
             conn.execute("
                 CREATE TABLE IF NOT EXISTS recurring_rules (
@@ -1149,9 +1152,8 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
                     action TEXT NOT NULL,
                     start_time TEXT,
                     end_time TEXT,
-                    active BOOLEAN NOT NULL DEFAULT 1,
-                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (artist_id) REFERENCES artists (id)
+                    active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ", [])?;
             
@@ -1224,6 +1226,25 @@ pub async fn create_recurring_rule(
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
             
+            // Disable foreign key constraints
+            conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+            
+            // Create recurring_rules table if it doesn't exist
+            conn.execute("
+                CREATE TABLE IF NOT EXISTS recurring_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    artist_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    rule_type TEXT NOT NULL,
+                    pattern TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    start_time TEXT,
+                    end_time TEXT,
+                    active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ", [])?;
+            
             let mut stmt = conn.prepare("
                 INSERT INTO recurring_rules (artist_id, name, rule_type, pattern, action, start_time, end_time)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -1244,7 +1265,7 @@ pub async fn create_recurring_rule(
 
         match insert_recurring_rule(artist_id, name, rule_type, pattern, action, start_time, end_time) {
             Ok(id) => Ok(id),
-            Err(e) => Err(ServerFnError::new(format!("Failed to create recurring rule: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!("Failed to create recurring rule - Error: {} - Pattern: {} - Artist ID: {}", e, pattern, artist_id))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1328,6 +1349,134 @@ pub async fn update_recurring_rule(
     #[cfg(not(feature = "ssr"))]
     {
         Ok(())
+    }
+}
+
+#[server]
+pub async fn get_effective_availability(
+    artist_id: i32,
+    date: String
+) -> Result<bool, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+        use chrono::{NaiveDate, Weekday, Datelike};
+
+        fn check_effective_availability(artist_id: i32, date: String) -> SqliteResult<bool> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+            
+            // Create recurring_rules table if it doesn't exist
+            conn.execute("
+                CREATE TABLE IF NOT EXISTS recurring_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    artist_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    rule_type TEXT NOT NULL,
+                    pattern TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    start_time TEXT,
+                    end_time TEXT,
+                    active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ", [])?;
+            
+            // First check if there's an explicit availability record for this date
+            let mut stmt = conn.prepare("
+                SELECT is_available FROM availability_slots 
+                WHERE artist_id = ?1 AND specific_date = ?2
+            ")?;
+            
+            let mut rows = stmt.query_map([&artist_id.to_string(), &date], |row| {
+                Ok(row.get::<_, bool>(0)?)
+            })?;
+            
+            if let Some(explicit_availability) = rows.next() {
+                return explicit_availability;
+            }
+            
+            // No explicit record, check recurring rules
+            let parsed_date = match NaiveDate::parse_from_str(&date, "%Y-%m-%d") {
+                Ok(d) => d,
+                Err(_) => return Ok(true), // Default to available if date parsing fails
+            };
+            
+            // Get all active recurring rules for this artist
+            let mut rules_stmt = conn.prepare("
+                SELECT rule_type, pattern, action FROM recurring_rules 
+                WHERE artist_id = ?1 AND active = 1
+            ")?;
+            
+            let rules = rules_stmt.query_map([&artist_id.to_string()], |row| {
+                Ok((
+                    row.get::<_, String>(0)?, // rule_type
+                    row.get::<_, String>(1)?, // pattern
+                    row.get::<_, String>(2)?, // action
+                ))
+            })?;
+            
+            for rule_result in rules {
+                let (rule_type, pattern, action) = rule_result?;
+                
+                let matches = match rule_type.as_str() {
+                    "weekdays" => {
+                        let weekday_num = match parsed_date.weekday() {
+                            Weekday::Sun => 0,
+                            Weekday::Mon => 1,
+                            Weekday::Tue => 2,
+                            Weekday::Wed => 3,
+                            Weekday::Thu => 4,
+                            Weekday::Fri => 5,
+                            Weekday::Sat => 6,
+                        };
+                        let weekday_name = match weekday_num {
+                            0 => "Sunday",
+                            1 => "Monday", 
+                            2 => "Tuesday",
+                            3 => "Wednesday",
+                            4 => "Thursday",
+                            5 => "Friday",
+                            6 => "Saturday",
+                            _ => "",
+                        };
+                        pattern.contains(weekday_name)
+                    },
+                    "dates" => {
+                        let month_day = parsed_date.format("%B %e").to_string().trim().to_string();
+                        pattern.contains(&month_day)
+                    },
+                    "monthly" => {
+                        // Simple pattern matching for common monthly patterns
+                        if pattern.contains("1st") && parsed_date.day() <= 7 {
+                            let first_weekday_of_month = parsed_date.with_day(1).unwrap().weekday();
+                            let target_day = parsed_date.weekday();
+                            (parsed_date.day() - 1) / 7 == 0 && first_weekday_of_month == target_day
+                        } else {
+                            false // More complex patterns would need more parsing
+                        }
+                    },
+                    _ => false
+                };
+                
+                if matches {
+                    return Ok(action == "available");
+                }
+            }
+            
+            // Default to available if no rules match
+            Ok(true)
+        }
+
+        match check_effective_availability(artist_id, date) {
+            Ok(is_available) => Ok(is_available),
+            Err(e) => Err(ServerFnError::new(format!("Failed to check effective availability: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(true)
     }
 }
 

@@ -1386,9 +1386,75 @@
     height: 8px;
     border-radius: 50%;
     background: #10b981;
+    
+    &.blocked {
+      background: #ef4444;
+    }
+    
+    &.loading {
+      background: #9ca3af;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
   }
   
-  &.blocked .availability-indicator {
-    background: #ef4444;
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  .explicit-indicator {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f97316;
+    border: 1px solid white;
+  }
+  
+  &.has-explicit {
+    border: 2px solid #f97316;
+  }
+  
+  &.blocked {
+    background-color: rgba(239, 68, 68, 0.1);
+    
+    .availability-indicator {
+      background: #ef4444;
+    }
+  }
+  
+  &.available {
+    background-color: rgba(16, 185, 129, 0.1);
+    
+    .availability-indicator {
+      background: #10b981;
+    }
+  }
+}
+
+// Legend colors
+.calendar-legend {
+  .legend-color {
+    &.available {
+      background: #10b981;
+    }
+    
+    &.blocked {
+      background: #ef4444;
+    }
+    
+    &.has-explicit {
+      background: #f97316;
+    }
+    
+    &.has-request {
+      background: #8b5cf6;
+    }
   }
 }

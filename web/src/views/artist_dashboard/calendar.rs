@@ -2,7 +2,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use thaw::*;
 use crate::db::entities::{BookingRequest, AvailabilitySlot, AvailabilityUpdate};
-use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability};
+use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability};
+
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
@@ -152,31 +153,37 @@ pub fn ArtistCalendar() -> impl IntoView {
                                     let date_str = format!("{}-{:02}-{:02}", year, month, day);
                                     let dow = day_of_week(year, month, day) as i32;
                                     
-                                    // Check if this day has availability settings
-                                    let day_availability = availability_data.iter().find(|a| {
+                                    // Check if this day has explicit availability settings
+                                    let explicit_availability = availability_data.iter().find(|a| {
                                         (a.specific_date.as_ref() == Some(&date_str)) || 
                                         (a.day_of_week == Some(dow) && a.is_recurring)
                                     });
                                     
                                     let mut day_classes = "calendar-day".to_string();
-                                    if let Some(avail) = day_availability {
-                                        if avail.is_available {
+                                    
+                                    // Show default as available with visual indicator
+                                    if explicit_availability.is_some() {
+                                        // Has explicit override
+                                        day_classes.push_str(" has-explicit");
+                                        if explicit_availability.as_ref().unwrap().is_available {
                                             day_classes.push_str(" available");
                                         } else {
                                             day_classes.push_str(" blocked");
                                         }
+                                    } else {
+                                        // Default available, may be affected by recurring rules
+                                        day_classes.push_str(" available");
                                     }
                                     
                                     days.push(view! {
                                         <div class=day_classes on:click=move |_| handle_day_click(year, month, day)>
-                                            <span class="day-number">{day_str}</span>
-                                            {if day_availability.is_some() {
-                                                Some(view! {
-                                                    <div class="availability-indicator"></div>
-                                                })
-                                            } else {
-                                                None
-                                            }}
+                                            <span class="day-number">{day.to_string()}</span>
+                                            <div class="availability-indicator"></div>
+                                            {explicit_availability.as_ref().map(|_| {
+                                                view! {
+                                                    <div class="explicit-indicator" title="Explicitly set availability"></div>
+                                                }
+                                            })}
                                         </div>
                                     }.into_any());
                                 }
@@ -188,11 +195,15 @@ pub fn ArtistCalendar() -> impl IntoView {
                         <div class="calendar-legend">
                             <div class="legend-item">
                                 <div class="legend-color available"></div>
-                                <span>"Available"</span>
+                                <span>"Available (default or recurring rule)"</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color blocked"></div>
-                                <span>"Blocked"</span>
+                                <span>"Blocked (recurring rule)"</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color has-explicit"></div>
+                                <span>"Explicit override"</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color has-request"></div>
@@ -230,13 +241,17 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         <div class="availability-form">
                                             <h3>{format!("Setting availability for {}/{}/{}", month, day, year)}</h3>
                                             
+                                            <div class="availability-note">
+                                                <p><strong>"Note:"</strong>" Days are available by default. You can override this for specific dates or use recurring rules to set patterns."</p>
+                                            </div>
+                                            
                                             <div class="form-group">
                                                 <label>"Availability Type:"</label>
                                                 <RadioGroup value=availability_mode>
                                                     <Radio value="available" />
-                                                    <label>"Available"</label>
+                                                    <label>"Available (explicit override)"</label>
                                                     <Radio value="blocked" />
-                                                    <label>"Blocked"</label>
+                                                    <label>"Blocked (explicit override)"</label>
                                                 </RadioGroup>
                                             </div>
                                             
