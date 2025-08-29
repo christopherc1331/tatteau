@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use crate::utils::timezone::{format_time_with_timezone, format_time_range_with_timezone};
 
 #[derive(Clone, Debug)]
 pub struct TimeBlockData {
@@ -24,6 +25,8 @@ pub fn TimeBlock(
         _ => "time-block available"
     };
 
+    let timezone_signal = crate::utils::timezone::get_timezone_abbreviation();
+    
     view! {
         <div class=action_class 
              on:click=move |e: web_sys::MouseEvent| {
@@ -36,6 +39,21 @@ pub fn TimeBlock(
                  }
              }>
             <div class="time-block-name">{block.name}</div>
+            {match (&block.start_time, &block.end_time) {
+                (Some(start), Some(end)) => {
+                    let formatted_time = format_time_range_with_timezone(start, Some(end), timezone_signal);
+                    view! {
+                        <div class="time-block-time">{formatted_time}</div>
+                    }.into_any()
+                },
+                (Some(start), None) => {
+                    let formatted_time = format_time_with_timezone(start, timezone_signal);
+                    view! {
+                        <div class="time-block-time">{formatted_time}</div>
+                    }.into_any()
+                },
+                _ => view! {}.into_any()
+            }}
         </div>
     }
 }

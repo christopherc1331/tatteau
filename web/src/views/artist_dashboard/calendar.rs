@@ -406,21 +406,15 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                         .filter(|booking| booking.status == "pending")
                                                         .map(|booking| {
                                                         let status_class = if booking.status == "accepted" { "booking-accepted" } else { "booking-pending" };
-                                                        let navigate_to_month = {
-                                                            let req_date = booking.requested_date.clone();
-                                                            move |_| {
-                                                                // Parse date and navigate to that month
-                                                                let parts: Vec<&str> = req_date.split('-').collect();
-                                                                if parts.len() >= 2 {
-                                                                    if let (Ok(year), Ok(month)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>()) {
-                                                                        current_year.set(year);
-                                                                        current_month.set(month);
-                                                                    }
-                                                                }
+                                                        let booking_id = booking.id;
+                                                        let navigate_to_booking = move |_| {
+                                                            if let Some(window) = web_sys::window() {
+                                                                let location = window.location();
+                                                                let _ = location.set_href(&format!("/artist/dashboard/booking/{}", booking_id));
                                                             }
                                                         };
                                                         view! {
-                                                            <div class=format!("booking-item {}", status_class) on:click=navigate_to_month>
+                                                            <div class=format!("booking-item {}", status_class) on:click=navigate_to_booking>
                                                                 <div class="booking-client">{booking.client_name.clone()}</div>
                                                                 <div class="booking-date">{booking.requested_date.clone()}</div>
                                                                 <div class="booking-time">

@@ -8,7 +8,7 @@ use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::masonry_gallery::MasonryGallery;
-use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring};
+use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::home::HomePage;
@@ -77,6 +77,7 @@ pub fn App() -> impl IntoView {
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ArtistRequests/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ArtistSettings/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ArtistRecurring/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=BookingDetailsPage/>
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
                         <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
@@ -109,5 +110,23 @@ fn StylesPage() -> impl IntoView {
 fn GalleryPage() -> impl IntoView {
     view! {
         <MasonryGallery/>
+    }
+}
+
+/// Renders the booking details page
+#[component]
+fn BookingDetailsPage() -> impl IntoView {
+    let params = leptos_router::hooks::use_params_map();
+    let booking_id = move || {
+        params.get().get("id")
+            .and_then(|id| id.parse::<i32>().ok())
+            .unwrap_or(0)
+    };
+    
+    // Get the booking_id once at component creation time
+    let id = booking_id();
+    
+    view! {
+        <BookingDetails booking_id=id />
     }
 }
