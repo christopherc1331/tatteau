@@ -183,3 +183,24 @@ pub struct UpdateRecurringRule {
     pub end_time: Option<String>,
     pub active: Option<bool>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BusinessHours {
+    pub id: i32,
+    pub artist_id: i32,
+    pub day_of_week: i32, // 0=Sunday, 1=Monday, ..., 6=Saturday
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub is_closed: bool,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateBusinessHours {
+    pub artist_id: i32,
+    pub day_of_week: i32,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub is_closed: bool,
+}

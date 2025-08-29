@@ -1561,3 +1561,92 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
         Err(ServerFnError::new("Not available on client".to_string()))
     }
 }
+
+#[server]
+pub async fn get_business_hours(artist_id: i32) -> Result<Vec<crate::db::entities::BusinessHours>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, params};
+        use std::path::Path;
+        use crate::db::entities::BusinessHours;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path).map_err(|e| {
+            ServerFnError::new(format!("Database connection error: {}", e))
+        })?;
+
+        let mut stmt = conn.prepare("
+            SELECT id, artist_id, day_of_week, start_time, end_time, is_closed, created_at, updated_at
+            FROM business_hours
+            WHERE artist_id = ?1
+            ORDER BY day_of_week
+        ").map_err(|e| {
+            ServerFnError::new(format!("Failed to prepare statement: {}", e))
+        })?;
+
+        let hours = stmt.query_map(params![artist_id], |row| {
+            Ok(BusinessHours {
+                id: row.get(0)?,
+                artist_id: row.get(1)?,
+                day_of_week: row.get(2)?,
+                start_time: row.get(3)?,
+                end_time: row.get(4)?,
+                is_closed: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        }).map_err(|e| {
+            ServerFnError::new(format!("Failed to query business hours: {}", e))
+        })?;
+
+        let mut result = Vec::new();
+        for hour in hours {
+            match hour {
+                Ok(hour_info) => result.push(hour_info),
+                Err(e) => return Err(ServerFnError::new(format!("Row error: {}", e))),
+            }
+        }
+
+        Ok(result)
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn update_business_hours(hours: Vec<crate::db::entities::UpdateBusinessHours>) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, params};
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path).map_err(|e| {
+            ServerFnError::new(format!("Database connection error: {}", e))
+        })?;
+
+        for hour in hours {
+            conn.execute(
+                "INSERT OR REPLACE INTO business_hours (artist_id, day_of_week, start_time, end_time, is_closed, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP)",
+                params![
+                    hour.artist_id,
+                    hour.day_of_week,
+                    hour.start_time,
+                    hour.end_time,
+                    hour.is_closed
+                ],
+            ).map_err(|e| {
+                ServerFnError::new(format!("Failed to update business hours: {}", e))
+            })?;
+        }
+
+        Ok(())
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}

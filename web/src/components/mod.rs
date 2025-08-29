@@ -9,6 +9,7 @@ pub mod location_search;
 pub mod masonry_gallery;
 pub mod shop_masonry_gallery;
 pub mod tattoo_gallery;
+pub mod time_picker;
 
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
@@ -19,3 +20,4 @@ pub use instagram_posts_grid::InstagramPostsGrid;
 pub use masonry_gallery::MasonryGallery;
 pub use shop_masonry_gallery::ShopMasonryGallery;
 pub use tattoo_gallery::TattooGallery;
+pub use time_picker::TimePicker;

@@ -3,15 +3,48 @@ use leptos::task::spawn_local;
 use thaw::*;
 use serde_json;
 use crate::db::entities::{BookingRequest, AvailabilitySlot, AvailabilityUpdate, RecurringRule};
-use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability, get_recurring_rules};
+use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability, get_recurring_rules, get_business_hours};
+use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone, convert_to_12_hour_format};
 
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
     let artist_id = 1; // For now, hardcode artist_id as 1 - same as recurring.rs
     
+    // Initialize with current date (will update client-side)
     let current_year = RwSignal::new(2024);
-    let current_month = RwSignal::new(8); // August
+    let current_month = RwSignal::new(8); // Default fallback
+    
+    // Update to actual current date on client side
+    Effect::new(move |_| {
+        #[cfg(feature = "hydrate")]
+        {
+            use wasm_bindgen::prelude::*;
+            
+            #[wasm_bindgen]
+            extern "C" {
+                #[wasm_bindgen(js_name = eval)]
+                fn js_eval(code: &str) -> JsValue;
+            }
+            
+            // Get current year and month from JavaScript Date
+            if let Ok(year_result) = std::panic::catch_unwind(|| {
+                js_eval("new Date().getFullYear()")
+            }) {
+                if let Some(year) = year_result.as_f64() {
+                    current_year.set(year as i32);
+                }
+            }
+            
+            if let Ok(month_result) = std::panic::catch_unwind(|| {
+                js_eval("new Date().getMonth() + 1") // JavaScript months are 0-indexed
+            }) {
+                if let Some(month) = month_result.as_f64() {
+                    current_month.set(month as u32);
+                }
+            }
+        }
+    });
     let show_sidebar = RwSignal::new(true);
     let selected_date = RwSignal::new(None::<(i32, u32, u32)>);
     let show_availability_modal = RwSignal::new(false);
@@ -19,6 +52,15 @@ pub fn ArtistCalendar() -> impl IntoView {
     let start_time = RwSignal::new("09:00".to_string());
     let end_time = RwSignal::new("17:00".to_string());
     
+    // Get client timezone
+    let timezone_signal = get_timezone_abbreviation();
+    
+    // Modal state for showing more events
+    let show_more_events_modal = RwSignal::new(false);
+    let more_events_data = RwSignal::new(Vec::<(String, Option<String>, Option<String>, String)>::new());
+    let more_events_date = RwSignal::new(String::new());
+    // let (modal_date, set_modal_date) = signal(String::new());
+    // let (modal_events, set_modal_events) = signal::<Vec<(String, Option<String>, Option<String>, String)>>(vec![]);
     
     // Resource for availability data
     let availability_resource = Resource::new_blocking(
@@ -45,6 +87,7 @@ pub fn ArtistCalendar() -> impl IntoView {
             get_booking_requests(artist_id).await.unwrap_or_else(|_| vec![])
         }
     );
+
 
     let navigate_month = move |direction: i32| {
         if direction > 0 {
@@ -203,6 +246,16 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         ));
                                     }
                                     
+                                    // Sort time blocks by start time (ascending order)
+                                    time_blocks.sort_by(|a, b| {
+                                        match (&a.1, &b.1) {
+                                            (Some(start_a), Some(start_b)) => start_a.cmp(start_b),
+                                            (Some(_), None) => std::cmp::Ordering::Less, // Times before "All Day"
+                                            (None, Some(_)) => std::cmp::Ordering::Greater, // "All Day" after times
+                                            (None, None) => std::cmp::Ordering::Equal, // Both "All Day"
+                                        }
+                                    });
+                                    
                                     let mut day_classes = "calendar-day".to_string();
                                     
                                     // Determine the day's availability status
@@ -234,64 +287,97 @@ pub fn ArtistCalendar() -> impl IntoView {
                                             // Time blocks display
                                             <div class="time-blocks">
                                                 {
-                                                    let max_visible_blocks = 2;
                                                     let total_blocks = time_blocks.len();
+                                                    let max_visible_blocks = if total_blocks <= 3 { total_blocks } else { 3 };
                                                     let visible_blocks = time_blocks.iter().take(max_visible_blocks).cloned().collect::<Vec<_>>();
                                                     let remaining_count = if total_blocks > max_visible_blocks { total_blocks - max_visible_blocks } else { 0 };
+                                                    let all_blocks_for_tooltip = time_blocks.clone();
                                                     
                                                     view! {
-                                                        <div class="time-blocks-container">
-                                                            {visible_blocks.into_iter().map(|(name, start_time, end_time, action)| {
-                                                    let block_class = match action.as_str() {
-                                                        "blocked" => "time-block blocked",
-                                                        "available" => "time-block available", 
-                                                        "accepted" => "time-block booking-accepted clickable",
-                                                        "pending" => "time-block booking-pending clickable",
-                                                        _ => "time-block available"
-                                                    };
-                                                    let time_display = if start_time.is_none() && end_time.is_none() {
-                                                        "All Day".to_string()
-                                                    } else if let (Some(start), Some(end)) = (&start_time, &end_time) {
-                                                        format!("{}-{}", start, end)
-                                                    } else if let Some(start) = &start_time {
-                                                        format!("{}+", start)
-                                                    } else {
-                                                        "All Day".to_string()
-                                                    };
-                                                    
-                                                    // Find booking ID for this time block if it's a booking request
-                                                    let booking_id = if action == "accepted" || action == "pending" {
-                                                        day_booking_requests.iter().find(|req| req.client_name == name).map(|req| req.id)
-                                                    } else {
-                                                        None
-                                                    };
-                                                    
-                                                    let handle_block_click = move |e: web_sys::Event| {
-                                                        e.stop_propagation();
-                                                        if let Some(id) = booking_id {
-                                                            // Navigate to booking details page
-                                                            if let Some(window) = web_sys::window() {
-                                                                let location = window.location();
-                                                                let _ = location.set_href(&format!("/artist/dashboard/booking/{}", id));
+                                                        <div class="time-blocks-container" 
+                                                             title={if total_blocks > max_visible_blocks { 
+                                                                 format!("Total {} appointments/blocks", total_blocks) 
+                                                             } else { 
+                                                                 String::new() 
+                                                             }}>
+                                                            {
+                                                                visible_blocks.into_iter().map(|(name, start_time, end_time, action)| {
+                                                                    let block_class = match action.as_str() {
+                                                                        "blocked" => "time-block blocked",
+                                                                        "available" => "time-block available", 
+                                                                        "accepted" => "time-block booking-accepted clickable",
+                                                                        "pending" => "time-block booking-pending clickable",
+                                                                        _ => "time-block available"
+                                                                    };
+                                                                    let time_display = if start_time.is_none() && end_time.is_none() {
+                                                                        format_time_with_timezone("All Day", timezone_signal)
+                                                                    } else if let (Some(start), Some(end)) = (&start_time, &end_time) {
+                                                                        format_time_range_with_timezone(start, Some(end), timezone_signal)
+                                                                    } else if let Some(start) = &start_time {
+                                                                        format_time_with_timezone(&format!("{}+", start), timezone_signal)
+                                                                    } else {
+                                                                        format_time_with_timezone("All Day", timezone_signal)
+                                                                    };
+                                                                    
+                                                                    view! {
+                                                                        <div class=block_class 
+                                                                             title=format!("{}: {}", name, time_display)
+                                                                             on:click=|e| e.stop_propagation()>
+                                                                            {
+                                                                                if total_blocks <= 3 {
+                                                                                    view! {
+                                                                                        <div class="time-block-name">{name.clone()}</div>
+                                                                                        <div class="time-block-time">{time_display.clone()}</div>
+                                                                                    }.into_any()
+                                                                                } else {
+                                                                                    view! {
+                                                                                        <div class="time-block-time-only">{time_display.clone()}</div>
+                                                                                    }.into_any()
+                                                                                }
+                                                                            }
+                                                                        </div>
+                                                                    }
+                                                                }).collect_view()
                                                             }
-                                                        }
-                                                    };
-                                                    
-                                                    view! {
-                                                        <div class=block_class 
-                                                             title=format!("{}: {}", name, time_display)>
-                                                            <div class="time-block-name">{name.clone()}</div>
-                                                            <div class="time-block-time">{time_display.clone()}</div>
-                                                        </div>
-                                                    }
-                                                }).collect_view()}
                                                             
                                                             {if remaining_count > 0 {
-                                                                view! {
-                                                                    <div class="time-block more-indicator">
-                                                                        <div class="more-count">"+"{remaining_count}" more"</div>
-                                                                    </div>
-                                                                }.into_any()
+                                                                let tooltip_content = all_blocks_for_tooltip.iter()
+                                                                    .skip(max_visible_blocks)
+                                                                    .map(|(name, start_time, end_time, action)| {
+                                                                        let time_str = if start_time.is_none() && end_time.is_none() {
+                                                                            format_time_with_timezone("All Day", timezone_signal)
+                                                                        } else if let (Some(start), Some(end)) = (start_time, end_time) {
+                                                                            format_time_range_with_timezone(start, Some(end), timezone_signal)
+                                                                        } else if let Some(start) = start_time {
+                                                                            format_time_with_timezone(&format!("{}+", start), timezone_signal)
+                                                                        } else {
+                                                                            format_time_with_timezone("All Day", timezone_signal)
+                                                                        };
+                                                                        format!("{}: {}", name, time_str)
+                                                                    })
+                                                                    .collect::<Vec<_>>()
+                                                                    .join("\n");
+                                                                    
+                                                                {
+                                                                    let remaining_events = all_blocks_for_tooltip.iter()
+                                                                        .skip(max_visible_blocks)
+                                                                        .cloned()
+                                                                        .collect::<Vec<_>>();
+                                                                    let day_date = format!("{}-{:02}-{:02}", year, month, day);
+                                                                    
+                                                                    view! {
+                                                                        <div class="time-block more-indicator" 
+                                                                             title=tooltip_content
+                                                                             on:click=move |e| {
+                                                                                 e.stop_propagation();
+                                                                                 more_events_data.set(remaining_events.clone());
+                                                                                 more_events_date.set(day_date.clone());
+                                                                                 show_more_events_modal.set(true);
+                                                                             }>
+                                                                            <div class="more-count">"+"{remaining_count}" more"</div>
+                                                                        </div>
+                                                                    }.into_any()
+                                                                }
                                                             } else {
                                                                 view! {}.into_any()
                                                             }}
@@ -330,11 +416,12 @@ pub fn ArtistCalendar() -> impl IntoView {
                 
                 <Show when=move || show_sidebar.get()>
                     <div class="calendar-sidebar">
-                        <div class="sidebar-header">
-                            <h3>"Booking Requests"</h3>
-                        </div>
+                        <div class="sidebar-section">
+                            <div class="sidebar-header">
+                                <h3>"Pending Booking Requests"</h3>
+                            </div>
                         
-                        <div class="booking-list">
+                            <div class="booking-list">
                             <Suspense fallback=move || view! { <div>"Loading booking requests..."</div> }>
                                 {move || {
                                     booking_requests_resource.get().map(|bookings| {
@@ -367,13 +454,10 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                                 <div class="booking-client">{booking.client_name.clone()}</div>
                                                                 <div class="booking-date">{booking.requested_date.clone()}</div>
                                                                 <div class="booking-time">
-                                                                    {booking.requested_start_time.clone()}
-                                                                    {booking.requested_end_time.as_ref().map(|end| format!(" - {}", end)).unwrap_or_default()}
+                                                                    {format_time_range_with_timezone(&booking.requested_start_time, booking.requested_end_time.as_deref(), timezone_signal)}
                                                                 </div>
                                                                 <div class="booking-tattoo">{booking.tattoo_description.clone().unwrap_or_else(|| "No description".to_string())}</div>
-                                                                <div class=format!("booking-status {}", booking.status.clone())>
-                                                                    {if booking.status == "accepted" { "✅ Accepted" } else { "⏳ Pending" }}
-                                                                </div>
+                                                                <div class="booking-placement">{format!("📍 {}", booking.placement.clone().unwrap_or_else(|| "Placement not specified".to_string()))}</div>
                                                             </div>
                                                         }
                                                     }).collect_view()}
@@ -383,6 +467,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                     })
                                 }}
                             </Suspense>
+                            </div>
                         </div>
                     </div>
                 </Show>
@@ -450,6 +535,52 @@ pub fn ArtistCalendar() -> impl IntoView {
                                     }.into_any()
                                 }
                             }}
+                        </div>
+                    </div>
+                </div>
+            </Show>
+            
+            // Modal for showing more events in a day
+            <Show when=move || show_more_events_modal.get()>
+                <div class="modal-backdrop" on:click=move |_| show_more_events_modal.set(false)>
+                    <div class="day-events-modal" on:click=|e| e.stop_propagation()>
+                        <div class="modal-header">
+                            <h2>"Events for " {move || more_events_date.get()}</h2>
+                            <button class="modal-close" on:click=move |_| show_more_events_modal.set(false)>
+                                "×"
+                            </button>
+                        </div>
+                        <div class="modal-content">
+                            <div class="events-list">
+                                {move || {
+                                    more_events_data.get().into_iter().map(|(name, start_time, end_time, action)| {
+                                        let time_str = if start_time.is_none() && end_time.is_none() {
+                                            format_time_with_timezone("All Day", timezone_signal)
+                                        } else if let (Some(start), Some(end)) = (&start_time, &end_time) {
+                                            format_time_range_with_timezone(start, Some(end), timezone_signal)
+                                        } else if let Some(start) = &start_time {
+                                            format_time_with_timezone(&format!("{}+", start), timezone_signal)
+                                        } else {
+                                            format_time_with_timezone("All Day", timezone_signal)
+                                        };
+                                        
+                                        let event_class = match action.as_str() {
+                                            "blocked" => "event-item blocked",
+                                            "available" => "event-item available",
+                                            "accepted" => "event-item booking-accepted",
+                                            "pending" => "event-item booking-pending",
+                                            _ => "event-item"
+                                        };
+                                        
+                                        view! {
+                                            <div class=event_class>
+                                                <div class="event-name">{name}</div>
+                                                <div class="event-time">{time_str}</div>
+                                            </div>
+                                        }
+                                    }).collect_view()
+                                }}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -585,29 +716,18 @@ fn day_of_week(year: i32, month: u32, day: u32) -> u32 {
 fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32, dow: i32) -> Vec<(String, Option<String>, Option<String>, String)> {
     let mut time_blocks = Vec::new();
     
-    // Debug logging
-    leptos::logging::log!("get_day_time_blocks called for month={}, day={}, dow={}", month, day, dow);
-    leptos::logging::log!("Number of rules: {}", rules.len());
     
     for rule in rules {
-        leptos::logging::log!("Checking rule: {} (active: {}, type: {})", rule.name, rule.active, rule.rule_type);
-        
         // Only check active rules
         if !rule.active {
-            leptos::logging::log!("Skipping inactive rule: {}", rule.name);
             continue;
         }
         
         let applies_to_day = match rule.rule_type.as_str() {
             "weekdays" => {
-                leptos::logging::log!("Checking weekdays rule '{}' with pattern: {}", rule.name, rule.pattern);
                 if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
-                    leptos::logging::log!("Parsed days: {:?}, checking if contains dow={}", days, dow);
-                    let applies = days.contains(&dow);
-                    leptos::logging::log!("Rule '{}' applies to day: {}", rule.name, applies);
-                    applies
+                    days.contains(&dow)
                 } else {
-                    leptos::logging::log!("Failed to parse pattern: {}", rule.pattern);
                     false
                 }
             },
@@ -635,7 +755,6 @@ fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32
         };
         
         if applies_to_day {
-            leptos::logging::log!("Adding time block for rule: {}", rule.name);
             // Add this rule as a time block
             time_blocks.push((
                 rule.name.clone(),
@@ -646,6 +765,5 @@ fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32
         }
     }
     
-    leptos::logging::log!("Returning {} time blocks", time_blocks.len());
     time_blocks
 }
