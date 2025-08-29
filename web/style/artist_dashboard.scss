@@ -530,11 +530,20 @@
             
             .event-item {
                 display: flex;
-                justify-content: space-between;
-                align-items: center;
+                flex-direction: column;
                 padding: 0.75rem;
                 border-radius: 8px;
                 border: 1px solid #e5e7eb;
+                transition: all 0.2s ease;
+                
+                &.clickable {
+                    cursor: pointer;
+                    
+                    &:hover {
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+                    }
+                }
                 
                 &.available {
                     background: #f0f9ff;
@@ -556,6 +565,13 @@
                     border-color: #10b981;
                 }
                 
+                .event-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 0.5rem;
+                }
+                
                 .event-name {
                     font-weight: 600;
                     color: #374151;
@@ -564,6 +580,16 @@
                 .event-time {
                     font-size: 0.875rem;
                     color: #6b7280;
+                }
+                
+                .event-tattoo {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                    font-style: italic;
+                    background: rgba(0,0,0,0.05);
+                    padding: 0.375rem 0.5rem;
+                    border-radius: 4px;
+                    margin-top: 0.25rem;
                 }
             }
         }

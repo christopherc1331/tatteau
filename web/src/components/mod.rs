@@ -10,6 +10,8 @@ pub mod masonry_gallery;
 pub mod shop_masonry_gallery;
 pub mod tattoo_gallery;
 pub mod time_picker;
+pub mod time_block;
+pub mod event_item;
 
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
@@ -21,3 +23,5 @@ pub use masonry_gallery::MasonryGallery;
 pub use shop_masonry_gallery::ShopMasonryGallery;
 pub use tattoo_gallery::TattooGallery;
 pub use time_picker::TimePicker;
+pub use time_block::{TimeBlock, TimeBlockData};
+pub use event_item::{EventItem, EventItemData};
