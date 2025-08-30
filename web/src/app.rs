@@ -57,6 +57,9 @@ pub fn App() -> impl IntoView {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/web.css"/>
+        
+        // booking details page styles
+        <Stylesheet id="booking-details" href="/style/booking_details.css"/>
 
         // sets the document title
         <Title text="tatteau"/>
