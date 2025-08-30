@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct LocationInfo {
-    pub id: i64,
+    pub id: i32,
     pub city: String,
     pub county: String,
     pub state: String,

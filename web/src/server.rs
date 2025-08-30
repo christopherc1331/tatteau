@@ -335,7 +335,7 @@ pub async fn get_matched_artists(
 }
 
 #[server]
-pub async fn get_location_details(location_id: i64) -> Result<LocationDetailInfo, ServerFnError> {
+pub async fn get_location_details(location_id: i32) -> Result<LocationDetailInfo, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::repository::get_location_with_artist_details;

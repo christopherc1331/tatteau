@@ -672,7 +672,7 @@ pub fn get_styles_with_counts_in_bounds(
 #[cfg(feature = "ssr")]
 fn map_location_row(row: &rusqlite::Row) -> rusqlite::Result<(shared_types::LocationInfo, i32)> {
     use shared_types::LocationInfo;
-    let location_id: i64 = row.get(0)?;
+    let location_id: i32 = row.get(0)?;
     let location_info = LocationInfo {
         id: location_id,
         name: row.get(1)?,
@@ -998,7 +998,7 @@ pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords
 
 #[cfg(feature = "ssr")]
 pub fn get_location_with_artist_details(
-    location_id: i64,
+    location_id: i32,
 ) -> SqliteResult<crate::server::LocationDetailInfo> {
     use crate::server::{ArtistThumbnail, LocationDetailInfo};
     use rusqlite::params;
