@@ -177,77 +177,171 @@
   border: 1px solid #bbf7d0;
 }
 
-/* History Card */
+/* History Card - Modern Card Design */
 .booking-history-card {
   border-left: 4px solid #6b7280;
 }
 
 .history-count {
-  background: #f3f4f6;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
   color: #6b7280;
-  padding: 0.25rem 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: 9999px;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  gap: 1rem;
 }
 
 .history-item {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 1rem;
-  background: #f9fafb;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
+  align-items: center;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.history-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #7c3aed 0%, #6366f1 100%);
+  transition: width 0.2s ease;
+}
+
+.history-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  border-color: #c7d2fe;
+}
+
+.history-item:hover::before {
+  width: 6px;
+}
+
+.history-item:hover .history-id {
+  color: #7c3aed;
+}
+
+.history-item:hover .history-arrow {
+  transform: translateX(4px);
+  opacity: 1;
 }
 
 .history-details {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
+  flex: 1;
 }
 
 .history-id {
-  font-weight: 600;
-  color: #111827;
-  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1f2937;
+  font-size: 1.125rem;
+  transition: color 0.2s ease;
+  letter-spacing: -0.025em;
 }
 
 .history-date {
   color: #4b5563;
+  font-size: 0.9rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.history-date::before {
+  content: '📅';
   font-size: 0.875rem;
 }
 
 .history-created {
   color: #9ca3af;
+  font-size: 0.8rem;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.history-created::before {
+  content: '⏰';
   font-size: 0.75rem;
+}
+
+.history-status-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .history-status {
-  padding: 0.25rem 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   text-transform: capitalize;
   white-space: nowrap;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .history-status.status-completed {
-  background: #ddd6fe;
+  background: linear-gradient(135deg, #ddd6fe 0%, #c7d2fe 100%);
   color: #5b21b6;
+  border-color: #a78bfa;
+}
+
+.history-status.status-pending {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border-color: #f59e0b;
+}
+
+.history-status.status-approved {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #065f46;
+  border-color: #10b981;
+}
+
+.history-status.status-declined {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #991b1b;
+  border-color: #ef4444;
+}
+
+.history-arrow {
+  color: #9ca3af;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+  opacity: 0.6;
 }
 
 .no-history {
   text-align: center;
   color: #9ca3af;
   font-style: italic;
-  padding: 2rem;
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-radius: 0.75rem;
+  border: 2px dashed #e5e7eb;
 }
 
 /* Messages Card */
@@ -268,55 +362,101 @@
   max-height: 400px;
   overflow-y: auto;
   margin-bottom: 1.5rem;
-  padding-right: 0.5rem;
+  padding: 0.5rem 0.5rem 0.5rem 0;
+  position: relative;
 }
 
 .message-item {
   padding: 1rem;
   margin-bottom: 0.75rem;
-  border-radius: 0.5rem;
-  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  clear: both;
 }
 
 .sender-client {
-  background: #f0f9ff;
-  border-left: 3px solid #3b82f6;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-left: 4px solid #3b82f6;
+  margin-right: 3rem;
+  position: relative;
+  z-index: 2;
+}
+
+.sender-client::after {
+  content: '';
+  position: absolute;
+  right: -12px;
+  top: 20px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid #3b82f6;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
 }
 
 .sender-artist {
-  background: #fef3c7;
-  border-left: 3px solid #f59e0b;
-  margin-left: 2rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-right: 4px solid #f59e0b;
+  margin-left: 3rem;
+  text-align: right;
+  position: relative;
+  z-index: 2;
+}
+
+.sender-artist::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 20px;
+  width: 0;
+  height: 0;
+  border-right: 12px solid #f59e0b;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
 }
 
 .message-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .sender-name {
   font-weight: 600;
   color: #111827;
   font-size: 0.875rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .message-time {
   color: #9ca3af;
   font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .message-content {
-  color: #4b5563;
-  line-height: 1.5;
+  color: #374151;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  margin-top: 0.5rem;
 }
 
 .no-messages {
   text-align: center;
   color: #9ca3af;
   font-style: italic;
-  padding: 2rem;
+  padding: 3rem 2rem;
+  background: #f9fafb;
+  border-radius: 0.75rem;
+  border: 2px dashed #e5e7eb;
 }
 
 /* Message Input */
@@ -396,10 +536,55 @@
   .history-item {
     flex-direction: column;
     gap: 0.75rem;
+    align-items: flex-start;
+  }
+  
+  .history-status-container {
+    align-self: stretch;
+    justify-content: space-between;
   }
   
   .sender-artist {
     margin-left: 0;
+    margin-right: 3rem;
+    text-align: left;
+  }
+  
+  .sender-artist::before {
+    display: none;
+  }
+  
+  .sender-artist::after {
+    content: '';
+    position: absolute;
+    right: -12px;
+    top: 20px;
+    width: 0;
+    height: 0;
+    border-left: 12px solid #f59e0b;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
+  }
+  
+  .sender-client {
+    margin-right: 0;
+    margin-left: 3rem;
+  }
+  
+  .sender-client::after {
+    display: none;
+  }
+  
+  .sender-client::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 20px;
+    width: 0;
+    height: 0;
+    border-right: 12px solid #3b82f6;
+    border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent;
   }
   
   .message-input-container {

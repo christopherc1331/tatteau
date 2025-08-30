@@ -346,14 +346,20 @@ fn BookingHistoryItem(item: BookingHistoryItem) -> impl IntoView {
     let status_class = format!("history-status status-{}", item.status);
     let status_icon = match item.status.as_str() {
         "pending" => "⏳",
-        "approved" => "✅",
+        "approved" => "✅", 
         "declined" => "❌",
         "completed" => "🎨",
         _ => "📋"
     };
     
+    let booking_id = item.id;
+    let navigate_to_booking = move |_| {
+        // TODO: Add navigation to /artist/dashboard/booking/{booking_id} when router is working
+        leptos::logging::log!("Would navigate to booking {}", booking_id);
+    };
+    
     view! {
-        <div class="history-item">
+        <div class="history-item" on:click=navigate_to_booking>
             <div class="history-details">
                 <div class="history-id">
                     "Booking #"{item.id}
@@ -362,11 +368,16 @@ fn BookingHistoryItem(item: BookingHistoryItem) -> impl IntoView {
                     {item.booking_date.unwrap_or_else(|| "Date TBD".to_string())}
                 </div>
                 <div class="history-created">
-                    "Submitted: "{item.created_at}
+                    "Submitted "{item.created_at}
                 </div>
             </div>
-            <div class=status_class>
-                {format!("{} {}", status_icon, item.status)}
+            <div class="history-status-container">
+                <div class=status_class>
+                    {format!("{} {}", status_icon, item.status)}
+                </div>
+                <div class="history-arrow">
+                    "→"
+                </div>
             </div>
         </div>
     }
