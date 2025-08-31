@@ -95,6 +95,7 @@ pub struct BookingRequest {
     pub estimated_price: Option<f64>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+    pub decline_reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

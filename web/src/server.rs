@@ -971,6 +971,7 @@ pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>,
                     estimated_price: row.get(15)?,
                     created_at: row.get(16)?,
                     updated_at: row.get(17)?,
+                    decline_reason: None,  // Add this field - it might not exist in older records
                 })
             })?;
             
@@ -999,6 +1000,7 @@ pub struct BookingResponse {
     pub status: String,
     pub artist_response: Option<String>,
     pub estimated_price: Option<f64>,
+    pub decline_reason: Option<String>,
 }
 
 #[server]
@@ -1014,12 +1016,13 @@ pub async fn respond_to_booking(response: BookingResponse) -> Result<(), ServerF
             
             conn.execute("
                 UPDATE booking_requests 
-                SET status = ?1, artist_response = ?2, estimated_price = ?3, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?4
+                SET status = ?1, artist_response = ?2, estimated_price = ?3, decline_reason = ?4, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?5
             ", (
                 response.status,
                 response.artist_response,
                 response.estimated_price,
+                response.decline_reason,
                 response.booking_id,
             ))?;
             
@@ -1522,7 +1525,7 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
                        requested_date, requested_start_time, requested_end_time,
                        tattoo_description, placement, size_inches, reference_images,
                        message_from_client, status, artist_response, estimated_price,
-                       created_at, updated_at
+                       created_at, updated_at, decline_reason
                 FROM booking_requests 
                 WHERE id = ?1
             ")?;
@@ -1547,6 +1550,7 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
                     estimated_price: row.get(15)?,
                     created_at: row.get(16)?,
                     updated_at: row.get(17)?,
+                    decline_reason: row.get(18)?,
                 })
             })
         }
@@ -1648,5 +1652,60 @@ pub async fn update_business_hours(hours: Vec<crate::db::entities::UpdateBusines
     #[cfg(not(feature = "ssr"))]
     {
         Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct BookingHistoryEntry {
+    pub id: i32,
+    pub booking_date: Option<String>,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[server]
+pub async fn get_client_booking_history(client_email: String) -> Result<Vec<BookingHistoryEntry>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_client_history(client_email: String) -> SqliteResult<Vec<BookingHistoryEntry>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+
+            let mut stmt = conn.prepare("
+                SELECT id, requested_date, status, created_at
+                FROM booking_requests 
+                WHERE client_email = ?1 
+                ORDER BY created_at DESC
+                LIMIT 10
+            ")?;
+
+            let history_iter = stmt.query_map([client_email], |row| {
+                Ok(BookingHistoryEntry {
+                    id: row.get(0)?,
+                    booking_date: row.get(1)?,
+                    status: row.get(2)?,
+                    created_at: row.get(3).unwrap_or_else(|_| "Unknown".to_string()),
+                })
+            })?;
+
+            let mut history = Vec::new();
+            for entry in history_iter {
+                history.push(entry?);
+            }
+
+            Ok(history)
+        }
+
+        match query_client_history(client_email) {
+            Ok(history) => Ok(history),
+            Err(e) => Err(ServerFnError::new(format!("Failed to get client history: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
     }
 }

@@ -3,142 +3,121 @@ use leptos::wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 use thaw::*;
 
-#[cfg(feature = "ssr")]
-use rusqlite::{Connection, Result as SqliteResult};
-#[cfg(feature = "ssr")]
-use std::path::Path;
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct BookingRequestData {
-    pub id: i32,
-    pub artist_id: i32,
-    pub client_name: String,
-    pub client_email: String,
-    pub client_phone: Option<String>,
-    pub requested_date: String,
-    pub requested_start_time: String,
-    pub requested_end_time: Option<String>,
-    pub tattoo_description: Option<String>,
-    pub placement: Option<String>,
-    pub size_inches: Option<f64>,
-    pub reference_images: Option<String>,
-    pub message_from_client: Option<String>,
-    pub status: String,
-    pub artist_response: Option<String>,
-    pub estimated_price: Option<f64>,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct BookingHistoryItem {
-    pub id: i32,
-    pub booking_date: Option<String>,
-    pub status: String,
-    pub created_at: String,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct BookingMessage {
-    pub id: i32,
-    pub sender_type: String,
-    pub message: String,
-    pub created_at: String,
-}
+use crate::db::entities::{BookingRequest, BookingMessage};
+use crate::server::{
+    get_booking_request_by_id, get_client_booking_history, get_booking_messages,
+    send_booking_message, respond_to_booking, BookingHistoryEntry,
+    NewBookingMessage, BookingResponse,
+};
+use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone};
 
 #[component]
 pub fn BookingDetails(booking_id: i32) -> impl IntoView {
-    // TEMPORARY: Using only mock data to avoid stack overflow issue with server functions
-    // TODO: Incrementally add real data fetches once the issue is resolved
+    // Get timezone for proper time display
+    let timezone = get_timezone_abbreviation();
     
-    // Create mock booking data directly - no server fetch for now
-    let booking_data = BookingRequestData {
-        id: booking_id,
-        artist_id: 1,
-        client_name: "Sarah Johnson".to_string(),
-        client_email: "sarah.johnson@example.com".to_string(),
-        client_phone: Some("(555) 123-4567".to_string()),
-        requested_date: "2024-03-15".to_string(),
-        requested_start_time: "2:00 PM".to_string(),
-        requested_end_time: Some("4:00 PM".to_string()),
-        tattoo_description: Some("Small geometric mandala on my wrist, about 3 inches in diameter with intricate line work and dot patterns.".to_string()),
-        placement: Some("Right wrist".to_string()),
-        size_inches: Some(3.0),
-        reference_images: None,
-        message_from_client: Some("Hi! I've been following your work for a while and really love your geometric style. I'm looking to get my first tattoo and would love to work with you!".to_string()),
-        status: "pending".to_string(),
-        artist_response: None,
-        estimated_price: Some(250.0),
-        created_at: "2024-03-01 10:30:00".to_string(),
-        updated_at: "2024-03-01 10:30:00".to_string(),
-    };
+    // Fetch booking data from database
+    let booking_resource = Resource::new(
+        move || booking_id,
+        move |id| async move {
+            get_booking_request_by_id(id).await
+        },
+    );
     
-    // Create mock booking history
-    let mock_history = vec![
-        BookingHistoryItem {
-            id: 45,
-            booking_date: Some("2024-01-20".to_string()),
-            status: "completed".to_string(),
-            created_at: "2024-01-05 14:20:00".to_string(),
+    // Fetch booking messages
+    let messages_resource = Resource::new(
+        move || booking_id,
+        move |id| async move {
+            get_booking_messages(id).await
         },
-        BookingHistoryItem {
-            id: 32,
-            booking_date: Some("2023-11-15".to_string()),
-            status: "completed".to_string(),
-            created_at: "2023-10-28 09:15:00".to_string(),
-        },
-    ];
+    );
     
-    // Create mock messages
-    let mock_messages = vec![
-        BookingMessage {
-            id: 1,
-            sender_type: "client".to_string(),
-            message: "Looking forward to our session!".to_string(),
-            created_at: "2024-03-02 11:15:00".to_string(),
+    // Client booking history resource - will be fetched when booking data is available
+    let history_resource = Resource::new(
+        move || {
+            booking_resource.get().and_then(|result| {
+                result.ok().map(|booking| booking.client_email.clone())
+            })
         },
-        BookingMessage {
-            id: 2,
-            sender_type: "artist".to_string(),
-            message: "Great! I'll prepare some design options for you.".to_string(),
-            created_at: "2024-03-02 14:30:00".to_string(),
+        move |client_email| async move {
+            match client_email {
+                Some(email) => get_client_booking_history(email).await,
+                None => Ok(vec![]),
+            }
         },
-    ];
-    
-    // Simple signal for current booking status
-    let (booking_status, set_booking_status) = signal::<String>(booking_data.status.clone());
+    );
     
     view! {
         <div class="booking-details">
             <BookingDetailsHeader />
             
             <div class="booking-details-content">
-                <BookingOverviewCard 
-                    booking=booking_data.clone() 
-                    status=booking_status 
-                />
-                
-                <BookingDescriptionCard 
-                    description=booking_data.tattoo_description.clone() 
-                />
-                
-                <BookingClientMessageCard 
-                    message=booking_data.message_from_client.clone() 
-                />
-                
-                <BookingHistoryCard 
-                    history=mock_history 
-                />
-                
-                <BookingMessagesCard 
-                    messages=mock_messages 
-                    booking_id=booking_data.id 
-                />
-                
-                <BookingActionsCard 
-                    status=booking_status 
-                    set_status=set_booking_status 
-                />
+                <Suspense fallback=|| view! { <div class="loading">"Loading booking details..."</div> }>
+                    {move || {
+                        booking_resource.get().map(|booking_result| {
+                            match booking_result {
+                                Ok(booking) => view! {
+                                    <BookingOverviewCard booking=booking.clone() timezone=timezone />
+                                    
+                                    <BookingDescriptionCard 
+                                        description=booking.tattoo_description.clone() 
+                                    />
+                                    
+                                    <BookingClientMessageCard 
+                                        message=booking.message_from_client.clone() 
+                                    />
+                                    
+                                    <Suspense fallback=|| view! { <div>"Loading history..."</div> }>
+                                        {move || {
+                                            history_resource.get().map(|history_result| {
+                                                match history_result {
+                                                    Ok(history) => view! {
+                                                        <BookingHistoryCard history=history timezone=timezone />
+                                                    }.into_any(),
+                                                    Err(_) => view! {
+                                                        <BookingHistoryCard history=vec![] timezone=timezone />
+                                                    }.into_any(),
+                                                }
+                                            })
+                                        }}
+                                    </Suspense>
+                                    
+                                    <Suspense fallback=|| view! { <div>"Loading messages..."</div> }>
+                                        {move || {
+                                            messages_resource.get().map(|messages_result| {
+                                                match messages_result {
+                                                    Ok(messages) => view! {
+                                                        <BookingMessagesCard 
+                                                            messages=messages 
+                                                            booking_id=booking.id 
+                                                            timezone=timezone
+                                                        />
+                                                    }.into_any(),
+                                                    Err(_) => view! {
+                                                        <BookingMessagesCard 
+                                                            messages=vec![] 
+                                                            booking_id=booking.id 
+                                                            timezone=timezone
+                                                        />
+                                                    }.into_any(),
+                                                }
+                                            })
+                                        }}
+                                    </Suspense>
+                                    
+                                    <BookingActionsCard 
+                                        booking=booking.clone()
+                                    />
+                                }.into_any(),
+                                Err(e) => view! {
+                                    <div class="error-message">
+                                        {format!("Failed to load booking: {}", e)}
+                                    </div>
+                                }.into_any(),
+                            }
+                        })
+                    }}
+                </Suspense>
             </div>
         </div>
     }
@@ -160,69 +139,67 @@ fn BookingDetailsHeader() -> impl IntoView {
 
 #[component]
 fn BookingOverviewCard(
-    booking: BookingRequestData,
-    status: ReadSignal<String>,
+    booking: BookingRequest,
+    timezone: ReadSignal<String>,
 ) -> impl IntoView {
+    let status_class = format!("booking-status-badge status-{}", booking.status);
+    let status_icon = match booking.status.as_str() {
+        "pending" => "⏳",
+        "approved" => "✅", 
+        "declined" => "❌",
+        _ => "📋"
+    };
+    let status_text = match booking.status.as_str() {
+        "pending" => "Pending Review",
+        "approved" => "Approved",
+        "declined" => "Declined", 
+        _ => &booking.status
+    };
+    
     view! {
-        {move || {
-            let current_status = status.get();
-            let status_class = format!("booking-status-badge status-{}", current_status);
-            let status_icon = match current_status.as_str() {
-                "pending" => "⏳",
-                "approved" => "✅", 
-                "declined" => "❌",
-                _ => "📋"
-            };
-            let status_text = match current_status.as_str() {
-                "pending" => "Pending Review",
-                "approved" => "Approved",
-                "declined" => "Declined", 
-                _ => &current_status
-            };
-            
-            view! {
-                <div class="booking-overview-card">
-                    <div class="card-header">
-                        <h2>"Booking Overview"</h2>
-                        <div class=status_class>
-                            {format!("{} {}", status_icon, status_text)}
-                        </div>
-                    </div>
-                    
-                    <div class="booking-overview-grid">
-                        <BookingOverviewItem label="Booking ID" value=booking.id.to_string() />
-                        <BookingOverviewItem label="Client Name" value=booking.client_name.clone() />
-                        <BookingOverviewItem label="Contact Email" value=booking.client_email.clone() />
-                        
-                        {booking.client_phone.as_ref().map(|phone| view! {
-                            <BookingOverviewItem label="Phone Number" value=phone.clone() />
-                        })}
-                        
-                        {booking.placement.as_ref().map(|placement| view! {
-                            <BookingOverviewItem label="Placement" value=placement.clone() />
-                        })}
-                        
-                        {booking.size_inches.as_ref().map(|size| view! {
-                            <BookingOverviewItem label="Size" value=format!("{} inches", size) />
-                        })}
-                        
-                        <BookingOverviewItem 
-                            label="Requested Date" 
-                            value=format!("{} at {}", booking.requested_date, booking.requested_start_time) 
-                        />
-                        
-                        {booking.requested_end_time.as_ref().map(|end_time| view! {
-                            <BookingOverviewItem 
-                                label="Duration" 
-                                value=format!("{} - {}", booking.requested_start_time, end_time) 
-                            />
-                        })}
-                        
-                        <BookingOverviewItem label="Submitted" value=booking.created_at.clone() />
-                    </div>
+        <div class="booking-overview-card">
+            <div class="card-header">
+                <h2>"Booking Overview"</h2>
+                <div class=status_class>
+                    {format!("{} {}", status_icon, status_text)}
                 </div>
-            }
-        }}
+            </div>
+            
+            <div class="booking-overview-grid">
+                <BookingOverviewItem label="Booking ID" value=booking.id.to_string() />
+                <BookingOverviewItem label="Client Name" value=booking.client_name.clone() />
+                <BookingOverviewItem label="Contact Email" value=booking.client_email.clone() />
+                
+                {booking.client_phone.as_ref().map(|phone| view! {
+                    <BookingOverviewItem label="Phone Number" value=phone.clone() />
+                })}
+                
+                {booking.placement.as_ref().map(|placement| view! {
+                    <BookingOverviewItem label="Placement" value=placement.clone() />
+                })}
+                
+                {booking.size_inches.as_ref().map(|size| view! {
+                    <BookingOverviewItem label="Size" value=format!("{} inches", size) />
+                })}
+                
+                <BookingOverviewItem 
+                    label="Requested Date" 
+                    value=format!("{} at {}", 
+                        booking.requested_date, 
+                        format_time_with_timezone(&booking.requested_start_time, timezone)
+                    ) 
+                />
+                
+                {booking.requested_end_time.as_ref().map(|end_time| view! {
+                    <BookingOverviewItem 
+                        label="Duration" 
+                        value=format_time_range_with_timezone(&booking.requested_start_time, Some(end_time), timezone)
+                    />
+                })}
+                
+                <BookingOverviewItem label="Submitted" value=booking.created_at.unwrap_or_else(|| "Unknown".to_string()) />
+            </div>
+        </div>
     }
 }
 
@@ -262,35 +239,111 @@ fn BookingClientMessageCard(message: Option<String>) -> impl IntoView {
 
 #[component]
 fn BookingActionsCard(
-    status: ReadSignal<String>,
-    set_status: WriteSignal<String>,
+    booking: BookingRequest,
 ) -> impl IntoView {
+    let booking_id = booking.id;
+    
+    // State for decline reason modal
+    let (show_decline_modal, set_show_decline_modal) = signal(false);
+    let decline_reason = RwSignal::new("".to_string());
+    
+    // Actions for status updates
+    let accept_action = Action::new(move |_: &()| {
+        let booking_id = booking_id;
+        async move {
+            let response = BookingResponse {
+                booking_id,
+                status: "approved".to_string(),
+                artist_response: Some("Your booking has been approved! Looking forward to working with you.".to_string()),
+                estimated_price: None,
+                decline_reason: None,
+            };
+            respond_to_booking(response).await
+        }
+    });
+    
+    let decline_action = Action::new(move |reason: &String| {
+        let booking_id = booking_id;
+        let reason = reason.clone();
+        async move {
+            let response = BookingResponse {
+                booking_id,
+                status: "declined".to_string(),
+                artist_response: Some("Unfortunately, I'm not able to take on this booking at this time.".to_string()),
+                estimated_price: None,
+                decline_reason: Some(reason),
+            };
+            respond_to_booking(response).await
+        }
+    });
+    
+    // Event handlers
     let accept_booking = move |_| {
-        set_status.set("approved".to_string());
+        accept_action.dispatch(());
     };
 
     let decline_booking = move |_| {
-        set_status.set("declined".to_string());
+        set_show_decline_modal.set(true);
     };
+    
+    let confirm_decline = move |_| {
+        let reason = decline_reason.get().trim().to_string();
+        if !reason.is_empty() {
+            decline_action.dispatch(reason);
+            set_show_decline_modal.set(false);
+            decline_reason.set("".to_string());
+        }
+    };
+    
+    let cancel_decline = move |_| {
+        set_show_decline_modal.set(false);
+        decline_reason.set("".to_string());
+    };
+    
+    // Note: Page will show updated status after refresh or navigation
     
     view! {
         <div class="booking-actions-card">
             <h2>"Actions"</h2>
             <div class="actions-grid">
                 {move || {
-                    let current_status = status.get();
+                    let current_status = &booking.status;
                     if current_status == "pending" {
                         view! {
-                            <Button appearance=ButtonAppearance::Primary on_click=accept_booking>
-                                "Accept Booking"
+                            <Button 
+                                appearance=ButtonAppearance::Primary 
+                                on_click=accept_booking
+                                disabled=accept_action.pending().get()
+                            >
+                                {move || if accept_action.pending().get() { "Accepting..." } else { "Accept Booking" }}
                             </Button>
-                            <Button appearance=ButtonAppearance::Secondary on_click=decline_booking>
-                                "Decline Booking"
+                            <Button 
+                                appearance=ButtonAppearance::Secondary 
+                                on_click=decline_booking
+                                disabled=decline_action.pending().get()
+                            >
+                                {move || if decline_action.pending().get() { "Declining..." } else { "Decline Booking" }}
                             </Button>
                             <Button appearance=ButtonAppearance::Subtle>
                                 "Suggest New Date/Time"
                             </Button>
-                        }
+                        }.into_any()
+                    } else if current_status == "approved" {
+                        view! {
+                            <Button 
+                                appearance=ButtonAppearance::Secondary 
+                                on_click=decline_booking
+                                disabled=decline_action.pending().get()
+                            >
+                                {move || if decline_action.pending().get() { "Declining..." } else { "Decline Booking" }}
+                            </Button>
+                            <Button appearance=ButtonAppearance::Subtle>
+                                "Send Message"
+                            </Button>
+                            <Button appearance=ButtonAppearance::Subtle>
+                                "Reschedule"
+                            </Button>
+                        }.into_any()
                     } else {
                         view! {
                             <Button appearance=ButtonAppearance::Secondary>
@@ -302,16 +355,85 @@ fn BookingActionsCard(
                             <Button appearance=ButtonAppearance::Subtle>
                                 "Reschedule"
                             </Button>
-                        }
+                        }.into_any()
                     }
                 }}
             </div>
+            
+            {move || {
+                accept_action.value().get().map(|result| {
+                    match result {
+                        Ok(_) => view! {
+                            <div class="success-message">"Booking accepted successfully!"</div>
+                        }.into_any(),
+                        Err(e) => view! {
+                            <div class="error-message">{format!("Failed to accept booking: {}", e)}</div>
+                        }.into_any(),
+                    }
+                })
+            }}
+            
+            {move || {
+                decline_action.value().get().map(|result| {
+                    match result {
+                        Ok(_) => view! {
+                            <div class="success-message">"Booking declined successfully!"</div>
+                        }.into_any(),
+                        Err(e) => view! {
+                            <div class="error-message">{format!("Failed to decline booking: {}", e)}</div>
+                        }.into_any(),
+                    }
+                })
+            }}
         </div>
+        
+        // Decline Reason Modal
+        {move || {
+            if show_decline_modal.get() {
+                view! {
+                    <div class="decline-modal-overlay">
+                        <Card>
+                            <h3>"Decline Booking"</h3>
+                            <div class="decline-modal-content">
+                                <p>"Please provide a reason for declining this booking. This will be shared with the client."</p>
+                                <textarea 
+                                    prop:value=move || decline_reason.get()
+                                    on:input=move |ev| {
+                                        let target = ev.target().unwrap();
+                                        let textarea = target.unchecked_into::<web_sys::HtmlTextAreaElement>();
+                                        decline_reason.set(textarea.value());
+                                    }
+                                    placeholder="Explain why you're declining this booking..."
+                                    class="decline-reason-input"
+                                    rows="4"
+                                ></textarea>
+                            </div>
+                            <div class="decline-modal-footer">
+                                <Button 
+                                    appearance=ButtonAppearance::Secondary 
+                                    on_click=cancel_decline
+                                >
+                                    "Cancel"
+                                </Button>
+                                <Button 
+                                    appearance=ButtonAppearance::Primary 
+                                    on_click=confirm_decline
+                                >
+                                    "Decline with Reason"
+                                </Button>
+                            </div>
+                        </Card>
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }
+        }}
     }
 }
 
 #[component]
-pub fn BookingHistoryCard(history: Vec<BookingHistoryItem>) -> impl IntoView {
+pub fn BookingHistoryCard(history: Vec<BookingHistoryEntry>, timezone: ReadSignal<String>) -> impl IntoView {
     view! {
         <div class="booking-history-card">
             <div class="card-header">
@@ -331,7 +453,7 @@ pub fn BookingHistoryCard(history: Vec<BookingHistoryItem>) -> impl IntoView {
                     } else {
                         history.into_iter().take(5).map(|item| {
                             view! {
-                                <BookingHistoryItem item=item />
+                                <BookingHistoryItem item=item timezone=timezone />
                             }
                         }).collect_view().into_any()
                     }
@@ -342,7 +464,7 @@ pub fn BookingHistoryCard(history: Vec<BookingHistoryItem>) -> impl IntoView {
 }
 
 #[component]
-fn BookingHistoryItem(item: BookingHistoryItem) -> impl IntoView {
+fn BookingHistoryItem(item: BookingHistoryEntry, timezone: ReadSignal<String>) -> impl IntoView {
     let status_class = format!("history-status status-{}", item.status);
     let status_icon = match item.status.as_str() {
         "pending" => "⏳",
@@ -354,8 +476,10 @@ fn BookingHistoryItem(item: BookingHistoryItem) -> impl IntoView {
     
     let booking_id = item.id;
     let navigate_to_booking = move |_| {
-        // TODO: Add navigation to /artist/dashboard/booking/{booking_id} when router is working
-        leptos::logging::log!("Would navigate to booking {}", booking_id);
+        // Navigate to the booking details page
+        let window = web_sys::window().unwrap();
+        let location = window.location();
+        let _ = location.set_href(&format!("/artist/dashboard/booking/{}", booking_id));
     };
     
     view! {
@@ -368,7 +492,7 @@ fn BookingHistoryItem(item: BookingHistoryItem) -> impl IntoView {
                     {item.booking_date.unwrap_or_else(|| "Date TBD".to_string())}
                 </div>
                 <div class="history-created">
-                    "Submitted "{item.created_at}
+                    "Submitted "{item.created_at}" "{timezone.get()}
                 </div>
             </div>
             <div class="history-status-container">
@@ -384,13 +508,24 @@ fn BookingHistoryItem(item: BookingHistoryItem) -> impl IntoView {
 }
 
 #[component]
-pub fn BookingMessagesCard(messages: Vec<BookingMessage>, booking_id: i32) -> impl IntoView {
-    let _ = booking_id; // TODO: Use for real message sending when implemented
+pub fn BookingMessagesCard(messages: Vec<BookingMessage>, booking_id: i32, timezone: ReadSignal<String>) -> impl IntoView {
     let new_message = RwSignal::new("".to_string());
+    
+    let send_action = Action::new(move |message_content: &String| {
+        let message_data = NewBookingMessage {
+            booking_request_id: booking_id,
+            sender_type: "artist".to_string(),
+            message: message_content.clone(),
+        };
+        async move {
+            send_booking_message(message_data).await
+        }
+    });
     
     let send_message = move |_| {
         let message_content = new_message.get().trim().to_string();
         if !message_content.is_empty() {
+            send_action.dispatch(message_content);
             new_message.set("".to_string());
         }
     };
@@ -415,7 +550,7 @@ pub fn BookingMessagesCard(messages: Vec<BookingMessage>, booking_id: i32) -> im
                     } else {
                         messages.into_iter().map(|msg| {
                             view! {
-                                <BookingMessageItem message=msg />
+                                <BookingMessageItem message=msg timezone=timezone />
                             }
                         }).collect_view().into_any()
                     }
@@ -433,20 +568,35 @@ pub fn BookingMessagesCard(messages: Vec<BookingMessage>, booking_id: i32) -> im
                     }
                     placeholder="Type your message..."
                     class="message-input"
+                    disabled=send_action.pending().get()
                 />
                 <Button 
                     appearance=ButtonAppearance::Primary
                     on_click=send_message
+                    disabled=send_action.pending().get()
                 >
-                    "Send"
+                    {move || if send_action.pending().get() { "Sending..." } else { "Send" }}
                 </Button>
             </div>
+            
+            {move || {
+                send_action.value().get().map(|result| {
+                    match result {
+                        Ok(_) => view! {
+                            <div class="success-message">"Message sent successfully! Refresh to see it in the thread."</div>
+                        }.into_any(),
+                        Err(e) => view! {
+                            <div class="error-message">{format!("Failed to send message: {}", e)}</div>
+                        }.into_any(),
+                    }
+                })
+            }}
         </div>
     }
 }
 
 #[component]
-fn BookingMessageItem(message: BookingMessage) -> impl IntoView {
+fn BookingMessageItem(message: BookingMessage, timezone: ReadSignal<String>) -> impl IntoView {
     let sender_class = format!("message-item sender-{}", message.sender_type);
     let sender_label = match message.sender_type.as_str() {
         "client" => "Client",
@@ -458,7 +608,11 @@ fn BookingMessageItem(message: BookingMessage) -> impl IntoView {
         <div class=sender_class>
             <div class="message-header">
                 <span class="sender-name">{sender_label}</span>
-                <span class="message-time">{message.created_at}</span>
+                <span class="message-time">
+                    {message.created_at.unwrap_or_else(|| "Unknown".to_string())} 
+                    " " 
+                    {timezone.get()}
+                </span>
             </div>
             <div class="message-content">
                 {message.message}
