@@ -9,7 +9,7 @@ use crate::server::{
     send_booking_message, respond_to_booking, BookingHistoryEntry,
     NewBookingMessage, BookingResponse,
 };
-use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone};
+use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone, format_datetime_for_booking, format_date_for_booking};
 
 #[component]
 pub fn BookingDetails(booking_id: i32) -> impl IntoView {
@@ -185,7 +185,7 @@ fn BookingOverviewCard(
                 <BookingOverviewItem 
                     label="Requested Date" 
                     value=format!("{} at {}", 
-                        booking.requested_date, 
+                        format_date_for_booking(&booking.requested_date), 
                         format_time_with_timezone(&booking.requested_start_time, timezone)
                     ) 
                 />
@@ -197,7 +197,12 @@ fn BookingOverviewCard(
                     />
                 })}
                 
-                <BookingOverviewItem label="Submitted" value=booking.created_at.unwrap_or_else(|| "Unknown".to_string()) />
+                <BookingOverviewItem 
+                    label="Submitted" 
+                    value=booking.created_at.as_ref()
+                        .map(|dt| format_datetime_for_booking(dt, timezone))
+                        .unwrap_or_else(|| "Unknown".to_string()) 
+                />
             </div>
         </div>
     }
@@ -489,10 +494,12 @@ fn BookingHistoryItem(item: BookingHistoryEntry, timezone: ReadSignal<String>) -
                     "Booking #"{item.id}
                 </div>
                 <div class="history-date">
-                    {item.booking_date.unwrap_or_else(|| "Date TBD".to_string())}
+                    {item.booking_date.as_ref()
+                        .map(|date| format_date_for_booking(date))
+                        .unwrap_or_else(|| "Date TBD".to_string())}
                 </div>
                 <div class="history-created">
-                    "Submitted "{item.created_at}" "{timezone.get()}
+                    "Submitted "{format_datetime_for_booking(&item.created_at, timezone)}
                 </div>
             </div>
             <div class="history-status-container">
@@ -609,9 +616,9 @@ fn BookingMessageItem(message: BookingMessage, timezone: ReadSignal<String>) -> 
             <div class="message-header">
                 <span class="sender-name">{sender_label}</span>
                 <span class="message-time">
-                    {message.created_at.unwrap_or_else(|| "Unknown".to_string())} 
-                    " " 
-                    {timezone.get()}
+                    {message.created_at.as_ref()
+                        .map(|dt| format_datetime_for_booking(dt, timezone))
+                        .unwrap_or_else(|| "Unknown".to_string())}
                 </span>
             </div>
             <div class="message-content">
