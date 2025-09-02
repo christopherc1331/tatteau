@@ -3,8 +3,11 @@ use leptos::server;
 use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
-use crate::db::entities::{Artist, ArtistImage, CityCoords, Location, Style, AvailabilitySlot, BookingRequest, BookingMessage, AvailabilityUpdate, RecurringRule};
-use crate::db::search_repository::{SearchResult};
+use crate::db::entities::{
+    Artist, ArtistImage, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
+    CityCoords, Location, RecurringRule, Style,
+};
+use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
@@ -202,7 +205,6 @@ pub async fn get_location_stats(
     }
 }
 
-
 #[server]
 pub async fn get_available_styles() -> Result<Vec<StyleWithCount>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -336,22 +338,16 @@ pub async fn get_matched_artists(
 
 #[server]
 pub async fn get_location_details(location_id: i32) -> Result<LocationDetailInfo, ServerFnError> {
-    #[cfg(feature = "ssr")]
-    {
-        use crate::db::repository::get_location_with_artist_details;
-        match get_location_with_artist_details(location_id) {
-            Ok(details) => Ok(details),
-            Err(e) => Err(ServerFnError::new(format!(
+    use crate::db::repository::get_location_with_artist_details;
+    match get_location_with_artist_details(location_id) {
+        Ok(details) => Ok(details),
+        Err(e) => {
+            println!("Error fetching location details: {}", e);
+            Err(ServerFnError::new(format!(
                 "Failed to get location details: {}",
                 e
-            ))),
+            )))
         }
-    }
-    #[cfg(not(feature = "ssr"))]
-    {
-        Err(ServerFnError::new(
-            "Server-side rendering not available".to_string(),
-        ))
     }
 }
 
@@ -422,9 +418,9 @@ pub async fn get_instagram_embed(short_code: String) -> Result<String, ServerFnE
             "https://www.instagram.com/p/{}/oembed/?url=https://www.instagram.com/p/{}/",
             short_code, short_code
         );
-        
+
         let client = reqwest::Client::new();
-        
+
         match client.get(&url).send().await {
             Ok(response) => {
                 if response.status().is_success() {
@@ -443,8 +439,8 @@ pub async fn get_instagram_embed(short_code: String) -> Result<String, ServerFnE
                     }
                 } else {
                     leptos::logging::log!(
-                        "Instagram oEmbed API returned error status: {} for post: {}", 
-                        response.status(), 
+                        "Instagram oEmbed API returned error status: {} for post: {}",
+                        response.status(),
                         short_code
                     );
                     Err(ServerFnError::new(format!(
@@ -489,7 +485,9 @@ pub struct RecentBooking {
 }
 
 #[server]
-pub async fn get_artist_dashboard_data(artist_id: i32) -> Result<ArtistDashboardData, ServerFnError> {
+pub async fn get_artist_dashboard_data(
+    artist_id: i32,
+) -> Result<ArtistDashboardData, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use rusqlite::{Connection, Result as SqliteResult};
@@ -504,11 +502,11 @@ pub async fn get_artist_dashboard_data(artist_id: i32) -> Result<ArtistDashboard
             let today_str = today.to_string();
             let mut stmt = conn.prepare(
                 "SELECT COUNT(*) FROM bookings 
-                 WHERE artist_id = ?1 AND DATE(created_at) = ?2"
+                 WHERE artist_id = ?1 AND DATE(created_at) = ?2",
             )?;
-            let todays_bookings: i32 = stmt.query_row([&artist_id.to_string(), &today_str], |row| {
-                row.get(0)
-            }).unwrap_or(0);
+            let todays_bookings: i32 = stmt
+                .query_row([&artist_id.to_string(), &today_str], |row| row.get(0))
+                .unwrap_or(0);
 
             // Get pending sketch requests count (placeholder - would need sketch_requests table)
             let pending_sketches = 3; // Placeholder
@@ -525,18 +523,20 @@ pub async fn get_artist_dashboard_data(artist_id: i32) -> Result<ArtistDashboard
                  FROM bookings b
                  WHERE b.artist_id = ?1
                  ORDER BY b.created_at DESC
-                 LIMIT 5"
+                 LIMIT 5",
             )?;
 
             let recent_booking_iter = recent_stmt.query_map([&artist_id], |row| {
                 let created_at_str: String = row.get(3)?;
                 // Try to parse the date string and format it, fallback to original if parsing fails
-                let formatted_date = if let Ok(naive_date) = NaiveDateTime::parse_from_str(&created_at_str, "%Y-%m-%d %H:%M:%S") {
+                let formatted_date = if let Ok(naive_date) =
+                    NaiveDateTime::parse_from_str(&created_at_str, "%Y-%m-%d %H:%M:%S")
+                {
                     naive_date.format("%B %d, %Y").to_string()
                 } else {
                     created_at_str.clone()
                 };
-                
+
                 Ok(RecentBooking {
                     id: row.get(0)?,
                     client_name: row.get(1)?,
@@ -590,7 +590,7 @@ pub async fn log_match_impression(
 ) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use rusqlite::{Connection, params};
+        use rusqlite::{params, Connection};
         use std::path::Path;
         use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -603,17 +603,15 @@ pub async fn log_match_impression(
         });
 
         let db_path = Path::new("tatteau.db");
-        let conn = Connection::open(db_path).map_err(|e| {
-            ServerFnError::new(format!("Database connection error: {}", e))
-        })?;
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
         conn.execute(
             "INSERT INTO client_match_impressions (session_id, artist_id, impression_type)
              VALUES (?1, ?2, ?3)",
             params![session_id, artist_id, impression_type],
-        ).map_err(|e| {
-            ServerFnError::new(format!("Failed to log impression: {}", e))
-        })?;
+        )
+        .map_err(|e| ServerFnError::new(format!("Failed to log impression: {}", e)))?;
     }
 
     Ok(())
@@ -632,15 +630,16 @@ pub struct StyleWithCount {
 pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use rusqlite::{Connection, params};
+        use rusqlite::{params, Connection};
         use std::path::Path;
 
         let db_path = Path::new("tatteau.db");
-        let conn = Connection::open(db_path).map_err(|e| {
-            ServerFnError::new(format!("Database connection error: {}", e))
-        })?;
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
-        let mut stmt = conn.prepare("
+        let mut stmt = conn
+            .prepare(
+                "
             SELECT 
                 s.id,
                 s.name,
@@ -654,26 +653,31 @@ pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerF
             GROUP BY s.id, s.name, s.description
             HAVING artist_count > 0
             ORDER BY artist_count DESC, s.name ASC
-        ").map_err(|e| {
-            ServerFnError::new(format!("Failed to prepare statement: {}", e))
-        })?;
+        ",
+            )
+            .map_err(|e| ServerFnError::new(format!("Failed to prepare statement: {}", e)))?;
 
-        let styles = stmt.query_map([], |row| {
-            let sample_images_str: Option<String> = row.get(4).ok();
-            let sample_images = sample_images_str
-                .and_then(|s| if s.trim().is_empty() { None } else { Some(s) })
-                .map(|s| s.split('|').map(|url| url.trim().to_string()).filter(|url| !url.is_empty()).collect::<Vec<_>>());
+        let styles = stmt
+            .query_map([], |row| {
+                let sample_images_str: Option<String> = row.get(4).ok();
+                let sample_images = sample_images_str
+                    .and_then(|s| if s.trim().is_empty() { None } else { Some(s) })
+                    .map(|s| {
+                        s.split('|')
+                            .map(|url| url.trim().to_string())
+                            .filter(|url| !url.is_empty())
+                            .collect::<Vec<_>>()
+                    });
 
-            Ok(StyleWithCount {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2).ok(),
-                artist_count: row.get(3)?,
-                sample_images,
+                Ok(StyleWithCount {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    description: row.get(2).ok(),
+                    artist_count: row.get(3)?,
+                    sample_images,
+                })
             })
-        }).map_err(|e| {
-            ServerFnError::new(format!("Failed to query styles: {}", e))
-        })?;
+            .map_err(|e| ServerFnError::new(format!("Failed to query styles: {}", e)))?;
 
         let mut result = Vec::new();
         for style in styles {
@@ -685,7 +689,7 @@ pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerF
 
         Ok(result)
     }
-    
+
     #[cfg(not(feature = "ssr"))]
     {
         // Return placeholder data for client-side
@@ -693,17 +697,21 @@ pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerF
             StyleWithCount {
                 id: 1,
                 name: "Traditional".to_string(),
-                description: Some("Classic American tattoo style with bold lines and bright colors".to_string()),
+                description: Some(
+                    "Classic American tattoo style with bold lines and bright colors".to_string(),
+                ),
                 artist_count: 12,
                 sample_images: None,
             },
             StyleWithCount {
                 id: 2,
                 name: "Neo-Traditional".to_string(),
-                description: Some("Modern take on traditional tattoos with enhanced detail and color".to_string()),
+                description: Some(
+                    "Modern take on traditional tattoos with enhanced detail and color".to_string(),
+                ),
                 artist_count: 8,
                 sample_images: None,
-            }
+            },
         ])
     }
 }
@@ -725,18 +733,20 @@ pub async fn get_tattoo_posts_by_style(
 ) -> Result<Vec<TattooPost>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use rusqlite::{Connection, params};
+        use rusqlite::{params, Connection};
         use std::path::Path;
 
         let db_path = Path::new("tatteau.db");
-        let conn = Connection::open(db_path).map_err(|e| {
-            ServerFnError::new(format!("Database connection error: {}", e))
-        })?;
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
         let limit_value = limit.unwrap_or(100);
 
         // Simple approach: just use the first style for now to get it working
-        let target_style = style_names.first().unwrap_or(&"japanese".to_string()).to_lowercase();
+        let target_style = style_names
+            .first()
+            .unwrap_or(&"japanese".to_string())
+            .to_lowercase();
 
         let query = "
             SELECT DISTINCT 
@@ -754,21 +764,27 @@ pub async fn get_tattoo_posts_by_style(
             LIMIT ?
         ";
 
-        let mut stmt = conn.prepare(query).map_err(|e| {
-            ServerFnError::new(format!("Failed to prepare statement: {}", e))
-        })?;
+        let mut stmt = conn
+            .prepare(query)
+            .map_err(|e| ServerFnError::new(format!("Failed to prepare statement: {}", e)))?;
 
-        let post_iter = stmt.query_map(params![target_style, limit_value], |row| {
-            let image_id: i64 = row.get(0)?;
-            let short_code: String = row.get(1)?;
-            let artist_id: i64 = row.get(2)?;
-            let artist_name: String = row.get(3)?;
-            let artist_instagram: Option<String> = row.get(4)?;
+        let post_iter = stmt
+            .query_map(params![target_style, limit_value], |row| {
+                let image_id: i64 = row.get(0)?;
+                let short_code: String = row.get(1)?;
+                let artist_id: i64 = row.get(2)?;
+                let artist_name: String = row.get(3)?;
+                let artist_instagram: Option<String> = row.get(4)?;
 
-            Ok((image_id, short_code, artist_id, artist_name, artist_instagram))
-        }).map_err(|e| {
-            ServerFnError::new(format!("Failed to query posts: {}", e))
-        })?;
+                Ok((
+                    image_id,
+                    short_code,
+                    artist_id,
+                    artist_name,
+                    artist_instagram,
+                ))
+            })
+            .map_err(|e| ServerFnError::new(format!("Failed to query posts: {}", e)))?;
 
         let mut posts = Vec::new();
         for post_result in post_iter {
@@ -781,17 +797,17 @@ pub async fn get_tattoo_posts_by_style(
                         JOIN artists_images_styles ais ON s.id = ais.style_id
                         WHERE ais.artists_images_id = ?
                     ";
-                    
+
                     let mut style_stmt = conn.prepare(style_query).map_err(|e| {
                         ServerFnError::new(format!("Failed to prepare style query: {}", e))
                     })?;
-                    
-                    let style_iter = style_stmt.query_map([image_id], |row| {
-                        Ok(row.get::<_, String>(0)?)
-                    }).map_err(|e| {
-                        ServerFnError::new(format!("Failed to query styles: {}", e))
-                    })?;
-                    
+
+                    let style_iter = style_stmt
+                        .query_map([image_id], |row| Ok(row.get::<_, String>(0)?))
+                        .map_err(|e| {
+                            ServerFnError::new(format!("Failed to query styles: {}", e))
+                        })?;
+
                     let mut styles = Vec::new();
                     for style_result in style_iter {
                         if let Ok(style_name) = style_result {
@@ -807,7 +823,7 @@ pub async fn get_tattoo_posts_by_style(
                         artist_instagram,
                         styles,
                     });
-                },
+                }
                 Err(e) => return Err(ServerFnError::new(format!("Row error: {}", e))),
             }
         }
@@ -818,16 +834,14 @@ pub async fn get_tattoo_posts_by_style(
     #[cfg(not(feature = "ssr"))]
     {
         // Return placeholder data for client-side
-        Ok(vec![
-            TattooPost {
-                id: 1,
-                short_code: "ABC123".to_string(),
-                artist_id: 1,
-                artist_name: "Sample Artist".to_string(),
-                artist_instagram: Some("sample_artist".to_string()),
-                styles: vec!["Japanese".to_string(), "Traditional".to_string()],
-            }
-        ])
+        Ok(vec![TattooPost {
+            id: 1,
+            short_code: "ABC123".to_string(),
+            artist_id: 1,
+            artist_name: "Sample Artist".to_string(),
+            artist_instagram: Some("sample_artist".to_string()),
+            styles: vec!["Japanese".to_string(), "Traditional".to_string()],
+        }])
     }
 }
 
@@ -842,44 +856,54 @@ pub async fn get_artist_availability(
         use rusqlite::{params, Connection, Result as SqliteResult};
         use std::path::Path;
 
-        fn query_availability(artist_id: i32, start_date: String, end_date: String) -> SqliteResult<Vec<AvailabilitySlot>> {
+        fn query_availability(
+            artist_id: i32,
+            start_date: String,
+            end_date: String,
+        ) -> SqliteResult<Vec<AvailabilitySlot>> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
-            let mut stmt = conn.prepare("
+
+            let mut stmt = conn.prepare(
+                "
                 SELECT id, artist_id, day_of_week, specific_date, start_time, end_time, 
                        is_available, is_recurring, created_at
                 FROM artist_availability 
                 WHERE artist_id = ?1 
                 AND (specific_date IS NULL OR (specific_date >= ?2 AND specific_date <= ?3))
                 ORDER BY day_of_week, start_time
-            ")?;
-            
-            let availability_iter = stmt.query_map(params![artist_id, start_date, end_date], |row| {
-                Ok(AvailabilitySlot {
-                    id: row.get(0)?,
-                    artist_id: row.get(1)?,
-                    day_of_week: row.get(2)?,
-                    specific_date: row.get(3)?,
-                    start_time: row.get(4)?,
-                    end_time: row.get(5)?,
-                    is_available: row.get(6)?,
-                    is_recurring: row.get(7)?,
-                    created_at: row.get(8)?,
-                })
-            })?;
-            
+            ",
+            )?;
+
+            let availability_iter =
+                stmt.query_map(params![artist_id, start_date, end_date], |row| {
+                    Ok(AvailabilitySlot {
+                        id: row.get(0)?,
+                        artist_id: row.get(1)?,
+                        day_of_week: row.get(2)?,
+                        specific_date: row.get(3)?,
+                        start_time: row.get(4)?,
+                        end_time: row.get(5)?,
+                        is_available: row.get(6)?,
+                        is_recurring: row.get(7)?,
+                        created_at: row.get(8)?,
+                    })
+                })?;
+
             let mut slots = Vec::new();
             for slot in availability_iter {
                 slots.push(slot?);
             }
-            
+
             Ok(slots)
         }
 
         match query_availability(artist_id, start_date, end_date) {
             Ok(availability) => Ok(availability),
-            Err(e) => Err(ServerFnError::new(format!("Failed to get availability: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get availability: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -900,7 +924,7 @@ pub async fn set_artist_availability(
         fn update_availability(availability: AvailabilityUpdate) -> SqliteResult<()> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             conn.execute("
                 INSERT INTO artist_availability 
                 (artist_id, day_of_week, specific_date, start_time, end_time, is_available, is_recurring)
@@ -914,13 +938,16 @@ pub async fn set_artist_availability(
                 availability.is_available,
                 availability.is_recurring,
             ))?;
-            
+
             Ok(())
         }
 
         match update_availability(availability) {
             Ok(_) => Ok(()),
-            Err(e) => Err(ServerFnError::new(format!("Failed to set availability: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to set availability: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -939,8 +966,9 @@ pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>,
         fn query_bookings(artist_id: i32) -> SqliteResult<Vec<BookingRequest>> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
-            let mut stmt = conn.prepare("
+
+            let mut stmt = conn.prepare(
+                "
                 SELECT id, artist_id, client_name, client_email, client_phone,
                        requested_date, requested_start_time, requested_end_time,
                        tattoo_description, placement, size_inches, reference_images,
@@ -949,8 +977,9 @@ pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>,
                 FROM booking_requests 
                 WHERE artist_id = ?1 
                 ORDER BY created_at DESC
-            ")?;
-            
+            ",
+            )?;
+
             let booking_iter = stmt.query_map([artist_id], |row| {
                 Ok(BookingRequest {
                     id: row.get(0)?,
@@ -971,21 +1000,24 @@ pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>,
                     estimated_price: row.get(15)?,
                     created_at: row.get(16)?,
                     updated_at: row.get(17)?,
-                    decline_reason: None,  // Add this field - it might not exist in older records
+                    decline_reason: None, // Add this field - it might not exist in older records
                 })
             })?;
-            
+
             let mut bookings = Vec::new();
             for booking in booking_iter {
                 bookings.push(booking?);
             }
-            
+
             Ok(bookings)
         }
 
         match query_bookings(artist_id) {
             Ok(bookings) => Ok(bookings),
-            Err(e) => Err(ServerFnError::new(format!("Failed to get booking requests: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get booking requests: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1013,7 +1045,7 @@ pub async fn respond_to_booking(response: BookingResponse) -> Result<(), ServerF
         fn update_booking(response: BookingResponse) -> SqliteResult<()> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             conn.execute("
                 UPDATE booking_requests 
                 SET status = ?1, artist_response = ?2, estimated_price = ?3, decline_reason = ?4, updated_at = CURRENT_TIMESTAMP
@@ -1025,13 +1057,16 @@ pub async fn respond_to_booking(response: BookingResponse) -> Result<(), ServerF
                 response.decline_reason,
                 response.booking_id,
             ))?;
-            
+
             Ok(())
         }
 
         match update_booking(response) {
             Ok(_) => Ok(()),
-            Err(e) => Err(ServerFnError::new(format!("Failed to respond to booking: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to respond to booking: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1057,16 +1092,19 @@ pub async fn send_booking_message(message_data: NewBookingMessage) -> Result<(),
         fn insert_message(message_data: NewBookingMessage) -> SqliteResult<()> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
-            conn.execute("
+
+            conn.execute(
+                "
                 INSERT INTO booking_messages (booking_request_id, sender_type, message)
                 VALUES (?1, ?2, ?3)
-            ", (
-                message_data.booking_request_id,
-                message_data.sender_type,
-                message_data.message,
-            ))?;
-            
+            ",
+                (
+                    message_data.booking_request_id,
+                    message_data.sender_type,
+                    message_data.message,
+                ),
+            )?;
+
             Ok(())
         }
 
@@ -1082,7 +1120,9 @@ pub async fn send_booking_message(message_data: NewBookingMessage) -> Result<(),
 }
 
 #[server]
-pub async fn get_booking_messages(booking_request_id: i32) -> Result<Vec<BookingMessage>, ServerFnError> {
+pub async fn get_booking_messages(
+    booking_request_id: i32,
+) -> Result<Vec<BookingMessage>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use rusqlite::{Connection, Result as SqliteResult};
@@ -1091,14 +1131,16 @@ pub async fn get_booking_messages(booking_request_id: i32) -> Result<Vec<Booking
         fn query_messages(booking_request_id: i32) -> SqliteResult<Vec<BookingMessage>> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
-            let mut stmt = conn.prepare("
+
+            let mut stmt = conn.prepare(
+                "
                 SELECT id, booking_request_id, sender_type, message, created_at
                 FROM booking_messages 
                 WHERE booking_request_id = ?1 
                 ORDER BY created_at ASC
-            ")?;
-            
+            ",
+            )?;
+
             let message_iter = stmt.query_map([booking_request_id], |row| {
                 Ok(BookingMessage {
                     id: row.get(0)?,
@@ -1108,12 +1150,12 @@ pub async fn get_booking_messages(booking_request_id: i32) -> Result<Vec<Booking
                     created_at: row.get(4)?,
                 })
             })?;
-            
+
             let mut messages = Vec::new();
             for message in message_iter {
                 messages.push(message?);
             }
-            
+
             Ok(messages)
         }
 
@@ -1140,12 +1182,13 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
         fn query_recurring_rules(artist_id: i32) -> SqliteResult<Vec<RecurringRule>> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             // Disable foreign key constraints
             conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-            
+
             // Create table if it doesn't exist
-            conn.execute("
+            conn.execute(
+                "
                 CREATE TABLE IF NOT EXISTS recurring_rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     artist_id INTEGER NOT NULL,
@@ -1158,16 +1201,20 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
                     active INTEGER DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ", [])?;
-            
-            let mut stmt = conn.prepare("
+            ",
+                [],
+            )?;
+
+            let mut stmt = conn.prepare(
+                "
                 SELECT id, artist_id, name, rule_type, pattern, action, 
                        start_time, end_time, active, created_at
                 FROM recurring_rules 
                 WHERE artist_id = ?1 
                 ORDER BY created_at DESC
-            ")?;
-            
+            ",
+            )?;
+
             let rule_iter = stmt.query_map([artist_id], |row| {
                 Ok(RecurringRule {
                     id: row.get(0)?,
@@ -1182,18 +1229,21 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
                     created_at: row.get(9)?,
                 })
             })?;
-            
+
             let mut rules = Vec::new();
             for rule in rule_iter {
                 rules.push(rule?);
             }
-            
+
             Ok(rules)
         }
 
         match query_recurring_rules(artist_id) {
             Ok(rules) => Ok(rules),
-            Err(e) => Err(ServerFnError::new(format!("Failed to get recurring rules: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get recurring rules: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1210,7 +1260,7 @@ pub async fn create_recurring_rule(
     pattern: String,
     action: String,
     start_time: Option<String>,
-    end_time: Option<String>
+    end_time: Option<String>,
 ) -> Result<i32, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -1224,16 +1274,17 @@ pub async fn create_recurring_rule(
             pattern: String,
             action: String,
             start_time: Option<String>,
-            end_time: Option<String>
+            end_time: Option<String>,
         ) -> SqliteResult<i32> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             // Disable foreign key constraints
             conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-            
+
             // Create recurring_rules table if it doesn't exist
-            conn.execute("
+            conn.execute(
+                "
                 CREATE TABLE IF NOT EXISTS recurring_rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     artist_id INTEGER NOT NULL,
@@ -1246,13 +1297,15 @@ pub async fn create_recurring_rule(
                     active INTEGER DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ", [])?;
-            
+            ",
+                [],
+            )?;
+
             let mut stmt = conn.prepare("
                 INSERT INTO recurring_rules (artist_id, name, rule_type, pattern, action, start_time, end_time)
                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             ")?;
-            
+
             stmt.execute([
                 &artist_id.to_string(),
                 &name,
@@ -1262,13 +1315,24 @@ pub async fn create_recurring_rule(
                 &start_time.unwrap_or_default(),
                 &end_time.unwrap_or_default(),
             ])?;
-            
+
             Ok(conn.last_insert_rowid() as i32)
         }
 
-        match insert_recurring_rule(artist_id, name, rule_type, pattern.clone(), action, start_time, end_time) {
+        match insert_recurring_rule(
+            artist_id,
+            name,
+            rule_type,
+            pattern.clone(),
+            action,
+            start_time,
+            end_time,
+        ) {
             Ok(id) => Ok(id),
-            Err(e) => Err(ServerFnError::new(format!("Failed to create recurring rule - Error: {} - Pattern: {} - Artist ID: {}", e, pattern, artist_id))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to create recurring rule - Error: {} - Pattern: {} - Artist ID: {}",
+                e, pattern, artist_id
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1285,7 +1349,7 @@ pub async fn update_recurring_rule(
     action: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
-    active: Option<bool>
+    active: Option<bool>,
 ) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -1299,14 +1363,14 @@ pub async fn update_recurring_rule(
             action: Option<String>,
             start_time: Option<String>,
             end_time: Option<String>,
-            active: Option<bool>
+            active: Option<bool>,
         ) -> SqliteResult<()> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             let mut updates = Vec::new();
             let mut params = Vec::new();
-            
+
             if let Some(name) = &name {
                 updates.push("name = ?");
                 params.push(name.as_str());
@@ -1331,22 +1395,28 @@ pub async fn update_recurring_rule(
                 updates.push("active = ?");
                 params.push(if active { "1" } else { "0" });
             }
-            
+
             if updates.is_empty() {
                 return Ok(());
             }
-            
-            let sql = format!("UPDATE recurring_rules SET {} WHERE id = ?", updates.join(", "));
+
+            let sql = format!(
+                "UPDATE recurring_rules SET {} WHERE id = ?",
+                updates.join(", ")
+            );
             let id_string = id.to_string();
             params.push(&id_string);
-            
+
             conn.execute(&sql, rusqlite::params_from_iter(params))?;
             Ok(())
         }
 
         match update_rule(id, name, pattern, action, start_time, end_time, active) {
             Ok(_) => Ok(()),
-            Err(e) => Err(ServerFnError::new(format!("Failed to update recurring rule: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to update recurring rule: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1358,20 +1428,21 @@ pub async fn update_recurring_rule(
 #[server]
 pub async fn get_effective_availability(
     artist_id: i32,
-    date: String
+    date: String,
 ) -> Result<bool, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
+        use chrono::{Datelike, NaiveDate, Weekday};
         use rusqlite::{Connection, Result as SqliteResult};
         use std::path::Path;
-        use chrono::{NaiveDate, Weekday, Datelike};
 
         fn check_effective_availability(artist_id: i32, date: String) -> SqliteResult<bool> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             // Create recurring_rules table if it doesn't exist
-            conn.execute("
+            conn.execute(
+                "
                 CREATE TABLE IF NOT EXISTS recurring_rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     artist_id INTEGER NOT NULL,
@@ -1384,34 +1455,40 @@ pub async fn get_effective_availability(
                     active INTEGER DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ", [])?;
-            
+            ",
+                [],
+            )?;
+
             // First check if there's an explicit availability record for this date
-            let mut stmt = conn.prepare("
+            let mut stmt = conn.prepare(
+                "
                 SELECT is_available FROM availability_slots 
                 WHERE artist_id = ?1 AND specific_date = ?2
-            ")?;
-            
+            ",
+            )?;
+
             let mut rows = stmt.query_map([&artist_id.to_string(), &date], |row| {
                 Ok(row.get::<_, bool>(0)?)
             })?;
-            
+
             if let Some(explicit_availability) = rows.next() {
                 return explicit_availability;
             }
-            
+
             // No explicit record, check recurring rules
             let parsed_date = match NaiveDate::parse_from_str(&date, "%Y-%m-%d") {
                 Ok(d) => d,
                 Err(_) => return Ok(true), // Default to available if date parsing fails
             };
-            
+
             // Get all active recurring rules for this artist
-            let mut rules_stmt = conn.prepare("
+            let mut rules_stmt = conn.prepare(
+                "
                 SELECT rule_type, pattern, action FROM recurring_rules 
                 WHERE artist_id = ?1 AND active = 1
-            ")?;
-            
+            ",
+            )?;
+
             let rules = rules_stmt.query_map([&artist_id.to_string()], |row| {
                 Ok((
                     row.get::<_, String>(0)?, // rule_type
@@ -1419,10 +1496,10 @@ pub async fn get_effective_availability(
                     row.get::<_, String>(2)?, // action
                 ))
             })?;
-            
+
             for rule_result in rules {
                 let (rule_type, pattern, action) = rule_result?;
-                
+
                 let matches = match rule_type.as_str() {
                     "weekdays" => {
                         let weekday_num = match parsed_date.weekday() {
@@ -1436,7 +1513,7 @@ pub async fn get_effective_availability(
                         };
                         let weekday_name = match weekday_num {
                             0 => "Sunday",
-                            1 => "Monday", 
+                            1 => "Monday",
                             2 => "Tuesday",
                             3 => "Wednesday",
                             4 => "Thursday",
@@ -1445,11 +1522,11 @@ pub async fn get_effective_availability(
                             _ => "",
                         };
                         pattern.contains(weekday_name)
-                    },
+                    }
                     "dates" => {
                         let month_day = parsed_date.format("%B %e").to_string().trim().to_string();
                         pattern.contains(&month_day)
-                    },
+                    }
                     "monthly" => {
                         // Simple pattern matching for common monthly patterns
                         if pattern.contains("1st") && parsed_date.day() <= 7 {
@@ -1459,22 +1536,25 @@ pub async fn get_effective_availability(
                         } else {
                             false // More complex patterns would need more parsing
                         }
-                    },
-                    _ => false
+                    }
+                    _ => false,
                 };
-                
+
                 if matches {
                     return Ok(action == "available");
                 }
             }
-            
+
             // Default to available if no rules match
             Ok(true)
         }
 
         match check_effective_availability(artist_id, date) {
             Ok(is_available) => Ok(is_available),
-            Err(e) => Err(ServerFnError::new(format!("Failed to check effective availability: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to check effective availability: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1493,14 +1573,17 @@ pub async fn delete_recurring_rule(rule_id: i32) -> Result<(), ServerFnError> {
         fn delete_rule(rule_id: i32) -> SqliteResult<()> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
+
             conn.execute("DELETE FROM recurring_rules WHERE id = ?1", [rule_id])?;
             Ok(())
         }
 
         match delete_rule(rule_id) {
             Ok(_) => Ok(()),
-            Err(e) => Err(ServerFnError::new(format!("Failed to delete recurring rule: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to delete recurring rule: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -1515,12 +1598,13 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
     {
         use rusqlite::{Connection, Result as SqliteResult};
         use std::path::Path;
-        
+
         fn query_booking_by_id(booking_id: i32) -> SqliteResult<BookingRequest> {
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
-            
-            let mut stmt = conn.prepare("
+
+            let mut stmt = conn.prepare(
+                "
                 SELECT id, artist_id, client_name, client_email, client_phone,
                        requested_date, requested_start_time, requested_end_time,
                        tattoo_description, placement, size_inches, reference_images,
@@ -1528,8 +1612,9 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
                        created_at, updated_at, decline_reason
                 FROM booking_requests 
                 WHERE id = ?1
-            ")?;
-            
+            ",
+            )?;
+
             stmt.query_row([booking_id], |row| {
                 Ok(BookingRequest {
                     id: row.get(0)?,
@@ -1554,7 +1639,7 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
                 })
             })
         }
-        
+
         match query_booking_by_id(booking_id) {
             Ok(booking) => Ok(booking),
             Err(e) => Err(ServerFnError::new(format!("Failed to get booking: {}", e))),
@@ -1567,17 +1652,18 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
 }
 
 #[server]
-pub async fn get_business_hours(artist_id: i32) -> Result<Vec<crate::db::entities::BusinessHours>, ServerFnError> {
+pub async fn get_business_hours(
+    artist_id: i32,
+) -> Result<Vec<crate::db::entities::BusinessHours>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use rusqlite::{Connection, params};
-        use std::path::Path;
         use crate::db::entities::BusinessHours;
+        use rusqlite::{params, Connection};
+        use std::path::Path;
 
         let db_path = Path::new("tatteau.db");
-        let conn = Connection::open(db_path).map_err(|e| {
-            ServerFnError::new(format!("Database connection error: {}", e))
-        })?;
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
         let mut stmt = conn.prepare("
             SELECT id, artist_id, day_of_week, start_time, end_time, is_closed, created_at, updated_at
@@ -1588,20 +1674,20 @@ pub async fn get_business_hours(artist_id: i32) -> Result<Vec<crate::db::entitie
             ServerFnError::new(format!("Failed to prepare statement: {}", e))
         })?;
 
-        let hours = stmt.query_map(params![artist_id], |row| {
-            Ok(BusinessHours {
-                id: row.get(0)?,
-                artist_id: row.get(1)?,
-                day_of_week: row.get(2)?,
-                start_time: row.get(3)?,
-                end_time: row.get(4)?,
-                is_closed: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
+        let hours = stmt
+            .query_map(params![artist_id], |row| {
+                Ok(BusinessHours {
+                    id: row.get(0)?,
+                    artist_id: row.get(1)?,
+                    day_of_week: row.get(2)?,
+                    start_time: row.get(3)?,
+                    end_time: row.get(4)?,
+                    is_closed: row.get(5)?,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
+                })
             })
-        }).map_err(|e| {
-            ServerFnError::new(format!("Failed to query business hours: {}", e))
-        })?;
+            .map_err(|e| ServerFnError::new(format!("Failed to query business hours: {}", e)))?;
 
         let mut result = Vec::new();
         for hour in hours {
@@ -1620,16 +1706,17 @@ pub async fn get_business_hours(artist_id: i32) -> Result<Vec<crate::db::entitie
 }
 
 #[server]
-pub async fn update_business_hours(hours: Vec<crate::db::entities::UpdateBusinessHours>) -> Result<(), ServerFnError> {
+pub async fn update_business_hours(
+    hours: Vec<crate::db::entities::UpdateBusinessHours>,
+) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use rusqlite::{Connection, params};
+        use rusqlite::{params, Connection};
         use std::path::Path;
 
         let db_path = Path::new("tatteau.db");
-        let conn = Connection::open(db_path).map_err(|e| {
-            ServerFnError::new(format!("Database connection error: {}", e))
-        })?;
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
         for hour in hours {
             conn.execute(
@@ -1664,7 +1751,9 @@ pub struct BookingHistoryEntry {
 }
 
 #[server]
-pub async fn get_client_booking_history(client_email: String) -> Result<Vec<BookingHistoryEntry>, ServerFnError> {
+pub async fn get_client_booking_history(
+    client_email: String,
+) -> Result<Vec<BookingHistoryEntry>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use rusqlite::{Connection, Result as SqliteResult};
@@ -1674,13 +1763,15 @@ pub async fn get_client_booking_history(client_email: String) -> Result<Vec<Book
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
 
-            let mut stmt = conn.prepare("
+            let mut stmt = conn.prepare(
+                "
                 SELECT id, requested_date, status, created_at
                 FROM booking_requests 
                 WHERE client_email = ?1 
                 ORDER BY created_at DESC
                 LIMIT 10
-            ")?;
+            ",
+            )?;
 
             let history_iter = stmt.query_map([client_email], |row| {
                 Ok(BookingHistoryEntry {
@@ -1701,11 +1792,64 @@ pub async fn get_client_booking_history(client_email: String) -> Result<Vec<Book
 
         match query_client_history(client_email) {
             Ok(history) => Ok(history),
-            Err(e) => Err(ServerFnError::new(format!("Failed to get client history: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get client history: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
     {
         Ok(vec![])
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct BookingSuggestion {
+    pub booking_id: i32,
+    pub suggested_date: String,
+    pub suggested_start_time: String,
+    pub suggested_end_time: Option<String>,
+}
+
+#[server]
+pub async fn suggest_booking_time(suggestion: BookingSuggestion) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn update_suggested_time(suggestion: BookingSuggestion) -> SqliteResult<()> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+
+            conn.execute(
+                "
+                UPDATE booking_requests 
+                SET suggested_date = ?1, suggested_start_time = ?2, suggested_end_time = ?3, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?4
+            ",
+                (
+                    suggestion.suggested_date,
+                    suggestion.suggested_start_time,
+                    suggestion.suggested_end_time,
+                    suggestion.booking_id,
+                ),
+            )?;
+
+            Ok(())
+        }
+
+        match update_suggested_time(suggestion) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to suggest booking time: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
     }
 }

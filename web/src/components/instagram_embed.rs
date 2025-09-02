@@ -45,7 +45,7 @@ pub fn InstagramEmbed(
     let embed_id_for_view = embed_id.clone();
     let short_code_for_html = short_code.clone();
 
-    // Simple Instagram embed initialization with loading state
+    // Instagram embed initialization with optimized processing to prevent duplicate requests
     Effect::new(move |_| {
         let js_code = format!(
             r#"
@@ -54,14 +54,74 @@ pub fn InstagramEmbed(
                 
                 const elem = document.getElementById(embedId);
                 if (!elem) {{
+                    // Retry only once after a short delay
                     setTimeout(function() {{
                         const retryElem = document.getElementById(embedId);
                         if (retryElem && window.instgrm && window.instgrm.Embeds) {{
-                            window.instgrm.Embeds.process(retryElem);
-                            hideLoadingSpinner(retryElem);
+                            processInstagramEmbed(retryElem);
                         }}
                     }}, 100);
                     return;
+                }}
+                
+                processInstagramEmbed(elem);
+                
+                function processInstagramEmbed(element) {{
+                    // Enhanced check to prevent duplicate processing
+                    if (element.hasAttribute('data-instagram-processed') || 
+                        element.querySelector('iframe[src*="instagram.com"]') ||
+                        element.querySelector('.instagram-media iframe')) {{
+                        hideLoadingSpinner(element);
+                        return;
+                    }}
+                    
+                    // Mark as processing to prevent duplicate calls
+                    element.setAttribute('data-instagram-processing', 'true');
+                    
+                    function finalizeProcessing() {{
+                        element.setAttribute('data-instagram-processed', 'true');
+                        element.removeAttribute('data-instagram-processing');
+                        hideLoadingSpinner(element);
+                    }}
+                    
+                    // Ensure Instagram script is loaded only once
+                    if (!window.instgrm) {{
+                        // Check if script is already being loaded
+                        if (document.querySelector('script[src*="instagram.com/embed.js"]')) {{
+                            // Script loading in progress, wait for it
+                            const checkInterval = setInterval(() => {{
+                                if (window.instgrm && window.instgrm.Embeds) {{
+                                    clearInterval(checkInterval);
+                                    window.instgrm.Embeds.process(element);
+                                    finalizeProcessing();
+                                }}
+                            }}, 200);
+                            
+                            // Timeout after 5 seconds
+                            setTimeout(() => {{
+                                clearInterval(checkInterval);
+                                finalizeProcessing();
+                            }}, 5000);
+                        }} else {{
+                            // Load script for first time
+                            const script = document.createElement('script');
+                            script.src = 'https://www.instagram.com/embed.js';
+                            script.async = true;
+                            script.onload = () => {{
+                                if (window.instgrm && window.instgrm.Embeds) {{
+                                    window.instgrm.Embeds.process(element);
+                                }}
+                                finalizeProcessing();
+                            }};
+                            script.onerror = () => finalizeProcessing();
+                            document.head.appendChild(script);
+                        }}
+                    }} else if (window.instgrm && window.instgrm.Embeds) {{
+                        window.instgrm.Embeds.process(element);
+                        finalizeProcessing();
+                    }} else {{
+                        finalizeProcessing();
+                    }}
                 }}
                 
                 function hideLoadingSpinner(element) {{
@@ -70,36 +130,7 @@ pub fn InstagramEmbed(
                         if (loadingDiv) {{
                             loadingDiv.style.display = 'none';
                         }}
-                    }}, 2000); // Hide loading after 2 seconds
-                }}
-                
-                if (elem.hasAttribute('data-instagram-processed')) {{
-                    return;
-                }}
-                
-                // If Instagram already processed this, just hide the spinner and mark as processed
-                if (elem.querySelector('.instagram-media[data-instgrm-permalink]')) {{
-                    hideLoadingSpinner(elem);
-                    elem.setAttribute('data-instagram-processed', 'true');
-                    return;
-                }}
-                elem.setAttribute('data-instagram-processed', 'true');
-                
-                // Ensure Instagram script is loaded
-                if (!window.instgrm) {{
-                    const script = document.createElement('script');
-                    script.src = 'https://www.instagram.com/embed.js';
-                    script.async = true;
-                    script.onload = () => {{
-                        if (window.instgrm && window.instgrm.Embeds) {{
-                            window.instgrm.Embeds.process(elem);
-                            hideLoadingSpinner(elem);
-                        }}
-                    }};
-                    document.body.appendChild(script);
-                }} else if (window.instgrm && window.instgrm.Embeds) {{
-                    window.instgrm.Embeds.process(elem);
-                    hideLoadingSpinner(elem);
+                    }}, 1500);
                 }}
             }})();
         "#,

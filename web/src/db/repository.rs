@@ -1037,7 +1037,7 @@ pub fn get_location_with_artist_details(
     // Get artists with their primary image and style
     let artists_query = "
         SELECT DISTINCT a.id, a.name,
-               (SELECT ai.image_url 
+               (SELECT ai.short_code 
                 FROM artists_images ai 
                 WHERE ai.artist_id = a.id 
                 LIMIT 1) as image_url,
@@ -1068,17 +1068,15 @@ pub fn get_location_with_artist_details(
     let stats_query = "
         SELECT 
             COUNT(DISTINCT a.id) as artist_count,
-            COUNT(DISTINCT ai.id) as image_count,
-            AVG(CASE WHEN ar.rating > 0 THEN ar.rating END) as avg_rating
+            COUNT(DISTINCT ai.id) as image_count
         FROM artists a
         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-        LEFT JOIN artist_reviews ar ON a.id = ar.artist_id
         WHERE a.location_id = ?1
     ";
 
-    let (artist_count, image_count, avg_rating): (i32, i32, Option<f64>) =
+    let (artist_count, image_count): (i32, i32) =
         conn.query_row(stats_query, params![location_id], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            Ok((row.get(0)?, row.get(1)?))
         })?;
 
     // Get styles
@@ -1104,6 +1102,6 @@ pub fn get_location_with_artist_details(
         artists,
         min_price: None, // TODO: Add when pricing table exists
         max_price: None, // TODO: Add when pricing table exists
-        average_rating: avg_rating,
+        average_rating: None, // TODO: Add when artist_reviews table exists
     })
 }

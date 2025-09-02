@@ -68,11 +68,19 @@ pub fn EnhancedMapMarker(location: EnhancedLocationInfo) -> impl IntoView {
 pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
     let location_id = location.location.id;
     
+    // Create a stable signal for the location ID to prevent Resource recreation
+    let stable_location_id = RwSignal::new(location_id);
+    
     // Fetch detailed location data with artist thumbnails
     let location_details = Resource::new(
-        move || location_id,
+        move || stable_location_id.get(),
         move |id| async move {
-            get_location_details(id).await.ok()
+            // Only fetch if the location_id is valid (positive integer)
+            if id > 0 {
+                get_location_details(id).await.ok()
+            } else {
+                None
+            }
         },
     );
 
@@ -136,25 +144,21 @@ pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
                                 view! {
                                     <div class="popup-artists">
                                         <h4>"Featured Artists"</h4>
-                                        <div class="artist-thumbnails">
+                                        <div class="artist-list">
                                             {details.artists.into_iter().take(4).map(|artist| {
                                                 view! {
-                                                    <div class="artist-thumb">
-                                                        {if let Some(image_url) = &artist.image_url {
-                                                            view! {
-                                                                <img 
-                                                                    src={image_url.clone()}
-                                                                    alt={format!("Portfolio by {}", artist.artist_name)}
-                                                                    title={format!("{} - {}", artist.artist_name, artist.primary_style.unwrap_or_else(|| "Artist".to_string()))}
-                                                                />
-                                                            }.into_any()
-                                                        } else {
-                                                            view! {
-                                                                <div class="artist-placeholder">
-                                                                    <span>{artist.artist_name.chars().next().unwrap_or('A')}</span>
-                                                                </div>
-                                                            }.into_any()
-                                                        }}
+                                                    <div class="artist-item">
+                                                        <div class="artist-initial">
+                                                            <span>{artist.artist_name.chars().next().unwrap_or('A')}</span>
+                                                        </div>
+                                                        <div class="artist-info">
+                                                            <span class="artist-name">{artist.artist_name}</span>
+                                                            {if let Some(style) = artist.primary_style {
+                                                                view! { <span class="artist-style">{style}</span> }.into_any()
+                                                            } else {
+                                                                view! { <span class="artist-style">"Tattoo Artist"</span> }.into_any()
+                                                            }}
+                                                        </div>
                                                     </div>
                                                 }
                                             }).collect_view()}

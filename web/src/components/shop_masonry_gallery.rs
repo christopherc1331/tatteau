@@ -78,6 +78,9 @@ pub fn ShopMasonryGallery(
                     max-width: 100% !important;
                     min-width: 280px !important;
                 }
+                .hidden {
+                    display: none !important;
+                }
                 "#}
             </style>
             <div class="shop-masonry">
@@ -89,19 +92,14 @@ pub fn ShopMasonryGallery(
                     
                     view! {
                         <div 
-                            style=move || {
-                                let should_show = if let Some(style_id) = selected_style.get() {
-                                    post_styles.iter().any(|s| s.id == style_id)
+                            class:hidden=move || {
+                                if let Some(style_id) = selected_style.get() {
+                                    !post_styles.iter().any(|s| s.id == style_id)
                                 } else {
-                                    true
-                                };
-                                
-                                if should_show {
-                                    "break-inside: avoid; margin-bottom: 1rem; position: relative; display: block;"
-                                } else {
-                                    "display: none;"
+                                    false
                                 }
                             }
+                            style="break-inside: avoid; margin-bottom: 1rem; position: relative;"
                         >
                             <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
                                 <div style="padding: 0.5rem; background: white;">

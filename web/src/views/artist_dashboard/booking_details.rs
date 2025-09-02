@@ -6,8 +6,8 @@ use thaw::*;
 use crate::db::entities::{BookingRequest, BookingMessage};
 use crate::server::{
     get_booking_request_by_id, get_client_booking_history, get_booking_messages,
-    send_booking_message, respond_to_booking, BookingHistoryEntry,
-    NewBookingMessage, BookingResponse,
+    send_booking_message, respond_to_booking, suggest_booking_time, BookingHistoryEntry,
+    NewBookingMessage, BookingResponse, BookingSuggestion,
 };
 use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone, format_datetime_for_booking, format_date_for_booking};
 
@@ -252,6 +252,12 @@ fn BookingActionsCard(
     let (show_decline_modal, set_show_decline_modal) = signal(false);
     let decline_reason = RwSignal::new("".to_string());
     
+    // State for suggest date/time modal
+    let (show_suggest_modal, set_show_suggest_modal) = signal(false);
+    let suggested_date = RwSignal::new("".to_string());
+    let suggested_start_time = RwSignal::new("".to_string());
+    let suggested_end_time = RwSignal::new("".to_string());
+    
     // Actions for status updates
     let accept_action = Action::new(move |_: &()| {
         let booking_id = booking_id;
@@ -282,6 +288,13 @@ fn BookingActionsCard(
         }
     });
     
+    let suggest_time_action = Action::new(move |suggestion: &BookingSuggestion| {
+        let suggestion = suggestion.clone();
+        async move {
+            suggest_booking_time(suggestion).await
+        }
+    });
+    
     // Event handlers
     let accept_booking = move |_| {
         accept_action.dispatch(());
@@ -303,6 +316,37 @@ fn BookingActionsCard(
     let cancel_decline = move |_| {
         set_show_decline_modal.set(false);
         decline_reason.set("".to_string());
+    };
+    
+    let suggest_date_time = move |_| {
+        set_show_suggest_modal.set(true);
+    };
+    
+    let confirm_suggest = move |_| {
+        let date = suggested_date.get().trim().to_string();
+        let start_time = suggested_start_time.get().trim().to_string();
+        let end_time = suggested_end_time.get().trim().to_string();
+        
+        if !date.is_empty() && !start_time.is_empty() {
+            let suggestion = BookingSuggestion {
+                booking_id,
+                suggested_date: date,
+                suggested_start_time: start_time,
+                suggested_end_time: if end_time.is_empty() { None } else { Some(end_time) },
+            };
+            suggest_time_action.dispatch(suggestion);
+            set_show_suggest_modal.set(false);
+            suggested_date.set("".to_string());
+            suggested_start_time.set("".to_string());
+            suggested_end_time.set("".to_string());
+        }
+    };
+    
+    let cancel_suggest = move |_| {
+        set_show_suggest_modal.set(false);
+        suggested_date.set("".to_string());
+        suggested_start_time.set("".to_string());
+        suggested_end_time.set("".to_string());
     };
     
     // Note: Page will show updated status after refresh or navigation
@@ -329,8 +373,12 @@ fn BookingActionsCard(
                             >
                                 {move || if decline_action.pending().get() { "Declining..." } else { "Decline Booking" }}
                             </Button>
-                            <Button appearance=ButtonAppearance::Subtle>
-                                "Suggest New Date/Time"
+                            <Button 
+                                appearance=ButtonAppearance::Subtle 
+                                on_click=suggest_date_time
+                                disabled=suggest_time_action.pending().get()
+                            >
+                                {move || if suggest_time_action.pending().get() { "Suggesting..." } else { "Suggest New Date/Time" }}
                             </Button>
                         }.into_any()
                     } else if current_status == "approved" {
@@ -390,6 +438,19 @@ fn BookingActionsCard(
                     }
                 })
             }}
+            
+            {move || {
+                suggest_time_action.value().get().map(|result| {
+                    match result {
+                        Ok(_) => view! {
+                            <div class="success-message">"Time suggestion sent successfully!"</div>
+                        }.into_any(),
+                        Err(e) => view! {
+                            <div class="error-message">{format!("Failed to send time suggestion: {}", e)}</div>
+                        }.into_any(),
+                    }
+                })
+            }}
         </div>
         
         // Decline Reason Modal
@@ -425,6 +486,65 @@ fn BookingActionsCard(
                                     on_click=confirm_decline
                                 >
                                     "Decline with Reason"
+                                </Button>
+                            </div>
+                        </Card>
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }
+        }}
+        
+        // Suggest Date/Time Modal
+        {move || {
+            if show_suggest_modal.get() {
+                view! {
+                    <div class="suggest-modal-overlay">
+                        <Card>
+                            <h3>"Suggest New Date & Time"</h3>
+                            <div class="suggest-modal-content">
+                                <p>"Propose an alternative date and time for this booking. The client will be notified of your suggestion."</p>
+                                <div class="form-group">
+                                    <label for="suggested-date">"Suggested Date:"</label>
+                                    <Input
+                                        id="suggested-date"
+                                        input_type=InputType::Date
+                                        value=suggested_date
+                                        placeholder="Select a date"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="suggested-start-time">"Start Time:"</label>
+                                    <Input
+                                        id="suggested-start-time"
+                                        input_type=InputType::Time
+                                        value=suggested_start_time
+                                        placeholder="Select start time"
+                                    />
+                                </div>
+                                <div class="form-group">
+                                    <label for="suggested-end-time">"End Time (optional):"</label>
+                                    <Input
+                                        id="suggested-end-time"
+                                        input_type=InputType::Time
+                                        value=suggested_end_time
+                                        placeholder="Select end time"
+                                    />
+                                </div>
+                            </div>
+                            <div class="suggest-modal-footer">
+                                <Button 
+                                    appearance=ButtonAppearance::Secondary 
+                                    on_click=cancel_suggest
+                                >
+                                    "Cancel"
+                                </Button>
+                                <Button 
+                                    appearance=ButtonAppearance::Primary 
+                                    on_click=confirm_suggest
+                                >
+                                    "Send Suggestion"
                                 </Button>
                             </div>
                         </Card>
