@@ -1921,3 +1921,379 @@ pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, S
     }
 }
 
+// ================================
+// Authentication Server Functions
+// ================================
+
+use crate::views::auth::{LoginData, SignupData};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthResponse {
+    pub success: bool,
+    pub token: Option<String>,
+    pub user_type: Option<String>,
+    pub user_id: Option<i32>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserInfo {
+    pub id: i32,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
+    pub user_type: String,
+}
+
+#[server]
+pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use bcrypt::verify;
+        use jsonwebtoken::{encode, EncodingKey, Header};
+        use rusqlite::{params, Connection};
+        use std::path::Path;
+        
+        #[derive(Debug, Serialize, Deserialize)]
+        struct Claims {
+            sub: String, // User ID
+            exp: usize,  // Expiration time
+            user_type: String, // "client" or "artist"
+            user_id: i32,
+        }
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        // Try to find user in appropriate table based on user_type
+        let (user_id, stored_password_hash, first_name, last_name) = if login_data.user_type == "client" {
+            // Query users table for clients
+            let mut stmt = conn.prepare(
+                "SELECT id, password_hash, first_name, last_name FROM users WHERE email = ? AND is_active = TRUE"
+            ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+
+            let result: Result<(i32, String, String, String), _> = stmt.query_row(
+                params![login_data.email],
+                |row| Ok((
+                    row.get(0)?, 
+                    row.get(1)?, 
+                    row.get(2)?, 
+                    row.get(3)?
+                ))
+            );
+
+            match result {
+                Ok(user_data) => user_data,
+                Err(_) => return Ok(AuthResponse {
+                    success: false,
+                    token: None,
+                    user_type: None,
+                    user_id: None,
+                    error: Some("Invalid email or password".to_string()),
+                }),
+            }
+        } else {
+            // Query artist_users table for artists
+            let mut stmt = conn.prepare(
+                "SELECT au.id, au.password_hash, a.name, '' FROM artist_users au 
+                 JOIN artists a ON au.artist_id = a.id 
+                 WHERE au.email = ?"
+            ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+
+            let result: Result<(i32, String, String, String), _> = stmt.query_row(
+                params![login_data.email],
+                |row| Ok((
+                    row.get(0)?, 
+                    row.get(1)?, 
+                    row.get(2)?, 
+                    row.get(3)?
+                ))
+            );
+
+            match result {
+                Ok((id, hash, name, _)) => (id, hash, name, "".to_string()),
+                Err(_) => return Ok(AuthResponse {
+                    success: false,
+                    token: None,
+                    user_type: None,
+                    user_id: None,
+                    error: Some("Invalid email or password".to_string()),
+                }),
+            }
+        };
+
+        // Verify password
+        let password_valid = verify(&login_data.password, &stored_password_hash)
+            .map_err(|e| ServerFnError::new(format!("Password verification error: {}", e)))?;
+
+        if !password_valid {
+            return Ok(AuthResponse {
+                success: false,
+                token: None,
+                user_type: None,
+                user_id: None,
+                error: Some("Invalid email or password".to_string()),
+            });
+        }
+
+        // Update last_login for artists
+        if login_data.user_type == "artist" {
+            let _ = conn.execute(
+                "UPDATE artist_users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+                params![user_id],
+            );
+        }
+
+        // Create JWT token
+        let expiration = chrono::Utc::now()
+            .checked_add_signed(chrono::Duration::days(7))
+            .expect("valid timestamp")
+            .timestamp() as usize;
+
+        let claims = Claims {
+            sub: user_id.to_string(),
+            exp: expiration,
+            user_type: login_data.user_type.clone(),
+            user_id,
+        };
+
+        // Use a simple secret for now - in production this should be from environment
+        let secret = "tatteau-jwt-secret-key-change-in-production";
+        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref()))
+            .map_err(|e| ServerFnError::new(format!("Token generation error: {}", e)))?;
+
+        Ok(AuthResponse {
+            success: true,
+            token: Some(token),
+            user_type: Some(login_data.user_type),
+            user_id: Some(user_id),
+            error: None,
+        })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(AuthResponse {
+            success: false,
+            token: None,
+            user_type: None,
+            user_id: None,
+            error: Some("Server-side only".to_string()),
+        })
+    }
+}
+
+#[server]
+pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use bcrypt::{hash, DEFAULT_COST};
+        use jsonwebtoken::{encode, EncodingKey, Header};
+        use rusqlite::{params, Connection};
+        use std::path::Path;
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct Claims {
+            sub: String,
+            exp: usize,
+            user_type: String,
+            user_id: i32,
+        }
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        // Check if email already exists in either table
+        let email_exists = {
+            let mut stmt = conn.prepare("SELECT COUNT(*) FROM users WHERE email = ?")
+                .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+            let count: i32 = stmt.query_row(params![signup_data.email], |row| row.get(0))
+                .map_err(|e| ServerFnError::new(format!("Database query error: {}", e)))?;
+            
+            if count > 0 {
+                true
+            } else {
+                let mut stmt = conn.prepare("SELECT COUNT(*) FROM artist_users WHERE email = ?")
+                    .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+                let count: i32 = stmt.query_row(params![signup_data.email], |row| row.get(0))
+                    .map_err(|e| ServerFnError::new(format!("Database query error: {}", e)))?;
+                count > 0
+            }
+        };
+
+        if email_exists {
+            return Ok(AuthResponse {
+                success: false,
+                token: None,
+                user_type: None,
+                user_id: None,
+                error: Some("Email already exists".to_string()),
+            });
+        }
+
+        // Hash password
+        let password_hash = hash(&signup_data.password, DEFAULT_COST)
+            .map_err(|e| ServerFnError::new(format!("Password hashing error: {}", e)))?;
+
+        let user_id = if signup_data.user_type == "client" {
+            // Insert into users table
+            conn.execute(
+                "INSERT INTO users (first_name, last_name, email, phone, password_hash) 
+                 VALUES (?, ?, ?, ?, ?)",
+                params![
+                    signup_data.first_name,
+                    signup_data.last_name,
+                    signup_data.email,
+                    signup_data.phone,
+                    password_hash
+                ],
+            ).map_err(|e| ServerFnError::new(format!("Failed to create user account: {}", e)))?;
+            
+            conn.last_insert_rowid() as i32
+        } else {
+            // For artists, we need to create both artist record and artist_users record
+            
+            // First create artist record - using placeholder location_id for now
+            // In production, this would be part of the artist onboarding flow
+            conn.execute(
+                "INSERT INTO artists (name, location_id, email, availability_status) 
+                 VALUES (?, ?, ?, ?)",
+                params![
+                    format!("{} {}", signup_data.first_name, signup_data.last_name),
+                    1, // Placeholder location - will be updated during onboarding
+                    signup_data.email,
+                    "pending_onboarding"
+                ],
+            ).map_err(|e| ServerFnError::new(format!("Failed to create artist record: {}", e)))?;
+            
+            let artist_id = conn.last_insert_rowid() as i32;
+            
+            // Then create artist_users record
+            conn.execute(
+                "INSERT INTO artist_users (artist_id, email, password_hash) 
+                 VALUES (?, ?, ?)",
+                params![artist_id, signup_data.email, password_hash],
+            ).map_err(|e| ServerFnError::new(format!("Failed to create artist user account: {}", e)))?;
+            
+            conn.last_insert_rowid() as i32
+        };
+
+        // Create JWT token
+        let expiration = chrono::Utc::now()
+            .checked_add_signed(chrono::Duration::days(7))
+            .expect("valid timestamp")
+            .timestamp() as usize;
+
+        let claims = Claims {
+            sub: user_id.to_string(),
+            exp: expiration,
+            user_type: signup_data.user_type.clone(),
+            user_id,
+        };
+
+        let secret = "tatteau-jwt-secret-key-change-in-production";
+        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref()))
+            .map_err(|e| ServerFnError::new(format!("Token generation error: {}", e)))?;
+
+        Ok(AuthResponse {
+            success: true,
+            token: Some(token),
+            user_type: Some(signup_data.user_type),
+            user_id: Some(user_id),
+            error: None,
+        })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(AuthResponse {
+            success: false,
+            token: None,
+            user_type: None,
+            user_id: None,
+            error: Some("Server-side only".to_string()),
+        })
+    }
+}
+
+#[server]
+pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use jsonwebtoken::{decode, DecodingKey, Validation};
+        use rusqlite::{params, Connection};
+        use std::path::Path;
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct Claims {
+            sub: String,
+            exp: usize,
+            user_type: String,
+            user_id: i32,
+        }
+
+        let secret = "tatteau-jwt-secret-key-change-in-production";
+        let token_data = decode::<Claims>(
+            &token,
+            &DecodingKey::from_secret(secret.as_ref()),
+            &Validation::default(),
+        );
+
+        match token_data {
+            Ok(data) => {
+                let claims = data.claims;
+                let db_path = Path::new("tatteau.db");
+                let conn = Connection::open(db_path)
+                    .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+                let user_info = if claims.user_type == "client" {
+                    let mut stmt = conn.prepare(
+                        "SELECT id, first_name, last_name, email FROM users WHERE id = ? AND is_active = TRUE"
+                    ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+
+                    stmt.query_row(params![claims.user_id], |row| {
+                        Ok(UserInfo {
+                            id: row.get(0)?,
+                            first_name: row.get(1)?,
+                            last_name: row.get(2)?,
+                            email: row.get(3)?,
+                            user_type: "client".to_string(),
+                        })
+                    }).ok()
+                } else {
+                    let mut stmt = conn.prepare(
+                        "SELECT au.id, a.name, '', au.email FROM artist_users au 
+                         JOIN artists a ON au.artist_id = a.id 
+                         WHERE au.id = ?"
+                    ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+
+                    stmt.query_row(params![claims.user_id], |row| {
+                        let name: String = row.get(1)?;
+                        let name_parts: Vec<&str> = name.split_whitespace().collect();
+                        let (first_name, last_name) = if name_parts.len() >= 2 {
+                            (name_parts[0].to_string(), name_parts[1..].join(" "))
+                        } else {
+                            (name, "".to_string())
+                        };
+
+                        Ok(UserInfo {
+                            id: row.get(0)?,
+                            first_name,
+                            last_name,
+                            email: row.get(3)?,
+                            user_type: "artist".to_string(),
+                        })
+                    }).ok()
+                };
+
+                Ok(user_info)
+            }
+            Err(_) => Ok(None),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(None)
+    }
+}
+

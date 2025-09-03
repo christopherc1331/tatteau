@@ -2,6 +2,7 @@ use leptos::{prelude::*, task::spawn_local};
 use leptos_router::components::A;
 use thaw::*;
 use serde::{Deserialize, Serialize};
+use crate::server::{login_user, signup_user};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginData {
@@ -42,9 +43,30 @@ pub fn LoginPage() -> impl IntoView {
             user_type: user_type.get(),
         };
         
-        // TODO: Implement actual login logic
         spawn_local(async move {
-            // Placeholder - will implement server function later
+            match login_user(login_data).await {
+                Ok(auth_response) => {
+                    if auth_response.success {
+                        // For now, just redirect - token storage will be added later
+                        if let Some(user_type) = auth_response.user_type {
+                            let redirect_url = if user_type == "artist" {
+                                "/artist/dashboard"
+                            } else {
+                                "/explore" // Client goes to explore page
+                            };
+                            
+                            if let Some(window) = web_sys::window() {
+                                let _ = window.location().set_href(redirect_url);
+                            }
+                        }
+                    } else {
+                        error_message.set(auth_response.error);
+                    }
+                }
+                Err(e) => {
+                    error_message.set(Some(format!("Login failed: {}", e)));
+                }
+            }
             loading.set(false);
         });
     };
@@ -159,9 +181,32 @@ pub fn SignupPage() -> impl IntoView {
             user_type: user_type.get(),
         };
         
-        // TODO: Implement actual signup logic
         spawn_local(async move {
-            // Placeholder - will implement server function later
+            match signup_user(signup_data).await {
+                Ok(auth_response) => {
+                    if auth_response.success {
+                        // For now, just redirect - token storage will be added later
+                        if let Some(user_type) = auth_response.user_type {
+                            let redirect_url = if user_type == "artist" {
+                                // For artists, they would go to subscription tier selection
+                                // But for now, redirect to artist dashboard
+                                "/artist/dashboard"
+                            } else {
+                                "/explore" // Client goes to explore page
+                            };
+                            
+                            if let Some(window) = web_sys::window() {
+                                let _ = window.location().set_href(redirect_url);
+                            }
+                        }
+                    } else {
+                        error_message.set(auth_response.error);
+                    }
+                }
+                Err(e) => {
+                    error_message.set(Some(format!("Signup failed: {}", e)));
+                }
+            }
             loading.set(false);
         });
     };
