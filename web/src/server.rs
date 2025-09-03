@@ -6,6 +6,8 @@ use shared_types::MapBounds;
 use crate::db::entities::{
     Artist, ArtistImage, ArtistSubscription, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
     CityCoords, Location, RecurringRule, Style, SubscriptionTier,
+    QuestionnaireQuestion, ArtistQuestionnaire, ClientQuestionnaireForm, ClientQuestionnaireSubmission,
+    QuestionnaireResponse, BookingQuestionnaireResponse,
 };
 use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};
@@ -29,6 +31,8 @@ use crate::db::repository::{
     get_all_images_with_styles_by_location, get_all_styles_by_location, get_artist_by_id,
     get_artist_images_with_styles, get_artist_location, get_artist_styles, get_artists_by_location,
     get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
+    get_artist_questionnaire, get_all_default_questions, get_artist_questionnaire_config,
+    update_artist_questionnaire_config, save_questionnaire_responses, get_booking_questionnaire_responses,
 };
 
 #[server]
@@ -2443,6 +2447,120 @@ pub async fn check_artist_has_active_subscription(artist_id: i32) -> Result<bool
     #[cfg(not(feature = "ssr"))]
     {
         Ok(false)
+    }
+}
+
+// ================================
+// Questionnaire System Server Functions
+// ================================
+
+#[server]
+pub async fn get_artist_questionnaire_form(artist_id: i32) -> Result<ClientQuestionnaireForm, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match get_artist_questionnaire(artist_id) {
+            Ok(form) => Ok(form),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn get_default_questions() -> Result<Vec<QuestionnaireQuestion>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match get_all_default_questions() {
+            Ok(questions) => Ok(questions),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn get_artist_questionnaire_configuration(artist_id: i32) -> Result<Vec<ArtistQuestionnaire>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match get_artist_questionnaire_config(artist_id) {
+            Ok(config) => Ok(config),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn update_artist_questionnaire_configuration(
+    artist_id: i32,
+    config: Vec<ArtistQuestionnaire>
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match update_artist_questionnaire_config(artist_id, config) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[server]
+pub async fn submit_questionnaire_responses(
+    submission: ClientQuestionnaireSubmission
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        // Convert client responses to database format
+        let responses: Vec<BookingQuestionnaireResponse> = submission.responses
+            .into_iter()
+            .map(|r| BookingQuestionnaireResponse {
+                id: 0, // Will be auto-generated
+                booking_request_id: submission.booking_request_id,
+                question_id: r.question_id,
+                response_text: r.response_text,
+                response_data: r.response_data,
+                created_at: None, // Will be auto-generated
+            })
+            .collect();
+
+        match save_questionnaire_responses(submission.booking_request_id, responses) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[server]
+pub async fn get_booking_responses(
+    booking_request_id: i32
+) -> Result<Vec<BookingQuestionnaireResponse>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match get_booking_questionnaire_responses(booking_request_id) {
+            Ok(responses) => Ok(responses),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
     }
 }
 

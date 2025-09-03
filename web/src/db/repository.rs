@@ -1,5 +1,7 @@
 use super::entities::{
     Artist, ArtistImage, ArtistImageStyle, ArtistStyle, CityCoords, Location, Style,
+    QuestionnaireQuestion, ArtistQuestionnaire, BookingQuestionnaireResponse,
+    ClientQuestionnaireForm, ClientQuestionnaireQuestion,
 };
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
@@ -1104,4 +1106,198 @@ pub fn get_location_with_artist_details(
         max_price: None, // TODO: Add when pricing table exists
         average_rating: None, // TODO: Add when artist_reviews table exists
     })
+}
+
+// Questionnaire System Repository Functions
+
+#[cfg(feature = "ssr")]
+pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionnaireForm> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("
+        SELECT q.id, q.question_type, q.question_text, aq.is_required, 
+               COALESCE(aq.custom_options, q.options_data) as options,
+               q.validation_rules
+        FROM questionnaire_questions q
+        JOIN artist_questionnaires aq ON q.id = aq.question_id
+        WHERE aq.artist_id = ?1
+        ORDER BY aq.display_order
+    ")?;
+
+    let question_rows = stmt.query_map(params![artist_id], |row| {
+        let options_str: Option<String> = row.get(4)?;
+        let options = match options_str {
+            Some(json_str) => serde_json::from_str(&json_str).unwrap_or_default(),
+            None => vec![],
+        };
+
+        Ok(ClientQuestionnaireQuestion {
+            id: row.get(0)?,
+            question_type: row.get(1)?,
+            question_text: row.get(2)?,
+            is_required: row.get(3)?,
+            options,
+            validation_rules: row.get(5)?,
+        })
+    })?;
+
+    let questions: Result<Vec<_>, _> = question_rows.collect();
+    
+    Ok(ClientQuestionnaireForm {
+        artist_id,
+        questions: questions?,
+    })
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_all_default_questions() -> SqliteResult<Vec<QuestionnaireQuestion>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("
+        SELECT id, question_type, question_text, is_default, 
+               options_data, validation_rules, created_at
+        FROM questionnaire_questions
+        WHERE is_default = true
+        ORDER BY id
+    ")?;
+
+    let question_rows = stmt.query_map([], |row| {
+        Ok(QuestionnaireQuestion {
+            id: row.get(0)?,
+            question_type: row.get(1)?,
+            question_text: row.get(2)?,
+            is_default: row.get(3)?,
+            options_data: row.get(4)?,
+            validation_rules: row.get(5)?,
+            created_at: row.get(6)?,
+        })
+    })?;
+
+    question_rows.collect()
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_artist_questionnaire_config(artist_id: i32) -> SqliteResult<Vec<ArtistQuestionnaire>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("
+        SELECT id, artist_id, question_id, is_required, display_order, custom_options
+        FROM artist_questionnaires
+        WHERE artist_id = ?1
+        ORDER BY display_order
+    ")?;
+
+    let config_rows = stmt.query_map(params![artist_id], |row| {
+        Ok(ArtistQuestionnaire {
+            id: row.get(0)?,
+            artist_id: row.get(1)?,
+            question_id: row.get(2)?,
+            is_required: row.get(3)?,
+            display_order: row.get(4)?,
+            custom_options: row.get(5)?,
+        })
+    })?;
+
+    config_rows.collect()
+}
+
+#[cfg(feature = "ssr")]
+pub fn update_artist_questionnaire_config(
+    artist_id: i32,
+    config: Vec<ArtistQuestionnaire>
+) -> SqliteResult<()> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    // Remove existing config
+    conn.execute(
+        "DELETE FROM artist_questionnaires WHERE artist_id = ?1",
+        params![artist_id],
+    )?;
+    
+    // Insert new config
+    for item in config {
+        conn.execute(
+            "INSERT INTO artist_questionnaires 
+             (artist_id, question_id, is_required, display_order, custom_options)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                item.artist_id,
+                item.question_id,
+                item.is_required,
+                item.display_order,
+                item.custom_options
+            ],
+        )?;
+    }
+    
+    Ok(())
+}
+
+#[cfg(feature = "ssr")]
+pub fn save_questionnaire_responses(
+    booking_request_id: i32,
+    responses: Vec<BookingQuestionnaireResponse>
+) -> SqliteResult<()> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    for response in responses {
+        conn.execute(
+            "INSERT INTO booking_questionnaire_responses 
+             (booking_request_id, question_id, response_text, response_data)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                booking_request_id,
+                response.question_id,
+                response.response_text,
+                response.response_data
+            ],
+        )?;
+    }
+    
+    Ok(())
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_booking_questionnaire_responses(
+    booking_request_id: i32
+) -> SqliteResult<Vec<BookingQuestionnaireResponse>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("
+        SELECT id, booking_request_id, question_id, response_text, response_data, created_at
+        FROM booking_questionnaire_responses
+        WHERE booking_request_id = ?1
+        ORDER BY id
+    ")?;
+
+    let response_rows = stmt.query_map(params![booking_request_id], |row| {
+        Ok(BookingQuestionnaireResponse {
+            id: row.get(0)?,
+            booking_request_id: row.get(1)?,
+            question_id: row.get(2)?,
+            response_text: row.get(3)?,
+            response_data: row.get(4)?,
+            created_at: row.get(5)?,
+        })
+    })?;
+
+    response_rows.collect()
 }

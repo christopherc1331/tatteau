@@ -1,0 +1,228 @@
+/* Questionnaire Builder Styles */
+
+.questionnaire-builder {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.questionnaire-header {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.questionnaire-header h2 {
+    color: #7c3aed;
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.questionnaire-header p {
+    color: #6b7280;
+    font-size: 1.1rem;
+}
+
+.questionnaire-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.loading {
+    text-align: center;
+    padding: 3rem;
+    color: #6b7280;
+    font-size: 1.1rem;
+}
+
+.questionnaire-form {
+    padding: 0;
+}
+
+.questions-list {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.question-config-item {
+    border-bottom: 1px solid #f3f4f6;
+    padding: 1.5rem;
+    transition: background-color 0.2s ease;
+}
+
+.question-config-item:hover {
+    background-color: #f9fafb;
+}
+
+.question-config-item:last-child {
+    border-bottom: none;
+}
+
+.question-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.question-info {
+    flex: 1;
+}
+
+.question-info h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+    margin: 0 0 0.25rem 0;
+}
+
+.question-type {
+    font-size: 0.875rem;
+    color: #6b7280;
+    background-color: #f3f4f6;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    text-transform: capitalize;
+}
+
+.question-options {
+    margin-left: 3rem;
+    padding: 1rem;
+    background-color: #f8fafc;
+    border-radius: 8px;
+    border-left: 4px solid #7c3aed;
+}
+
+.option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.option-row:last-child {
+    margin-bottom: 0;
+}
+
+.option-row label {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.options-display {
+    flex: 1;
+    margin-left: 1rem;
+}
+
+.options-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.option-tag {
+    background-color: #e0e7ff;
+    color: #3730a3;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid #c7d2fe;
+}
+
+.save-section {
+    padding: 2rem;
+    background-color: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.success-message {
+    color: #065f46;
+    background-color: #d1fae5;
+    border: 1px solid #a7f3d0;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+.error-message {
+    color: #991b1b;
+    background-color: #fee2e2;
+    border: 1px solid #fecaca;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .questionnaire-builder {
+        padding: 1rem;
+    }
+    
+    .question-config-item {
+        padding: 1rem;
+    }
+    
+    .question-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .question-options {
+        margin-left: 0;
+        margin-top: 1rem;
+    }
+    
+    .option-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .options-display {
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .save-section {
+        padding: 1.5rem;
+    }
+}
+
+/* Enhanced Thaw component styling */
+.questionnaire-builder .thaw-switch {
+    --switch-checked-bg: #7c3aed;
+    --switch-checked-border: #7c3aed;
+}
+
+.questionnaire-builder .thaw-button--primary {
+    background: linear-gradient(135deg, #7c3aed 0%, #f97316 100%);
+    border: none;
+    font-weight: 600;
+    padding: 0.75rem 2rem;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.questionnaire-builder .thaw-button--primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+}
+
+.questionnaire-builder .thaw-button--primary:active {
+    transform: translateY(0);
+}

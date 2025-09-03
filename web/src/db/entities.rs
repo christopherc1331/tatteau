@@ -237,3 +237,65 @@ pub struct CreateArtistSubscription {
     pub status: String,
     pub payment_method: Option<String>,
 }
+
+// Questionnaire System Entities
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct QuestionnaireQuestion {
+    pub id: i32,
+    pub question_type: String, // 'style', 'body_part', 'text', 'datetime', 'multiselect'
+    pub question_text: String,
+    pub is_default: bool,
+    pub options_data: Option<String>, // JSON for select/multiselect options
+    pub validation_rules: Option<String>, // JSON validation config
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ArtistQuestionnaire {
+    pub id: i32,
+    pub artist_id: i32,
+    pub question_id: i32,
+    pub is_required: bool,
+    pub display_order: i32,
+    pub custom_options: Option<String>, // JSON override for default questions
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BookingQuestionnaireResponse {
+    pub id: i32,
+    pub booking_request_id: i32,
+    pub question_id: i32,
+    pub response_text: Option<String>,
+    pub response_data: Option<String>, // JSON for complex responses
+    pub created_at: Option<String>,
+}
+
+// For client booking flow
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ClientQuestionnaireForm {
+    pub artist_id: i32,
+    pub questions: Vec<ClientQuestionnaireQuestion>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ClientQuestionnaireQuestion {
+    pub id: i32,
+    pub question_type: String,
+    pub question_text: String,
+    pub is_required: bool,
+    pub options: Vec<String>, // Parsed from options_data/custom_options
+    pub validation_rules: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ClientQuestionnaireSubmission {
+    pub booking_request_id: i32,
+    pub responses: Vec<QuestionnaireResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct QuestionnaireResponse {
+    pub question_id: i32,
+    pub response_text: Option<String>,
+    pub response_data: Option<String>, // JSON for arrays/complex data
+}

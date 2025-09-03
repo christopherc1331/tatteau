@@ -8,7 +8,7 @@ use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::masonry_gallery::MasonryGallery;
-use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails};
+use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails, QuestionnaireBuilder};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::auth::{LoginPage, SignupPage};
 use crate::views::booking::{ArtistBooking, ShopBooking};
@@ -71,6 +71,9 @@ pub fn App() -> impl IntoView {
         
         // subscription tiers page styles
         <Stylesheet id="subscription-tiers" href="/style/subscription_tiers.css"/>
+        
+        // questionnaire builder styles
+        <Stylesheet id="questionnaire" href="/style/questionnaire.css"/>
 
         // sets the document title
         <Title text="tatteau"/>
@@ -94,6 +97,7 @@ pub fn App() -> impl IntoView {
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ArtistRequests/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ArtistSettings/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ArtistRecurring/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("questionnaire")) view=QuestionnaireBuilder/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=BookingDetailsPage/>
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
