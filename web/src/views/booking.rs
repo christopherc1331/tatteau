@@ -1,38 +1,31 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
-use crate::components::ClientBookingModal;
+use leptos_router::hooks::{use_params_map, use_navigate};
 
 #[component]
 pub fn ArtistBooking() -> impl IntoView {
     let params = use_params_map();
+    let navigate = use_navigate();
+    
     let artist_id = Memo::new(move |_| {
         params.read()
             .get("id")
             .and_then(|id| id.parse::<i32>().ok())
     });
 
-    // Modal state - show immediately when this page loads
-    let modal_open = RwSignal::new(true);
-    let artist_id_signal = RwSignal::new(artist_id.get());
-
-    // Handle modal close - navigate back to previous page
-    let handle_close = move || {
-        modal_open.set(false);
-        // Navigate back to artist profile
-        if let Some(window) = web_sys::window() {
-            if let Some(history) = window.history().ok() {
-                let _ = history.back();
-            }
+    // Redirect to artist page with modal open
+    // The artist page will handle the modal display
+    Effect::new(move |_| {
+        if let Some(id) = artist_id.get() {
+            // Navigate to the artist highlight page with book query parameter
+            navigate(&format!("/artist/{}?book=true", id), Default::default());
         }
-    };
+    });
 
     view! {
-        <div class="booking-page-container">
-            <ClientBookingModal
-                show=modal_open
-                artist_id=artist_id_signal
-                on_close=handle_close
-            />
+        <div style="min-height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center;">
+            <div style="text-align: center;">
+                <p style="color: #4a5568;">"Redirecting to artist page..."</p>
+            </div>
         </div>
     }
 }

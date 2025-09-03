@@ -1,14 +1,16 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
+use leptos_router::hooks::{use_params_map, use_query_map};
 
 use crate::{
-    components::{loading::LoadingView, artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost}},
+    components::{loading::LoadingView, artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost}, ClientBookingModal},
     server::fetch_artist_data,
 };
 
 #[component]
 pub fn ArtistHighlight() -> impl IntoView {
     let params = use_params_map();
+    let query = use_query_map();
+    
     let artist_id = Memo::new(move |_| {
         params.read()
             .get("id")
@@ -26,6 +28,19 @@ pub fn ArtistHighlight() -> impl IntoView {
             }
         },
     );
+
+    // Modal state for booking
+    let show_booking_modal = RwSignal::new(false);
+    let booking_artist_id = RwSignal::new(None::<i32>);
+    
+    // Check if we should open modal immediately (from /book/artist redirect)
+    Effect::new(move |_| {
+        let query_params = query.read();
+        if query_params.get("book").is_some() || query_params.get("modal").is_some() {
+            booking_artist_id.set(Some(artist_id.get()));
+            show_booking_modal.set(true);
+        }
+    });
 
     view! {
         <style>
@@ -77,10 +92,14 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                 </div>
                                                 
                                                 <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                                                    <a href={format!("/book/artist/{}", artist_id.get())}
-                                                       style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
+                                                    <button 
+                                                       on:click=move |_| {
+                                                           booking_artist_id.set(Some(artist_id.get()));
+                                                           show_booking_modal.set(true);
+                                                       }
+                                                       style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600; border: none; cursor: pointer; font-size: 1rem;">
                                                         "📅 Book Appointment"
-                                                    </a>
+                                                    </button>
                                                     
                                                     {artist_data.artist.social_links.and_then(|links| {
                                                         (!links.is_empty()).then(|| view! {
@@ -217,6 +236,16 @@ pub fn ArtistHighlight() -> impl IntoView {
                     })
                 }}
             </Suspense>
+            
+            // Booking Modal - overlays the artist page
+            <ClientBookingModal 
+                show=show_booking_modal
+                artist_id=booking_artist_id
+                on_close=move || {
+                    show_booking_modal.set(false);
+                    booking_artist_id.set(None);
+                }
+            />
         </div>
     }
 }
