@@ -60,6 +60,9 @@ pub fn App() -> impl IntoView {
         
         // booking details page styles
         <Stylesheet id="booking-details" href="/style/booking_details.css"/>
+        
+        // booking modal styles  
+        <Stylesheet id="booking-modal" href="/style/booking_modal.css"/>
 
         // sets the document title
         <Title text="tatteau"/>

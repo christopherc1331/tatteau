@@ -1,4 +1,5 @@
 pub mod artist_masonry_gallery;
+pub mod client_booking_modal;
 pub mod error;
 pub mod instagram_embed;
 pub mod instagram_embed_ssr;
@@ -15,6 +16,7 @@ pub mod event_item;
 
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
+pub use client_booking_modal::ClientBookingModal;
 pub use instagram_embed::{InstagramEmbed, process_instagram_embeds};
 pub use instagram_embed_ssr::InstagramEmbedSsr;
 pub use instagram_fallback_cta::InstagramFallbackCta;

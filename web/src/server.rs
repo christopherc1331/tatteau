@@ -1853,3 +1853,71 @@ pub async fn suggest_booking_time(suggestion: BookingSuggestion) -> Result<(), S
         Ok(())
     }
 }
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct NewBookingRequest {
+    pub artist_id: i32,
+    pub client_name: String,
+    pub client_email: String,
+    pub client_phone: Option<String>,
+    pub tattoo_description: Option<String>,
+    pub placement: Option<String>,
+    pub size_inches: Option<f32>,
+    pub requested_date: String,
+    pub requested_start_time: String,
+    pub requested_end_time: Option<String>,
+    pub message_from_client: Option<String>,
+}
+
+#[server]
+pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::Connection;
+        use rusqlite::Result as SqliteResult;
+        use std::path::Path;
+
+        fn insert_booking_request(request: NewBookingRequest) -> SqliteResult<i32> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+
+            let mut stmt = conn.prepare(
+                "INSERT INTO booking_requests (
+                    artist_id, client_name, client_email, client_phone, 
+                    tattoo_description, placement, size_inches,
+                    requested_date, requested_start_time, requested_end_time,
+                    message_from_client, status, created_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'pending', datetime('now'))"
+            )?;
+
+            stmt.execute([
+                &request.artist_id.to_string(),
+                &request.client_name,
+                &request.client_email,
+                &request.client_phone.unwrap_or_else(|| "".to_string()),
+                &request.tattoo_description.unwrap_or_else(|| "".to_string()),
+                &request.placement.unwrap_or_else(|| "".to_string()),
+                &request.size_inches.map_or("".to_string(), |s| s.to_string()),
+                &request.requested_date,
+                &request.requested_start_time,
+                &request.requested_end_time.unwrap_or_else(|| "".to_string()),
+                &request.message_from_client.unwrap_or_else(|| "".to_string()),
+            ])?;
+
+            Ok(conn.last_insert_rowid() as i32)
+        }
+
+        match insert_booking_request(request) {
+            Ok(booking_id) => Ok(booking_id),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to submit booking request: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(0)
+    }
+}
+
