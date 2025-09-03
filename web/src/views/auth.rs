@@ -188,9 +188,8 @@ pub fn SignupPage() -> impl IntoView {
                         // For now, just redirect - token storage will be added later
                         if let Some(user_type) = auth_response.user_type {
                             let redirect_url = if user_type == "artist" {
-                                // For artists, they would go to subscription tier selection
-                                // But for now, redirect to artist dashboard
-                                "/artist/dashboard"
+                                // For artists, redirect to subscription tier selection
+                                "/subscription/tiers"
                             } else {
                                 "/explore" // Client goes to explore page
                             };

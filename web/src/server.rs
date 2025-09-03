@@ -4,8 +4,8 @@ use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
 use crate::db::entities::{
-    Artist, ArtistImage, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
-    CityCoords, Location, RecurringRule, Style,
+    Artist, ArtistImage, ArtistSubscription, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
+    CityCoords, Location, RecurringRule, Style, SubscriptionTier,
 };
 use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};
@@ -2294,6 +2294,155 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
     #[cfg(not(feature = "ssr"))]
     {
         Ok(None)
+    }
+}
+
+// Subscription System Server Functions
+
+#[server]
+pub async fn get_subscription_tiers() -> Result<Vec<SubscriptionTier>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::Connection;
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        let mut stmt = conn
+            .prepare("SELECT id, tier_name, tier_level, price_monthly, features_json, created_at FROM subscription_tiers ORDER BY tier_level ASC")
+            .map_err(|e| ServerFnError::new(format!("Query preparation error: {}", e)))?;
+
+        let tier_iter = stmt
+            .query_map([], |row| {
+                Ok(SubscriptionTier {
+                    id: row.get(0)?,
+                    tier_name: row.get(1)?,
+                    tier_level: row.get(2)?,
+                    price_monthly: row.get(3)?,
+                    features_json: row.get(4)?,
+                    created_at: row.get(5)?,
+                })
+            })
+            .map_err(|e| ServerFnError::new(format!("Query execution error: {}", e)))?;
+
+        let mut tiers = Vec::new();
+        for tier in tier_iter {
+            tiers.push(tier.map_err(|e| ServerFnError::new(format!("Row parsing error: {}", e)))?);
+        }
+
+        Ok(tiers)
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn create_artist_subscription(
+    artist_id: i32,
+    tier_id: i32,
+    status: String,
+    payment_method: Option<String>,
+) -> Result<i32, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::Connection;
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        let subscription_id = conn
+            .query_row(
+                "INSERT INTO artist_subscriptions (artist_id, tier_id, status, payment_method, subscription_start, next_payment)
+                 VALUES (?1, ?2, ?3, ?4, datetime('now'), datetime('now', '+1 month'))
+                 RETURNING id",
+                (
+                    &artist_id,
+                    &tier_id,
+                    &status,
+                    &payment_method,
+                ),
+                |row| row.get::<_, i32>(0),
+            )
+            .map_err(|e| ServerFnError::new(format!("Subscription creation error: {}", e)))?;
+
+        Ok(subscription_id)
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(0)
+    }
+}
+
+#[server]
+pub async fn get_artist_subscription(artist_id: i32) -> Result<Option<ArtistSubscription>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::Connection;
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        match conn.query_row(
+            "SELECT id, artist_id, tier_id, status, payment_method, subscription_start, subscription_end, last_payment, next_payment
+             FROM artist_subscriptions WHERE artist_id = ?1",
+            [artist_id],
+            |row| {
+                Ok(ArtistSubscription {
+                    id: row.get(0)?,
+                    artist_id: row.get(1)?,
+                    tier_id: row.get(2)?,
+                    status: row.get(3)?,
+                    payment_method: row.get(4)?,
+                    subscription_start: row.get(5)?,
+                    subscription_end: row.get(6)?,
+                    last_payment: row.get(7)?,
+                    next_payment: row.get(8)?,
+                })
+            },
+        ) {
+            Ok(subscription) => Ok(Some(subscription)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(ServerFnError::new(format!("Query error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(None)
+    }
+}
+
+#[server]
+pub async fn check_artist_has_active_subscription(artist_id: i32) -> Result<bool, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::Connection;
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        match conn.query_row(
+            "SELECT 1 FROM artist_subscriptions WHERE artist_id = ?1 AND status = 'active'",
+            [artist_id],
+            |_| Ok(()),
+        ) {
+            Ok(_) => Ok(true),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(ServerFnError::new(format!("Query error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(false)
     }
 }
 

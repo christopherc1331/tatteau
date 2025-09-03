@@ -205,3 +205,35 @@ pub struct UpdateBusinessHours {
     pub end_time: Option<String>,
     pub is_closed: bool,
 }
+
+// Subscription System Entities
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct SubscriptionTier {
+    pub id: i32,
+    pub tier_name: String,
+    pub tier_level: i32,
+    pub price_monthly: f64,
+    pub features_json: Option<String>,
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ArtistSubscription {
+    pub id: i32,
+    pub artist_id: i32,
+    pub tier_id: i32,
+    pub status: String, // 'active', 'cancelled', 'expired', 'trial'
+    pub payment_method: Option<String>,
+    pub subscription_start: Option<String>,
+    pub subscription_end: Option<String>,
+    pub last_payment: Option<String>,
+    pub next_payment: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CreateArtistSubscription {
+    pub artist_id: i32,
+    pub tier_id: i32,
+    pub status: String,
+    pub payment_method: Option<String>,
+}

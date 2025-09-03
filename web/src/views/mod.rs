@@ -9,3 +9,4 @@ pub mod match_results;
 pub mod quiz;
 pub mod shop;
 pub mod styles;
+pub mod subscription_tiers;

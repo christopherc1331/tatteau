@@ -18,6 +18,7 @@ use crate::views::match_results::MatchResults;
 use crate::views::quiz::GetMatchedQuiz;
 use crate::views::shop::Shop;
 use crate::views::styles::StylesShowcase;
+use crate::views::subscription_tiers::SubscriptionTiersPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -67,6 +68,9 @@ pub fn App() -> impl IntoView {
         
         // authentication pages styles
         <Stylesheet id="auth" href="/style/auth.css"/>
+        
+        // subscription tiers page styles
+        <Stylesheet id="subscription-tiers" href="/style/subscription_tiers.css"/>
 
         // sets the document title
         <Title text="tatteau"/>
@@ -79,6 +83,7 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("login") view=LoginPage/>
                         <Route path=StaticSegment("signup") view=SignupPage/>
+                        <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
                         <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>
                         <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
