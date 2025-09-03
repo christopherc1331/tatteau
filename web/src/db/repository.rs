@@ -674,7 +674,7 @@ fn map_location_row(row: &rusqlite::Row) -> rusqlite::Result<(shared_types::Loca
     use shared_types::LocationInfo;
     let location_id: i32 = row.get(0)?;
     let location_info = LocationInfo {
-        id: location_id,
+        id: location_id as i32,
         name: row.get(1)?,
         lat: row.get(2)?,
         long: row.get(3)?,

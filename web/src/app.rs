@@ -10,6 +10,7 @@ use thaw::*;
 use crate::components::masonry_gallery::MasonryGallery;
 use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails};
 use crate::views::artist_highlight::ArtistHighlight;
+use crate::views::auth::{LoginPage, SignupPage};
 use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::home::HomePage;
 use crate::views::map::map_wrapper::DiscoveryMap;
@@ -63,6 +64,9 @@ pub fn App() -> impl IntoView {
         
         // booking modal styles  
         <Stylesheet id="booking-modal" href="/style/booking_modal.css"/>
+        
+        // authentication pages styles
+        <Stylesheet id="auth" href="/style/auth.css"/>
 
         // sets the document title
         <Title text="tatteau"/>
@@ -73,6 +77,8 @@ pub fn App() -> impl IntoView {
                 <main>
                     <Routes fallback=|| "Page not found.".into_view()>
                         <Route path=StaticSegment("") view=HomePage/>
+                        <Route path=StaticSegment("login") view=LoginPage/>
+                        <Route path=StaticSegment("signup") view=SignupPage/>
                         <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>
                         <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
