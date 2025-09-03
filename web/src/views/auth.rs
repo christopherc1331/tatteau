@@ -1,8 +1,8 @@
+use crate::server::{login_user, signup_user};
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::components::A;
-use thaw::*;
 use serde::{Deserialize, Serialize};
-use crate::server::{login_user, signup_user};
+use thaw::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginData {
@@ -29,20 +29,19 @@ pub fn LoginPage() -> impl IntoView {
     let loading = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
 
-    let is_button_disabled = Memo::new(move |_| {
-        email.get().is_empty() || password.get().is_empty()
-    });
+    let is_button_disabled =
+        Memo::new(move |_| email.get().is_empty() || password.get().is_empty());
 
     let submit_login = move |_| {
         loading.set(true);
         error_message.set(None);
-        
+
         let login_data = LoginData {
             email: email.get(),
             password: password.get(),
             user_type: user_type.get(),
         };
-        
+
         spawn_local(async move {
             match login_user(login_data).await {
                 Ok(auth_response) => {
@@ -54,7 +53,7 @@ pub fn LoginPage() -> impl IntoView {
                             } else {
                                 "/explore" // Client goes to explore page
                             };
-                            
+
                             if let Some(window) = web_sys::window() {
                                 let _ = window.location().set_href(redirect_url);
                             }
@@ -81,13 +80,13 @@ pub fn LoginPage() -> impl IntoView {
 
                 <div class="user-type-toggle">
                     <div class="toggle-buttons">
-                        <button 
+                        <button
                             class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
                             on:click=move |_| user_type.set("client".to_string())
                         >
                             "I'm a Client"
                         </button>
-                        <button 
+                        <button
                             class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
                             on:click=move |_| user_type.set("artist".to_string())
                         >
@@ -106,9 +105,6 @@ pub fn LoginPage() -> impl IntoView {
                             input_type=InputType::Email
                             value=email
                         />
-                    </div>
-
-                    <div class="form-group">
                         <Input
                             placeholder="Password"
                             input_type=InputType::Password
@@ -154,11 +150,11 @@ pub fn SignupPage() -> impl IntoView {
     let error_message = RwSignal::new(Option::<String>::None);
 
     let is_button_disabled = Memo::new(move |_| {
-        first_name.get().is_empty() || 
-        last_name.get().is_empty() || 
-        email.get().is_empty() || 
-        password.get().is_empty() ||
-        confirm_password.get().is_empty()
+        first_name.get().is_empty()
+            || last_name.get().is_empty()
+            || email.get().is_empty()
+            || password.get().is_empty()
+            || confirm_password.get().is_empty()
     });
 
     let submit_signup = move |_| {
@@ -176,11 +172,15 @@ pub fn SignupPage() -> impl IntoView {
             first_name: first_name.get(),
             last_name: last_name.get(),
             email: email.get(),
-            phone: if phone.get().is_empty() { None } else { Some(phone.get()) },
+            phone: if phone.get().is_empty() {
+                None
+            } else {
+                Some(phone.get())
+            },
             password: password.get(),
             user_type: user_type.get(),
         };
-        
+
         spawn_local(async move {
             match signup_user(signup_data).await {
                 Ok(auth_response) => {
@@ -194,7 +194,7 @@ pub fn SignupPage() -> impl IntoView {
                             } else {
                                 "/explore" // Client goes to explore page
                             };
-                            
+
                             if let Some(window) = web_sys::window() {
                                 let _ = window.location().set_href(redirect_url);
                             }
@@ -221,13 +221,13 @@ pub fn SignupPage() -> impl IntoView {
 
                 <div class="user-type-toggle">
                     <div class="toggle-buttons">
-                        <button 
+                        <button
                             class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
                             on:click=move |_| user_type.set("client".to_string())
                         >
                             "I'm a Client"
                         </button>
-                        <button 
+                        <button
                             class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
                             on:click=move |_| user_type.set("artist".to_string())
                         >
@@ -308,10 +308,10 @@ pub fn SignupPage() -> impl IntoView {
                         loading=Signal::from(loading)
                         disabled=Signal::from(is_button_disabled)
                     >
-                        {move || if user_type.get() == "artist" { 
-                            "Create Artist Account" 
-                        } else { 
-                            "Create Account" 
+                        {move || if user_type.get() == "artist" {
+                            "Create Artist Account"
+                        } else {
+                            "Create Account"
                         }}
                     </Button>
                 </form>
@@ -326,3 +326,4 @@ pub fn SignupPage() -> impl IntoView {
         </div>
     }
 }
+
