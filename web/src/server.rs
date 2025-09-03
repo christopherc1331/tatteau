@@ -7,7 +7,7 @@ use crate::db::entities::{
     Artist, ArtistImage, ArtistSubscription, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
     CityCoords, Location, RecurringRule, Style, SubscriptionTier,
     QuestionnaireQuestion, ArtistQuestionnaire, ClientQuestionnaireForm, ClientQuestionnaireSubmission,
-    BookingQuestionnaireResponse,
+    BookingQuestionnaireResponse, ErrorLog, CreateErrorLog,
 };
 use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,7 @@ use crate::db::repository::{
     get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
     get_artist_questionnaire, get_all_default_questions, get_artist_questionnaire_config,
     update_artist_questionnaire_config, save_questionnaire_responses, get_booking_questionnaire_responses,
+    log_error, get_recent_errors, get_errors_by_type,
 };
 
 #[server]
@@ -2556,6 +2557,101 @@ pub async fn get_booking_responses(
         match get_booking_questionnaire_responses(booking_request_id) {
             Ok(responses) => Ok(responses),
             Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+// Error Logging Server Functions
+#[server]
+pub async fn log_client_error(
+    error_type: String,
+    error_level: String,
+    error_message: String,
+    error_stack: Option<String>,
+    url_path: Option<String>,
+    user_agent: Option<String>,
+    session_id: Option<String>,
+    additional_context: Option<String>,
+) -> Result<i64, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        let error_data = CreateErrorLog {
+            error_type,
+            error_level,
+            error_message,
+            error_stack,
+            url_path,
+            user_agent,
+            user_id: None, // TODO: Extract from JWT token when available
+            session_id,
+            request_headers: None, // TODO: Extract from request context
+            additional_context,
+        };
+
+        match log_error(error_data) {
+            Ok(id) => Ok(id),
+            Err(e) => Err(ServerFnError::new(format!("Failed to log error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn log_server_error(
+    error_message: String,
+    error_stack: Option<String>,
+    url_path: Option<String>,
+    additional_context: Option<String>,
+) -> Result<i64, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        let error_data = CreateErrorLog {
+            error_type: "server".to_string(),
+            error_level: "error".to_string(),
+            error_message,
+            error_stack,
+            url_path,
+            user_agent: None,
+            user_id: None, // TODO: Extract from JWT token when available
+            session_id: None,
+            request_headers: None, // TODO: Extract from request context
+            additional_context,
+        };
+
+        match log_error(error_data) {
+            Ok(id) => Ok(id),
+            Err(e) => Err(ServerFnError::new(format!("Failed to log server error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn get_error_logs(
+    limit: Option<i32>,
+    error_type: Option<String>,
+) -> Result<Vec<ErrorLog>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        let result = if let Some(err_type) = error_type {
+            get_errors_by_type(err_type, limit.unwrap_or(100))
+        } else {
+            get_recent_errors(limit.unwrap_or(100))
+        };
+
+        match result {
+            Ok(errors) => Ok(errors),
+            Err(e) => Err(ServerFnError::new(format!("Failed to fetch error logs: {}", e))),
         }
     }
     #[cfg(not(feature = "ssr"))]

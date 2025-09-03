@@ -2,6 +2,7 @@ use super::entities::{
     Artist, ArtistImage, Style, CityCoords, Location,
     QuestionnaireQuestion, ArtistQuestionnaire, BookingQuestionnaireResponse,
     ClientQuestionnaireForm, ClientQuestionnaireQuestion,
+    ErrorLog, CreateErrorLog,
 };
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, Result as SqliteResult};
@@ -1301,4 +1302,107 @@ pub fn get_booking_questionnaire_responses(
     })?;
 
     response_rows.collect()
+}
+
+// Error Logging Functions
+#[cfg(feature = "ssr")]
+pub fn log_error(error_data: CreateErrorLog) -> SqliteResult<i64> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    conn.execute(
+        "INSERT INTO error_logs 
+         (error_type, error_level, error_message, error_stack, url_path, 
+          user_agent, user_id, session_id, request_headers, additional_context)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            error_data.error_type,
+            error_data.error_level,
+            error_data.error_message,
+            error_data.error_stack,
+            error_data.url_path,
+            error_data.user_agent,
+            error_data.user_id,
+            error_data.session_id,
+            error_data.request_headers,
+            error_data.additional_context
+        ],
+    )?;
+
+    Ok(conn.last_insert_rowid())
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_recent_errors(limit: i32) -> SqliteResult<Vec<ErrorLog>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("
+        SELECT id, error_type, error_level, error_message, error_stack, 
+               url_path, user_agent, user_id, session_id, timestamp,
+               request_headers, additional_context
+        FROM error_logs
+        ORDER BY timestamp DESC
+        LIMIT ?1
+    ")?;
+
+    let error_rows = stmt.query_map(params![limit], |row| {
+        Ok(ErrorLog {
+            id: row.get(0)?,
+            error_type: row.get(1)?,
+            error_level: row.get(2)?,
+            error_message: row.get(3)?,
+            error_stack: row.get(4)?,
+            url_path: row.get(5)?,
+            user_agent: row.get(6)?,
+            user_id: row.get(7)?,
+            session_id: row.get(8)?,
+            timestamp: row.get(9)?,
+            request_headers: row.get(10)?,
+            additional_context: row.get(11)?,
+        })
+    })?;
+
+    error_rows.collect()
+}
+
+#[cfg(feature = "ssr")]
+pub fn get_errors_by_type(error_type: String, limit: i32) -> SqliteResult<Vec<ErrorLog>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    let mut stmt = conn.prepare("
+        SELECT id, error_type, error_level, error_message, error_stack, 
+               url_path, user_agent, user_id, session_id, timestamp,
+               request_headers, additional_context
+        FROM error_logs
+        WHERE error_type = ?1
+        ORDER BY timestamp DESC
+        LIMIT ?2
+    ")?;
+
+    let error_rows = stmt.query_map(params![error_type, limit], |row| {
+        Ok(ErrorLog {
+            id: row.get(0)?,
+            error_type: row.get(1)?,
+            error_level: row.get(2)?,
+            error_message: row.get(3)?,
+            error_stack: row.get(4)?,
+            url_path: row.get(5)?,
+            user_agent: row.get(6)?,
+            user_id: row.get(7)?,
+            session_id: row.get(8)?,
+            timestamp: row.get(9)?,
+            request_headers: row.get(10)?,
+            additional_context: row.get(11)?,
+        })
+    })?;
+
+    error_rows.collect()
 }

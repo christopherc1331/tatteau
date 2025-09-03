@@ -132,6 +132,38 @@ The following environment variables can be configured:
 
 The application uses SQLite with the database file `tatteau.db`. In Docker deployment, the database is mounted as a volume to persist data between container restarts.
 
+#### Database Schema
+
+The application includes several key tables:
+
+**Core Tables:**
+- `artists` - Artist profiles and information
+- `locations` - Geographic locations for artists
+- `styles` - Tattoo style categories
+- `bookings` - Appointment bookings between clients and artists
+- `artist_images` - Artist portfolio images and Instagram posts
+
+**Error Logging Table:**
+- `error_logs` - Comprehensive error tracking and monitoring
+
+##### Error Logs Table Structure
+
+```sql
+CREATE TABLE error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    error_type TEXT NOT NULL,           -- 'client', 'server', 'database'
+    level TEXT NOT NULL,                -- 'error', 'warning', 'info'
+    message TEXT NOT NULL,              -- Error message
+    stack_trace TEXT,                   -- Stack trace if available
+    user_agent TEXT,                    -- Client user agent
+    url TEXT,                          -- URL where error occurred
+    user_id INTEGER,                   -- Associated user ID (optional)
+    session_id TEXT,                   -- Session identifier
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    additional_context TEXT            -- JSON string with extra context
+);
+```
+
 ### Production Considerations
 
 - Use the nginx reverse proxy for production (`docker-compose --profile production up -d`)
@@ -148,4 +180,127 @@ The Tatteau platform includes:
 - **Get Matched**: Quiz-based artist recommendation system
 - **Artist Profiles**: Detailed artist information and portfolios
 - **Booking System**: Appointment scheduling with artists
-- **Style Gallery**: Browse tattoo styles and artwork 
+- **Style Gallery**: Browse tattoo styles and artwork
+
+## Error Handling & Monitoring
+
+The Tatteau platform includes a comprehensive Universal Error Logging system for production-level error monitoring, debugging, and reliability.
+
+### Error Handling Features
+
+#### Automatic Error Boundaries
+The application includes React-style error boundaries that automatically catch and handle component-level errors:
+
+```rust
+use crate::components::error_boundary::ErrorBoundary;
+
+// Wrap components in error boundaries
+view! {
+    <ErrorBoundary>
+        <YourComponent />
+    </ErrorBoundary>
+}
+```
+
+#### Client-Side Error Logging
+Errors occurring in the browser are automatically captured and sent to the server:
+
+- **Component crashes**: Caught by error boundaries
+- **JavaScript errors**: Captured with full context
+- **Network failures**: Logged with request details
+- **User interactions**: Context preserved for debugging
+
+#### Server-Side Error Logging
+Server errors are logged with comprehensive context:
+
+- **Database errors**: Connection and query failures
+- **API errors**: Request processing failures  
+- **Authentication errors**: Login and session issues
+- **File system errors**: Asset loading problems
+
+### Error Log Data Structure
+
+Each error log contains:
+
+- **Error Classification**: client, server, or database
+- **Severity Level**: error, warning, or info
+- **Context Information**: URL, user agent, session data
+- **Stack Traces**: Full error stack when available
+- **User Context**: Associated user ID and session
+- **Timestamps**: Precise error occurrence time
+- **Additional Data**: Custom context as JSON
+
+### Error Monitoring API
+
+#### Logging Errors Programmatically
+
+```rust
+use crate::components::error_boundary::log_component_error;
+use crate::server::{log_client_error, log_server_error};
+
+// Client-side error logging
+log_component_error(
+    "Component crashed during render".to_string(),
+    Some("TypeError: Cannot read property...".to_string()),
+    Some("/artist/dashboard".to_string())
+).await;
+
+// Server-side error logging  
+log_server_error(
+    "Database connection failed".to_string(),
+    Some("Connection timeout after 30s".to_string()),
+    Some(user_id)
+).await;
+```
+
+#### Retrieving Error Logs
+
+```rust
+use crate::server::get_error_logs;
+
+// Get recent errors with filtering
+let recent_errors = get_error_logs(
+    Some("client".to_string()),  // Error type filter
+    Some("error".to_string()),   // Level filter  
+    Some(100)                    // Limit results
+).await?;
+```
+
+### Production Error Monitoring
+
+#### Error Log Analysis
+- **Database queries**: Filter errors by type, level, timeframe
+- **Trend analysis**: Monitor error frequency and patterns
+- **User impact**: Track errors by user sessions
+- **Performance**: Identify performance-related errors
+
+#### Error Response Strategy
+1. **Automatic logging**: All errors logged to database
+2. **User-friendly display**: Professional error messages shown to users
+3. **Graceful degradation**: Application continues functioning
+4. **Development feedback**: Detailed error info in development mode
+
+#### Monitoring Best Practices
+- **Regular review**: Check error logs for recurring issues
+- **Performance correlation**: Link errors to performance metrics
+- **User experience**: Monitor errors that affect user workflows
+- **Database maintenance**: Clean up old error logs periodically
+
+### Development Debugging
+
+#### Error Boundary Testing
+```bash
+# Enable detailed error logging in development
+RUST_LOG=debug cargo leptos watch
+```
+
+#### Database Error Inspection
+```bash
+# View recent errors directly in SQLite
+sqlite3 tatteau.db "SELECT * FROM error_logs ORDER BY timestamp DESC LIMIT 10;"
+
+# Filter by error type
+sqlite3 tatteau.db "SELECT * FROM error_logs WHERE error_type='client' AND level='error';"
+```
+
+This error handling system provides production-ready monitoring capabilities, ensuring issues are caught, logged, and can be resolved quickly while maintaining a smooth user experience. 

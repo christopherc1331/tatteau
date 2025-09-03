@@ -299,3 +299,34 @@ pub struct QuestionnaireResponse {
     pub response_text: Option<String>,
     pub response_data: Option<String>, // JSON for arrays/complex data
 }
+
+// Error Logging System
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ErrorLog {
+    pub id: i32,
+    pub error_type: String, // 'client', 'server', 'database'
+    pub error_level: String, // 'error', 'warn', 'fatal'
+    pub error_message: String,
+    pub error_stack: Option<String>,
+    pub url_path: Option<String>,
+    pub user_agent: Option<String>,
+    pub user_id: Option<i32>, // NULL if not logged in
+    pub session_id: Option<String>,
+    pub timestamp: String,
+    pub request_headers: Option<String>, // JSON string
+    pub additional_context: Option<String>, // JSON string for any extra data
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CreateErrorLog {
+    pub error_type: String,
+    pub error_level: String,
+    pub error_message: String,
+    pub error_stack: Option<String>,
+    pub url_path: Option<String>,
+    pub user_agent: Option<String>,
+    pub user_id: Option<i32>,
+    pub session_id: Option<String>,
+    pub request_headers: Option<String>,
+    pub additional_context: Option<String>,
+}

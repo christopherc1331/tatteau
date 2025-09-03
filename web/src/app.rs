@@ -7,7 +7,7 @@ use leptos_router::{
 use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
-use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard};
+use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard, ErrorBoundary};
 use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails, QuestionnaireBuilder};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::auth::{LoginPage, SignupPage};
@@ -76,14 +76,18 @@ pub fn App() -> impl IntoView {
         
         // questionnaire builder styles
         <Stylesheet id="questionnaire" href="/style/questionnaire.css"/>
+        
+        // error boundary styles
+        <Stylesheet id="error-boundary" href="/style/error_boundary.css"/>
 
         // sets the document title
         <Title text="tatteau"/>
 
         // content for this welcome page
         <ConfigProvider>
-            <Router>
-                <main>
+            <ErrorBoundary>
+                <Router>
+                    <main>
                     <Routes fallback=|| view! { <NotFoundPage /> }.into_view()>
                         // Public routes
                         <Route path=StaticSegment("") view=HomePage/>
@@ -114,6 +118,7 @@ pub fn App() -> impl IntoView {
                     </Routes>
                 </main>
             </Router>
+            </ErrorBoundary>
         </ConfigProvider>
     }
 }
