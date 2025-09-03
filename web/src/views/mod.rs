@@ -10,3 +10,5 @@ pub mod quiz;
 pub mod shop;
 pub mod styles;
 pub mod subscription_tiers;
+pub mod artist_login_prompt;
+pub mod not_found;

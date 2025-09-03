@@ -13,6 +13,7 @@ pub mod tattoo_gallery;
 pub mod time_picker;
 pub mod time_block;
 pub mod event_item;
+pub mod auth_guard;
 
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
@@ -27,3 +28,4 @@ pub use tattoo_gallery::TattooGallery;
 pub use time_picker::TimePicker;
 pub use time_block::{TimeBlock, TimeBlockData};
 pub use event_item::{EventItem, EventItemData};
+pub use auth_guard::ArtistAuthGuard;

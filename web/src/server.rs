@@ -7,7 +7,7 @@ use crate::db::entities::{
     Artist, ArtistImage, ArtistSubscription, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
     CityCoords, Location, RecurringRule, Style, SubscriptionTier,
     QuestionnaireQuestion, ArtistQuestionnaire, ClientQuestionnaireForm, ClientQuestionnaireSubmission,
-    QuestionnaireResponse, BookingQuestionnaireResponse,
+    BookingQuestionnaireResponse,
 };
 use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};

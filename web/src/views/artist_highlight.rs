@@ -21,7 +21,7 @@ pub fn ArtistHighlight() -> impl IntoView {
     let artist_data = Resource::new(
         move || artist_id.get(),
         move |id| async move {
-            if id > 0 {
+            if id != 0 {
                 fetch_artist_data(id).await.ok()
             } else {
                 None

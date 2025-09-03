@@ -1,5 +1,5 @@
 use super::entities::{
-    Artist, ArtistImage, ArtistImageStyle, ArtistStyle, CityCoords, Location, Style,
+    Artist, ArtistImage, Style, CityCoords, Location,
     QuestionnaireQuestion, ArtistQuestionnaire, BookingQuestionnaireResponse,
     ClientQuestionnaireForm, ClientQuestionnaireQuestion,
 };
@@ -8,6 +8,7 @@ use rusqlite::{Connection, Result as SqliteResult};
 #[cfg(feature = "ssr")]
 use serde_json;
 use shared_types::{LocationInfo, MapBounds};
+#[cfg(feature = "ssr")]
 use std::path::Path;
 
 #[cfg(feature = "ssr")]

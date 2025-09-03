@@ -283,3 +283,37 @@ form {
   }
 }
 
+/* Success Message */
+.success-message {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border: 1px solid #86efac;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.1);
+}
+
+.success-message .success-icon {
+  background: #22c55e;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.success-message p {
+  color: #166534;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+

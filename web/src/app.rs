@@ -7,7 +7,7 @@ use leptos_router::{
 use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
-use crate::components::masonry_gallery::MasonryGallery;
+use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard};
 use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails, QuestionnaireBuilder};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::auth::{LoginPage, SignupPage};
@@ -19,6 +19,8 @@ use crate::views::quiz::GetMatchedQuiz;
 use crate::views::shop::Shop;
 use crate::views::styles::StylesShowcase;
 use crate::views::subscription_tiers::SubscriptionTiersPage;
+use crate::views::artist_login_prompt::ArtistLoginPrompt;
+use crate::views::not_found::NotFoundPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -82,27 +84,33 @@ pub fn App() -> impl IntoView {
         <ConfigProvider>
             <Router>
                 <main>
-                    <Routes fallback=|| "Page not found.".into_view()>
+                    <Routes fallback=|| view! { <NotFoundPage /> }.into_view()>
+                        // Public routes
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("login") view=LoginPage/>
                         <Route path=StaticSegment("signup") view=SignupPage/>
+                        <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
                         <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
                         <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>
                         <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
                         <Route path=StaticSegment("styles") view=StylesPage/>
                         <Route path=StaticSegment("gallery") view=GalleryPage/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard")) view=ArtistHome/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ArtistCalendar/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ArtistRequests/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ArtistSettings/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ArtistRecurring/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("questionnaire")) view=QuestionnaireBuilder/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=BookingDetailsPage/>
+                        
+                        // Public artist profile pages (no authentication required)
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
                         <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
                         <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
+                        
+                        // Protected artist dashboard routes (authentication required)
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard")) view=ProtectedArtistHome/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ProtectedArtistCalendar/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ProtectedArtistRequests/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ProtectedArtistSettings/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ProtectedArtistRecurring/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("questionnaire")) view=ProtectedQuestionnaireBuilder/>
+                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=ProtectedBookingDetailsPage/>
                     </Routes>
                 </main>
             </Router>
@@ -149,5 +157,79 @@ fn BookingDetailsPage() -> impl IntoView {
     
     view! {
         <BookingDetails booking_id=id />
+    }
+}
+
+// Protected artist dashboard components wrapped with authentication guards
+
+#[component]
+fn ProtectedArtistHome() -> impl IntoView {
+    view! {
+        <ArtistAuthGuard>
+            <ArtistHome />
+        </ArtistAuthGuard>
+    }
+}
+
+#[component]
+fn ProtectedArtistCalendar() -> impl IntoView {
+    view! {
+        <ArtistAuthGuard>
+            <ArtistCalendar />
+        </ArtistAuthGuard>
+    }
+}
+
+#[component]
+fn ProtectedArtistRequests() -> impl IntoView {
+    view! {
+        <ArtistAuthGuard>
+            <ArtistRequests />
+        </ArtistAuthGuard>
+    }
+}
+
+#[component]
+fn ProtectedArtistSettings() -> impl IntoView {
+    view! {
+        <ArtistAuthGuard>
+            <ArtistSettings />
+        </ArtistAuthGuard>
+    }
+}
+
+#[component]
+fn ProtectedArtistRecurring() -> impl IntoView {
+    view! {
+        <ArtistAuthGuard>
+            <ArtistRecurring />
+        </ArtistAuthGuard>
+    }
+}
+
+#[component]
+fn ProtectedQuestionnaireBuilder() -> impl IntoView {
+    view! {
+        <ArtistAuthGuard>
+            <QuestionnaireBuilder />
+        </ArtistAuthGuard>
+    }
+}
+
+#[component]
+fn ProtectedBookingDetailsPage() -> impl IntoView {
+    let params = leptos_router::hooks::use_params_map();
+    let booking_id = move || {
+        params.get().get("id")
+            .and_then(|id| id.parse::<i32>().ok())
+            .unwrap_or(0)
+    };
+    
+    let id = booking_id();
+    
+    view! {
+        <ArtistAuthGuard>
+            <BookingDetails booking_id=id />
+        </ArtistAuthGuard>
     }
 }

@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use thaw::*;
 use crate::db::entities::{QuestionnaireQuestion, ArtistQuestionnaire};
 use crate::server::{get_default_questions, get_artist_questionnaire_configuration};
 

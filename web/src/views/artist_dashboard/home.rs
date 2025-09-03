@@ -1,10 +1,9 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
-use thaw::*;
 
 use crate::{
     components::loading::LoadingView,
-    server::{get_artist_dashboard_data, ArtistDashboardData},
+    server::get_artist_dashboard_data,
 };
 
 #[component]

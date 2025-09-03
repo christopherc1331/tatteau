@@ -28,6 +28,21 @@ pub fn LoginPage() -> impl IntoView {
     let password = RwSignal::new(String::new());
     let loading = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
+    let success_message = RwSignal::new(Option::<String>::None);
+    
+    // Check for success query parameter
+    #[cfg(feature = "hydrate")]
+    Effect::new({
+        let success_message = success_message.clone();
+        move |_| {
+            let url = web_sys::window()
+                .and_then(|w| w.location().href().ok())
+                .unwrap_or_default();
+            if url.contains("success=signup") {
+                success_message.set(Some("Account created successfully! Please log in.".to_string()));
+            }
+        }
+    });
 
     let is_button_disabled =
         Memo::new(move |_| email.get().is_empty() || password.get().is_empty());
@@ -94,6 +109,19 @@ pub fn LoginPage() -> impl IntoView {
                         </button>
                     </div>
                 </div>
+
+                {move || {
+                    if let Some(msg) = success_message.get() {
+                        view! {
+                            <div class="success-message">
+                                <span class="success-icon">"✓"</span>
+                                <p>{msg}</p>
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {}.into_any()
+                    }
+                }}
 
                 <form on:submit=move |ev| {
                     ev.prevent_default();
@@ -185,17 +213,16 @@ pub fn SignupPage() -> impl IntoView {
             match signup_user(signup_data).await {
                 Ok(auth_response) => {
                     if auth_response.success {
-                        // For now, just redirect - token storage will be added later
+                        // Redirect to login page with success message
                         if let Some(user_type) = auth_response.user_type {
-                            let redirect_url = if user_type == "artist" {
-                                // For artists, redirect to subscription tier selection
-                                "/subscription/tiers"
+                            let login_url = if user_type == "artist" {
+                                "/login?success=signup&user_type=artist"
                             } else {
-                                "/explore" // Client goes to explore page
+                                "/login?success=signup&user_type=client"
                             };
 
                             if let Some(window) = web_sys::window() {
-                                let _ = window.location().set_href(redirect_url);
+                                let _ = window.location().set_href(login_url);
                             }
                         }
                     } else {

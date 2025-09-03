@@ -1,6 +1,5 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
-use thaw::*;
 
 #[component]
 pub fn ArtistRequests() -> impl IntoView {
