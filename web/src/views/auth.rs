@@ -1,6 +1,6 @@
 use crate::server::{login_user, signup_user};
 use leptos::{prelude::*, task::spawn_local};
-use leptos_router::components::A;
+use leptos_router::{components::A, hooks::{use_query_map, use_navigate}};
 use serde::{Deserialize, Serialize};
 use thaw::*;
 
@@ -23,7 +23,13 @@ pub struct SignupData {
 
 #[component]
 pub fn LoginPage() -> impl IntoView {
-    let user_type = RwSignal::new("client".to_string());
+    let query_map = use_query_map();
+    let navigate = use_navigate();
+    
+    // Initialize user_type from query parameter or default to "client"  
+    let initial_user_type = query_map.get().get("user_type").unwrap_or_else(|| "client".to_string());
+    let user_type = RwSignal::new(initial_user_type);
+    
     let email = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
     let loading = RwSignal::new(false);
@@ -31,15 +37,25 @@ pub fn LoginPage() -> impl IntoView {
     let success_message = RwSignal::new(Option::<String>::None);
     
     // Check for success query parameter
-    #[cfg(feature = "hydrate")]
     Effect::new({
         let success_message = success_message.clone();
         move |_| {
-            let url = web_sys::window()
-                .and_then(|w| w.location().href().ok())
-                .unwrap_or_default();
-            if url.contains("success=signup") {
+            let query = query_map.get();
+            if query.get("success").as_deref() == Some("signup") {
                 success_message.set(Some("Account created successfully! Please log in.".to_string()));
+            }
+        }
+    });
+    
+    // Update user_type when URL changes
+    Effect::new({
+        let user_type = user_type.clone();
+        move |_| {
+            let query = query_map.get();
+            if let Some(url_user_type) = query.get("user_type") {
+                if url_user_type != user_type.get_untracked() {
+                    user_type.set(url_user_type.clone());
+                }
             }
         }
     });
@@ -97,13 +113,45 @@ pub fn LoginPage() -> impl IntoView {
                     <div class="toggle-buttons">
                         <button
                             class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
-                            on:click=move |_| user_type.set("client".to_string())
+                            on:click={
+                                let navigate = navigate.clone();
+                                move |_| {
+                                    user_type.set("client".to_string());
+                                    
+                                    // Build query string with user_type and preserve success if present
+                                    let current_query = query_map.get();
+                                    let mut query_parts = vec!["user_type=client"];
+                                    
+                                    if current_query.get("success").is_some() {
+                                        query_parts.push("success=signup");
+                                    }
+                                    
+                                    let query_string = format!("?{}", query_parts.join("&"));
+                                    navigate(&format!("/login{}", query_string), Default::default());
+                                }
+                            }
                         >
                             "I'm a Client"
                         </button>
                         <button
                             class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
-                            on:click=move |_| user_type.set("artist".to_string())
+                            on:click={
+                                let navigate = navigate.clone();
+                                move |_| {
+                                    user_type.set("artist".to_string());
+                                    
+                                    // Build query string with user_type and preserve success if present
+                                    let current_query = query_map.get();
+                                    let mut query_parts = vec!["user_type=artist"];
+                                    
+                                    if current_query.get("success").is_some() {
+                                        query_parts.push("success=signup");
+                                    }
+                                    
+                                    let query_string = format!("?{}", query_parts.join("&"));
+                                    navigate(&format!("/login{}", query_string), Default::default());
+                                }
+                            }
                         >
                             "I'm an Artist"
                         </button>

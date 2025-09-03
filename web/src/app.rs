@@ -97,13 +97,7 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("styles") view=StylesPage/>
                         <Route path=StaticSegment("gallery") view=GalleryPage/>
                         
-                        // Public artist profile pages (no authentication required)
-                        <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
-                        <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
-                        <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
-                        <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
-                        
-                        // Protected artist dashboard routes (authentication required)
+                        // Protected artist dashboard routes (authentication required) - MUST come before artist profile routes
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard")) view=ProtectedArtistHome/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ProtectedArtistCalendar/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ProtectedArtistRequests/>
@@ -111,6 +105,12 @@ pub fn App() -> impl IntoView {
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ProtectedArtistRecurring/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("questionnaire")) view=ProtectedQuestionnaireBuilder/>
                         <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=ProtectedBookingDetailsPage/>
+                        
+                        // Public artist profile pages (no authentication required)
+                        <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
+                        <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
+                        <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
+                        <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
                     </Routes>
                 </main>
             </Router>
