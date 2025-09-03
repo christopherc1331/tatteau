@@ -4,17 +4,21 @@ use leptos_router::components::A;
 use crate::{
     components::loading::LoadingView,
     server::get_artist_dashboard_data,
+    utils::auth::use_authenticated_artist_id,
 };
 
 #[component]
 pub fn ArtistHome() -> impl IntoView {
-    // In a real app, this would come from authentication context
-    let artist_id = RwSignal::new(1i32); // Placeholder - would come from auth
+    // Get authenticated artist ID from JWT token
+    let artist_id = use_authenticated_artist_id();
 
     let dashboard_data = Resource::new(
         move || artist_id.get(),
-        move |id| async move {
-            get_artist_dashboard_data(id).await
+        move |id_opt| async move {
+            match id_opt {
+                Some(id) => get_artist_dashboard_data(id).await,
+                None => Err(ServerFnError::new("No authenticated artist found".to_string()))
+            }
         }
     );
 

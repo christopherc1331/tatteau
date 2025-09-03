@@ -5,9 +5,13 @@ use leptos::ev::*;
 use crate::server::{get_business_hours, update_business_hours};
 use crate::db::entities::{BusinessHours, UpdateBusinessHours};
 use crate::utils::timezone::convert_to_12_hour_format;
+use crate::utils::auth::use_authenticated_artist_id;
 
 #[component]
 pub fn ArtistSettings() -> impl IntoView {
+    // Get authenticated artist ID from JWT token
+    let artist_id = use_authenticated_artist_id();
+    
     let auto_reply = RwSignal::new(true);
     let availability = RwSignal::new(true);
     let base_price = RwSignal::new("150.0".to_string());
@@ -26,9 +30,12 @@ pub fn ArtistSettings() -> impl IntoView {
 
     // Load existing business hours
     let business_hours_resource = Resource::new(
-        move || (),
-        |_| async move {
-            get_business_hours(1).await // Using artist_id = 1 for now
+        move || artist_id.get(),
+        |id_opt| async move {
+            match id_opt {
+                Some(id) => get_business_hours(id).await,
+                None => Err(ServerFnError::new("No authenticated artist found".to_string()))
+            }
         },
     );
 
@@ -47,24 +54,26 @@ pub fn ArtistSettings() -> impl IntoView {
     });
 
     // Save business hours action
-    let save_hours_action = Action::new(move |_: &()| {
-        let hours_to_save = business_hours.get()
-            .iter()
-            .enumerate()
-            .map(|(day_index, (_, start, end, is_closed))| {
-                let day_of_week = (day_index + 1) % 7; // Convert to 0=Sunday format
-                UpdateBusinessHours {
-                    artist_id: 1,
-                    day_of_week: day_of_week as i32,
-                    start_time: if is_closed.get() { None } else { Some(start.get()) },
-                    end_time: if is_closed.get() { None } else { Some(end.get()) },
-                    is_closed: is_closed.get(),
-                }
-            })
-            .collect::<Vec<_>>();
+    let save_hours_action = Action::new(move |_: &()| async move {
+        if let Some(id) = artist_id.get() {
+            let hours_to_save = business_hours.get()
+                .iter()
+                .enumerate()
+                .map(|(day_index, (_, start, end, is_closed))| {
+                    let day_of_week = (day_index + 1) % 7; // Convert to 0=Sunday format
+                    UpdateBusinessHours {
+                        artist_id: id,
+                        day_of_week: day_of_week as i32,
+                        start_time: if is_closed.get() { None } else { Some(start.get()) },
+                        end_time: if is_closed.get() { None } else { Some(end.get()) },
+                        is_closed: is_closed.get(),
+                    }
+                })
+                .collect::<Vec<_>>();
 
-        async move {
             update_business_hours(hours_to_save).await
+        } else {
+            Err(ServerFnError::new("No authenticated artist found".to_string()))
         }
     });
 

@@ -3,6 +3,7 @@ use thaw::*;
 use serde_json;
 use crate::server::*;
 use crate::db::entities::{RecurringRule};
+use crate::utils::auth::use_authenticated_artist_id;
 
 #[component]
 pub fn ArtistRecurring() -> impl IntoView {
@@ -17,14 +18,17 @@ pub fn ArtistRecurring() -> impl IntoView {
     let selected_dates = RwSignal::new("".to_string());
     let monthly_pattern = RwSignal::new("".to_string());
     
-    // For now, hardcode artist_id as 1 - in real app this would come from auth context
-    let artist_id = 1;
+    // Get authenticated artist ID from JWT token
+    let artist_id = use_authenticated_artist_id();
     
     // Resource to fetch recurring rules from database
     let rules_resource = Resource::new(
-        move || (),
-        move |_| async move {
-            get_recurring_rules(artist_id).await.unwrap_or_else(|_| Vec::new())
+        move || artist_id.get(),
+        move |id_opt| async move {
+            match id_opt {
+                Some(id) => get_recurring_rules(id).await.unwrap_or_else(|_| Vec::new()),
+                None => Vec::new()
+            }
         }
     );
     
@@ -116,21 +120,25 @@ pub fn ArtistRecurring() -> impl IntoView {
     
     // Function to save the rule
     let save_rule = move |_| {
-        let pattern = build_pattern();
-        if rule_name.get().is_empty() || pattern.is_empty() {
-            leptos::logging::warn!("Rule name and pattern are required");
-            return;
+        if let Some(id) = artist_id.get() {
+            let pattern = build_pattern();
+            if rule_name.get().is_empty() || pattern.is_empty() {
+                leptos::logging::warn!("Rule name and pattern are required");
+                return;
+            }
+            
+            create_rule_action.dispatch((
+                id,
+                rule_name.get(),
+                rule_type.get(),
+                pattern,
+                rule_action.get(),
+                if start_time.get().is_empty() { None } else { Some(start_time.get()) },
+                if end_time.get().is_empty() { None } else { Some(end_time.get()) },
+            ));
+        } else {
+            leptos::logging::error!("No authenticated artist found");
         }
-        
-        create_rule_action.dispatch((
-            artist_id,
-            rule_name.get(),
-            rule_type.get(),
-            pattern,
-            rule_action.get(),
-            if start_time.get().is_empty() { None } else { Some(start_time.get()) },
-            if end_time.get().is_empty() { None } else { Some(end_time.get()) },
-        ));
     };
     
     // Function to toggle rule active status

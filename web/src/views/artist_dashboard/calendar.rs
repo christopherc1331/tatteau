@@ -5,6 +5,7 @@ use serde_json;
 use crate::db::entities::{BookingRequest, AvailabilitySlot, AvailabilityUpdate, RecurringRule};
 use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability, get_recurring_rules, get_business_hours};
 use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone};
+use crate::utils::auth::use_authenticated_artist_id;
 use crate::components::{TimeBlock, TimeBlockData, EventItem, EventItemData};
 
 // Use the TimeBlockData from components
@@ -12,7 +13,8 @@ type CalendarTimeBlock = TimeBlockData;
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
-    let artist_id = 1; // For now, hardcode artist_id as 1 - same as recurring.rs
+    // Get authenticated artist ID from JWT token
+    let artist_id = use_authenticated_artist_id();
     
     // Initialize with current date (will update client-side)
     let current_year = RwSignal::new(2024);
@@ -67,27 +69,38 @@ pub fn ArtistCalendar() -> impl IntoView {
     
     // Resource for availability data
     let availability_resource = Resource::new_blocking(
-        move || (current_year.get(), current_month.get()),
-        move |(year, month)| async move {
-            let start_date = format!("{}-{:02}-01", year, month);
-            let end_date = format!("{}-{:02}-31", year, month);
-            get_artist_availability(artist_id, start_date, end_date).await.unwrap_or_else(|_| vec![])
+        move || (current_year.get(), current_month.get(), artist_id.get()),
+        move |(year, month, id_opt)| async move {
+            match id_opt {
+                Some(id) => {
+                    let start_date = format!("{}-{:02}-01", year, month);
+                    let end_date = format!("{}-{:02}-31", year, month);
+                    get_artist_availability(id, start_date, end_date).await.unwrap_or_else(|_| vec![])
+                },
+                None => vec![]
+            }
         }
     );
     
     // Resource for recurring rules
     let recurring_rules_resource = Resource::new_blocking(
-        move || (),
-        move |_| async move {
-            get_recurring_rules(artist_id).await.unwrap_or_else(|_| vec![])
+        move || artist_id.get(),
+        move |id_opt| async move {
+            match id_opt {
+                Some(id) => get_recurring_rules(id).await.unwrap_or_else(|_| vec![]),
+                None => vec![]
+            }
         }
     );
     
     // Resource for booking requests
     let booking_requests_resource = Resource::new_blocking(
-        move || (),
-        move |_| async move {
-            get_booking_requests(artist_id).await.unwrap_or_else(|_| vec![])
+        move || artist_id.get(),
+        move |id_opt| async move {
+            match id_opt {
+                Some(id) => get_booking_requests(id).await.unwrap_or_else(|_| vec![]),
+                None => vec![]
+            }
         }
     );
 
@@ -130,24 +143,26 @@ pub fn ArtistCalendar() -> impl IntoView {
 
     let handle_save_availability = move || {
         if let Some((year, month, day)) = selected_date.get() {
-            spawn_local(async move {
-                let date_str = format!("{}-{:02}-{:02}", year, month, day);
-                let update = AvailabilityUpdate {
-                    artist_id,
-                    date: Some(date_str.clone()),
-                    day_of_week: None,
-                    start_time: start_time.get(),
-                    end_time: end_time.get(),
-                    is_available: availability_mode.get() == "available",
-                    is_recurring: false,
-                };
-                
-                if set_artist_availability(update).await.is_ok() {
-                    show_availability_modal.set(false);
-                    selected_date.set(None);
-                    availability_resource.refetch();
-                }
-            });
+            if let Some(id) = artist_id.get() {
+                spawn_local(async move {
+                    let date_str = format!("{}-{:02}-{:02}", year, month, day);
+                    let update = AvailabilityUpdate {
+                        artist_id: id,
+                        date: Some(date_str.clone()),
+                        day_of_week: None,
+                        start_time: start_time.get(),
+                        end_time: end_time.get(),
+                        is_available: availability_mode.get() == "available",
+                        is_recurring: false,
+                    };
+                    
+                    if set_artist_availability(update).await.is_ok() {
+                        show_availability_modal.set(false);
+                        selected_date.set(None);
+                        availability_resource.refetch();
+                    }
+                });
+            }
         }
     };
 

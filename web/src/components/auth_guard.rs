@@ -1,35 +1,17 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
-use leptos::either::Either;
+use crate::utils::auth::get_authenticated_artist_id;
 
-/// Hook to check artist authentication status
+/// Hook to check artist authentication status using proper JWT validation
 pub fn use_artist_auth() -> (Signal<bool>, Signal<bool>) {
     let is_authenticated = RwSignal::new(false);
     let is_loading = RwSignal::new(true);
     
     Effect::new(move |_| {
-        #[cfg(feature = "hydrate")]
-        {
-            use wasm_bindgen::prelude::*;
-            
-            #[wasm_bindgen]
-            extern "C" {
-                #[wasm_bindgen(js_namespace = localStorage)]
-                fn getItem(key: &str) -> Option<String>;
-            }
-            
-            if let Some(token) = getItem("tatteau_auth_token") {
-                is_authenticated.set(!token.is_empty());
-            }
-            
-            is_loading.set(false);
-        }
-        
-        #[cfg(not(feature = "hydrate"))]
-        {
-            is_authenticated.set(false);
-            is_loading.set(false);
-        }
+        // Use the proper authentication function that validates JWT and checks user_type
+        let artist_id = get_authenticated_artist_id();
+        is_authenticated.set(artist_id.is_some());
+        is_loading.set(false);
     });
     
     (is_authenticated.into(), is_loading.into())
