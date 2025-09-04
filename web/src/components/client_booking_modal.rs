@@ -31,7 +31,7 @@ pub fn ClientBookingModal(
         move || artist_id.get(),
         move |id_opt| async move {
             if let Some(id) = id_opt {
-                if id > 0 {
+                if id != 0 {
                     fetch_artist_data(id).await.ok()
                 } else {
                     None

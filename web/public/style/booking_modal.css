@@ -31,12 +31,13 @@
     border-radius: 24px;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
     width: 100%;
-    max-width: 720px;
-    max-height: calc(100vh - 4rem);
+    max-width: 800px; /* Increased from 720px for more space */
+    min-width: 600px; /* Ensure minimum width for desktop */
+    max-height: calc(100vh - 2rem); /* Increased available height */
     overflow: hidden;
     transform: translateY(50px);
     transition: all 0.3s ease;
-    margin-top: 2rem;
+    margin-top: 1rem; /* Reduced top margin to allow more height */
 }
 
 .booking-modal-overlay.show .booking-modal {
@@ -47,7 +48,7 @@
 .modal-header {
     background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #f97316 100%);
     color: white;
-    padding: 2rem;
+    padding: 2.5rem 3rem; /* Match form section padding */
     position: relative;
     text-align: center;
 }
@@ -84,8 +85,11 @@
 
 /* Modal Content */
 .modal-content {
-    max-height: calc(100vh - 8rem);
-    overflow-y: auto;
+    max-height: calc(100vh - 4rem); /* Increased available height */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: none !important;
 }
 
 /* Artist Information Header */
@@ -113,14 +117,27 @@
 /* Booking Form Container */
 .booking-form {
     padding: 0;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: unset !important;
+}
+
+.booking-form-content {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: unset !important;
 }
 
 /* Form Sections */
 .form-section {
-    padding: 2rem;
+    padding: 2.5rem 3rem; /* Increased padding for better space utilization */
     border-bottom: 1px solid #f1f5f9;
     background: #ffffff;
     position: relative;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: unset !important;
+    box-sizing: border-box;
 }
 
 .form-section:last-child {
@@ -149,14 +166,17 @@
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
+    gap: 2rem; /* Increased gap for better spacing */
     margin-bottom: 1.5rem;
+    width: 100%;
 }
 
 .form-group {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    width: 100%;
+    min-width: 0; /* Allow flex items to shrink below content size */
 }
 
 .form-group label {
@@ -177,6 +197,8 @@
     transition: all 0.2s ease;
     background: #ffffff;
     font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .form-group input:focus,
@@ -257,6 +279,7 @@ input[type="tel"] {
     gap: 1rem;
     justify-content: flex-end;
     padding: 2rem;
+    margin-bottom: 1rem; /* Add bottom margin to prevent cutoff */
     background: #f8fafc;
     border-top: 1px solid #e2e8f0;
 }
@@ -509,5 +532,45 @@ input[type="tel"] {
     .form-group textarea:focus {
         border-color: #000000;
         box-shadow: 0 0 0 2px #000000;
+    }
+}
+
+/* Responsive Design for Better Width Utilization */
+@media (max-width: 768px) {
+    .booking-modal {
+        min-width: auto; /* Remove minimum width on mobile */
+        max-width: 95vw; /* Use most of viewport width */
+        margin: 1rem;
+    }
+    
+    .form-section {
+        padding: 2rem 1.5rem; /* Reduce padding on mobile */
+    }
+    
+    .modal-header {
+        padding: 2rem 1.5rem; /* Match reduced padding */
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr; /* Stack form fields on mobile */
+        gap: 1rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .booking-modal {
+        max-width: 900px; /* Even wider on large screens */
+    }
+    
+    .form-section {
+        padding: 3rem 4rem; /* More padding on large screens */
+    }
+    
+    .modal-header {
+        padding: 3rem 4rem;
+    }
+    
+    .form-row {
+        gap: 2.5rem; /* Larger gap on big screens */
     }
 }

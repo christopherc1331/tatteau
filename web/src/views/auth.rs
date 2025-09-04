@@ -95,14 +95,19 @@ pub fn LoginPage() -> impl IntoView {
                         
                         // Redirect to appropriate page
                         if let Some(user_type) = auth_response.user_type {
-                            let redirect_url = if user_type == "artist" {
-                                "/artist/dashboard"
+                            // Check for return_url parameter first
+                            let query = query_map.get();
+                            let redirect_url = if let Some(return_url) = query.get("return_url") {
+                                // Use the return URL if provided
+                                return_url.clone()
+                            } else if user_type == "artist" {
+                                "/artist/dashboard".to_string()
                             } else {
-                                "/explore" // Client goes to explore page
+                                "/explore".to_string() // Client goes to explore page
                             };
 
                             if let Some(window) = web_sys::window() {
-                                let _ = window.location().set_href(redirect_url);
+                                let _ = window.location().set_href(&redirect_url);
                             }
                         }
                     } else {

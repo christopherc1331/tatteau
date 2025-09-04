@@ -1,15 +1,17 @@
 use leptos::prelude::*;
-use leptos_router::hooks::{use_params_map, use_query_map};
+use leptos_router::hooks::{use_params_map, use_query_map, use_navigate};
 
 use crate::{
     components::{loading::LoadingView, artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost}, ClientBookingModal},
     server::fetch_artist_data,
+    utils::auth::is_authenticated,
 };
 
 #[component]
 pub fn ArtistHighlight() -> impl IntoView {
     let params = use_params_map();
     let query = use_query_map();
+    let navigate = use_navigate();
     
     let artist_id = Memo::new(move |_| {
         params.read()
@@ -34,11 +36,20 @@ pub fn ArtistHighlight() -> impl IntoView {
     let booking_artist_id = RwSignal::new(None::<i32>);
     
     // Check if we should open modal immediately (from /book/artist redirect)
+    let navigate_clone = navigate.clone();
     Effect::new(move |_| {
         let query_params = query.read();
         if query_params.get("book").is_some() || query_params.get("modal").is_some() {
-            booking_artist_id.set(Some(artist_id.get()));
-            show_booking_modal.set(true);
+            // Check authentication first
+            if is_authenticated() {
+                booking_artist_id.set(Some(artist_id.get()));
+                show_booking_modal.set(true);
+            } else {
+                // Redirect to login with return URL
+                let current_url = format!("/artist/{}", artist_id.get());
+                let login_url = format!("/login?return_url={}", urlencoding::encode(&current_url));
+                navigate_clone(&login_url, Default::default());
+            }
         }
     });
 
@@ -56,6 +67,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                 <LoadingView message=Some("Loading artist information...".to_string()) />
             }>
                 {move || {
+                    
                     artist_data.get().map(|data| {
                         data.map(|artist_data| {
                             let artist_styles_for_filter = artist_data.styles.clone();
@@ -93,9 +105,21 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                 
                                                 <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                                                     <button 
-                                                       on:click=move |_| {
-                                                           booking_artist_id.set(Some(artist_id.get()));
-                                                           show_booking_modal.set(true);
+                                                       on:click={
+                                                           let navigate = navigate.clone();
+                                                           move |_| {
+                                                               let current_artist_id = artist_id.get();
+                                                               // Check authentication first
+                                                               if is_authenticated() {
+                                                                   booking_artist_id.set(Some(current_artist_id));
+                                                                   show_booking_modal.set(true);
+                                                               } else {
+                                                                   // Redirect to login with return URL
+                                                                   let current_url = format!("/artist/{}", current_artist_id);
+                                                                   let login_url = format!("/login?return_url={}", urlencoding::encode(&current_url));
+                                                                   navigate(&login_url, Default::default());
+                                                               }
+                                                           }
                                                        }
                                                        style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600; border: none; cursor: pointer; font-size: 1rem;">
                                                         "📅 Book Appointment"
