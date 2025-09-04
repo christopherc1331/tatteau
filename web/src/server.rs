@@ -32,7 +32,7 @@ use crate::db::repository::{
     get_artist_images_with_styles, get_artist_location, get_artist_styles, get_artists_by_location,
     get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
     get_artist_questionnaire, get_all_default_questions, get_artist_questionnaire_config,
-    update_artist_questionnaire_config, save_questionnaire_responses, get_booking_questionnaire_responses,
+    update_artist_questionnaire_config, delete_artist_question, save_questionnaire_responses, get_booking_questionnaire_responses,
     log_error, get_recent_errors, get_errors_by_type,
 };
 
@@ -978,7 +978,7 @@ pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>,
                        requested_date, requested_start_time, requested_end_time,
                        tattoo_description, placement, size_inches, reference_images,
                        message_from_client, status, artist_response, estimated_price,
-                       created_at, updated_at
+                       created_at, updated_at, decline_reason
                 FROM booking_requests 
                 WHERE artist_id = ?1 
                 ORDER BY created_at DESC
@@ -1005,7 +1005,7 @@ pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>,
                     estimated_price: row.get(15)?,
                     created_at: row.get(16)?,
                     updated_at: row.get(17)?,
-                    decline_reason: None, // Add this field - it might not exist in older records
+                    decline_reason: row.get(18)?,
                 })
             })?;
 
@@ -2519,6 +2519,24 @@ pub async fn update_artist_questionnaire_configuration(
 }
 
 #[server]
+pub async fn delete_artist_questionnaire_question(
+    artist_id: i32,
+    question_id: i32
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match delete_artist_question(artist_id, question_id) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(())
+    }
+}
+
+#[server]
 pub async fn submit_questionnaire_responses(
     submission: ClientQuestionnaireSubmission
 ) -> Result<(), ServerFnError> {
@@ -2596,6 +2614,31 @@ pub async fn log_client_error(
             Ok(id) => Ok(id),
             Err(e) => Err(ServerFnError::new(format!("Failed to log error: {}", e))),
         }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::Connection;
+        use std::path::Path;
+        
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Failed to open database: {}", e)))?;
+        
+        let artist_id: i32 = conn.query_row(
+            "SELECT artist_id FROM artist_users WHERE id = ?1",
+            [user_id],
+            |row| row.get(0)
+        ).map_err(|e| ServerFnError::new(format!("Failed to get artist_id: {}", e)))?;
+        
+        Ok(artist_id)
     }
     #[cfg(not(feature = "ssr"))]
     {

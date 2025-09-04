@@ -1248,6 +1248,25 @@ pub fn update_artist_questionnaire_config(
 }
 
 #[cfg(feature = "ssr")]
+pub fn delete_artist_question(
+    artist_id: i32,
+    question_id: i32
+) -> SqliteResult<()> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    // Delete the specific question from artist's configuration
+    conn.execute(
+        "DELETE FROM artist_questionnaires WHERE artist_id = ?1 AND question_id = ?2",
+        params![artist_id, question_id],
+    )?;
+    
+    Ok(())
+}
+
+#[cfg(feature = "ssr")]
 pub fn save_questionnaire_responses(
     booking_request_id: i32,
     responses: Vec<BookingQuestionnaireResponse>

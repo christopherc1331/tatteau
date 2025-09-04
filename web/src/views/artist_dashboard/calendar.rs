@@ -1,46 +1,71 @@
+use crate::components::{EventItem, EventItemData, TimeBlock, TimeBlockData};
+use crate::db::entities::{AvailabilitySlot, AvailabilityUpdate, BookingRequest, RecurringRule};
+use crate::server::{
+    get_artist_availability, get_booking_requests, get_business_hours, get_effective_availability,
+    get_recurring_rules, set_artist_availability, get_artist_id_from_user,
+};
+use crate::utils::auth::use_authenticated_artist_id;
+use crate::utils::timezone::{
+    format_time_range_with_timezone, format_time_with_timezone, get_timezone_abbreviation,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use thaw::*;
 use serde_json;
-use crate::db::entities::{BookingRequest, AvailabilitySlot, AvailabilityUpdate, RecurringRule};
-use crate::server::{get_booking_requests, get_artist_availability, set_artist_availability, get_effective_availability, get_recurring_rules, get_business_hours};
-use crate::utils::timezone::{get_timezone_abbreviation, format_time_with_timezone, format_time_range_with_timezone};
-use crate::utils::auth::use_authenticated_artist_id;
-use crate::components::{TimeBlock, TimeBlockData, EventItem, EventItemData};
+use thaw::*;
 
 // Use the TimeBlockData from components
 type CalendarTimeBlock = TimeBlockData;
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
-    // Get authenticated artist ID from JWT token
-    let artist_id = use_authenticated_artist_id();
+    // Get authenticated user ID from JWT token
+    let user_id = use_authenticated_artist_id();
     
+    // Resource to get the actual artist_id from the user_id
+    let artist_id_resource = Resource::new_blocking(
+        move || user_id.get(),
+        move |id_opt| async move {
+            match id_opt {
+                Some(id) => get_artist_id_from_user(id).await.ok(),
+                None => None,
+            }
+        },
+    );
+    
+    // Signal to hold the resolved artist_id
+    let artist_id = RwSignal::new(None::<i32>);
+    
+    Effect::new(move |_| {
+        if let Some(Some(id)) = artist_id_resource.get() {
+            artist_id.set(Some(id));
+        }
+    });
+
     // Initialize with current date (will update client-side)
-    let current_year = RwSignal::new(2024);
-    let current_month = RwSignal::new(8); // Default fallback
-    
+    let current_year = RwSignal::new(2025);
+    let current_month = RwSignal::new(9); // September - for Frank Reynolds test data
+
     // Update to actual current date on client side
     Effect::new(move |_| {
         #[cfg(feature = "hydrate")]
         {
             use wasm_bindgen::prelude::*;
-            
+
             #[wasm_bindgen]
             extern "C" {
                 #[wasm_bindgen(js_name = eval)]
                 fn js_eval(code: &str) -> JsValue;
             }
-            
+
             // Get current year and month from JavaScript Date
-            if let Ok(year_result) = std::panic::catch_unwind(|| {
-                js_eval("new Date().getFullYear()")
-            }) {
+            if let Ok(year_result) =
+                std::panic::catch_unwind(|| js_eval("new Date().getFullYear()"))
+            {
                 if let Some(year) = year_result.as_f64() {
                     current_year.set(year as i32);
                 }
             }
-            
+
             if let Ok(month_result) = std::panic::catch_unwind(|| {
                 js_eval("new Date().getMonth() + 1") // JavaScript months are 0-indexed
             }) {
@@ -56,17 +81,17 @@ pub fn ArtistCalendar() -> impl IntoView {
     let availability_mode = RwSignal::new("available".to_string()); // "available" or "blocked"
     let start_time = RwSignal::new("09:00".to_string());
     let end_time = RwSignal::new("17:00".to_string());
-    
+
     // Get client timezone
     let timezone_signal = get_timezone_abbreviation();
-    
+
     // Modal state for showing more events
     let show_more_events_modal = RwSignal::new(false);
     let more_events_data = RwSignal::new(Vec::<CalendarTimeBlock>::new());
     let more_events_date = RwSignal::new(String::new());
     // let (modal_date, set_modal_date) = signal(String::new());
     // let (modal_events, set_modal_events) = signal::<Vec<(String, Option<String>, Option<String>, String)>>(vec![]);
-    
+
     // Resource for availability data
     let availability_resource = Resource::new_blocking(
         move || (current_year.get(), current_month.get(), artist_id.get()),
@@ -75,35 +100,36 @@ pub fn ArtistCalendar() -> impl IntoView {
                 Some(id) => {
                     let start_date = format!("{}-{:02}-01", year, month);
                     let end_date = format!("{}-{:02}-31", year, month);
-                    get_artist_availability(id, start_date, end_date).await.unwrap_or_else(|_| vec![])
-                },
-                None => vec![]
+                    get_artist_availability(id, start_date, end_date)
+                        .await
+                        .unwrap_or_else(|_| vec![])
+                }
+                None => vec![],
             }
-        }
+        },
     );
-    
+
     // Resource for recurring rules
     let recurring_rules_resource = Resource::new_blocking(
         move || artist_id.get(),
         move |id_opt| async move {
             match id_opt {
                 Some(id) => get_recurring_rules(id).await.unwrap_or_else(|_| vec![]),
-                None => vec![]
+                None => vec![],
             }
-        }
+        },
     );
-    
+
     // Resource for booking requests
     let booking_requests_resource = Resource::new_blocking(
         move || artist_id.get(),
         move |id_opt| async move {
             match id_opt {
                 Some(id) => get_booking_requests(id).await.unwrap_or_else(|_| vec![]),
-                None => vec![]
+                None => vec![],
             }
-        }
+        },
     );
-
 
     let navigate_month = move |direction: i32| {
         if direction > 0 {
@@ -127,13 +153,20 @@ pub fn ArtistCalendar() -> impl IntoView {
         }
     };
 
-    let month_name = move || {
-        match current_month.get() {
-            1 => "January", 2 => "February", 3 => "March", 4 => "April",
-            5 => "May", 6 => "June", 7 => "July", 8 => "August",
-            9 => "September", 10 => "October", 11 => "November", 12 => "December",
-            _ => "Unknown",
-        }
+    let month_name = move || match current_month.get() {
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        12 => "December",
+        _ => "Unknown",
     };
 
     let handle_day_click = move |year: i32, month: u32, day: u32| {
@@ -155,7 +188,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                         is_available: availability_mode.get() == "available",
                         is_recurring: false,
                     };
-                    
+
                     if set_artist_availability(update).await.is_ok() {
                         show_availability_modal.set(false);
                         selected_date.set(None);
@@ -181,11 +214,11 @@ pub fn ArtistCalendar() -> impl IntoView {
                     </Button>
                 </div>
             </div>
-            
+
             <div class="calendar-note">
                 <p>"💡 Tip: Set your recurring availability patterns first, then use the calendar to override specific dates as needed."</p>
             </div>
-            
+
             <div class="calendar-layout">
                 <div class="calendar-main">
                     <div class="calendar-grid">
@@ -196,7 +229,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                             </h2>
                             <Button on_click=move |_| navigate_month(1)>"Next →"</Button>
                         </div>
-                        
+
                         <div class="calendar-weekdays">
                             <div class="weekday">"Sun"</div>
                             <div class="weekday">"Mon"</div>
@@ -206,7 +239,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                             <div class="weekday">"Fri"</div>
                             <div class="weekday">"Sat"</div>
                         </div>
-                        
+
                         <div class="calendar-days">
                             {move || {
                                 let year = current_year.get();
@@ -217,7 +250,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                 let recurring_rules = recurring_rules_resource.get().unwrap_or_default();
                                 let booking_requests = booking_requests_resource.get().unwrap_or_default();
                                 let mut days = Vec::new();
-                                
+
                                 // Empty cells before month starts
                                 for _ in 0..first_day_weekday {
                                     days.push(view! {
@@ -226,36 +259,36 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         </div>
                                     }.into_any());
                                 }
-                                
+
                                 // Days of the month
                                 for day in 1..=days_count {
                                     let day_str = day.to_string();
                                     let date_str = format!("{}-{:02}-{:02}", year, month, day);
                                     let dow = day_of_week(year, month, day) as i32;
-                                    
+
                                     // Check if this day has explicit availability settings
                                     let explicit_availability = availability_data.iter().find(|a| {
-                                        (a.specific_date.as_ref() == Some(&date_str)) || 
+                                        (a.specific_date.as_ref() == Some(&date_str)) ||
                                         (a.day_of_week == Some(dow) && a.is_recurring)
                                     });
-                                    
+
                                     // Check if this day is blocked by FULL DAY recurring rules only
                                     let blocked_by_full_day_rule = check_full_day_blocking_rules(&recurring_rules, year, month, day, dow);
-                                    
+
                                     // Get time blocks for this day
                                     let mut time_blocks = get_day_time_blocks(&recurring_rules, year, month, day, dow);
-                                    
+
                                     // Add booking requests for this day
                                     let day_booking_requests = booking_requests.iter().filter(|req| {
                                         let req_date = req.requested_date.clone();
                                         req_date == format!("{}-{:02}-{:02}", year, month, day)
                                     }).collect::<Vec<_>>();
-                                    
+
                                     // Add booking requests as time blocks with tattoo details
                                     for booking in &day_booking_requests {
                                         let status = booking.status.clone();
                                         let block_name = format!("{}", booking.client_name);
-                                        let action = if status == "accepted" { "accepted".to_string() } else { "pending".to_string() };
+                                        let action = if status == "approved" { "approved".to_string() } else { "pending".to_string() };
                                         time_blocks.push(CalendarTimeBlock {
                                             name: block_name,
                                             start_time: Some(booking.requested_start_time.clone()),
@@ -265,7 +298,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                             booking_id: Some(booking.id as i64),
                                         });
                                     }
-                                    
+
                                     // Sort time blocks by start time (ascending order)
                                     time_blocks.sort_by(|a, b| {
                                         match (&a.start_time, &b.start_time) {
@@ -275,9 +308,9 @@ pub fn ArtistCalendar() -> impl IntoView {
                                             (None, None) => std::cmp::Ordering::Equal, // Both "All Day"
                                         }
                                     });
-                                    
+
                                     let mut day_classes = "calendar-day".to_string();
-                                    
+
                                     // Determine the day's availability status
                                     if explicit_availability.is_some() {
                                         // Has explicit override
@@ -294,7 +327,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         // Default available (even if it has time blocks)
                                         day_classes.push_str(" available");
                                     }
-                                    
+
                                     days.push(view! {
                                         <div class=day_classes on:click=move |_| handle_day_click(year, month, day)>
                                             <span class="day-number">{day.to_string()}</span>
@@ -303,7 +336,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                     <div class="explicit-indicator" title="Explicitly set availability"></div>
                                                 }
                                             })}
-                                            
+
                                             // Time blocks display
                                             <div class="time-blocks">
                                                 {
@@ -312,13 +345,13 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                     let visible_blocks = time_blocks.iter().take(max_visible_blocks).cloned().collect::<Vec<_>>();
                                                     let remaining_count = if total_blocks > max_visible_blocks { total_blocks - max_visible_blocks } else { 0 };
                                                     let all_blocks_for_tooltip = time_blocks.clone();
-                                                    
+
                                                     view! {
-                                                        <div class="time-blocks-container" 
-                                                             title={if total_blocks > max_visible_blocks { 
-                                                                 format!("Total {} appointments/blocks", total_blocks) 
-                                                             } else { 
-                                                                 String::new() 
+                                                        <div class="time-blocks-container"
+                                                             title={if total_blocks > max_visible_blocks {
+                                                                 format!("Total {} appointments/blocks", total_blocks)
+                                                             } else {
+                                                                 String::new()
                                                              }}>
                                                             {
                                                                 visible_blocks.into_iter().map(|block| {
@@ -327,7 +360,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                                     }
                                                                 }).collect_view()
                                                             }
-                                                            
+
                                                             {if remaining_count > 0 {
                                                                 let tooltip_content = all_blocks_for_tooltip.iter()
                                                                     .skip(max_visible_blocks)
@@ -345,13 +378,13 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                                     })
                                                                     .collect::<Vec<_>>()
                                                                     .join("\n");
-                                                                    
+
                                                                 {
                                                                     let all_events = all_blocks_for_tooltip.clone();
                                                                     let day_date = format!("{}-{:02}-{:02}", year, month, day);
-                                                                    
+
                                                                     view! {
-                                                                        <div class="time-block more-indicator" 
+                                                                        <div class="time-block more-indicator"
                                                                              title=tooltip_content
                                                                              on:click=move |e| {
                                                                                  e.stop_propagation();
@@ -373,11 +406,11 @@ pub fn ArtistCalendar() -> impl IntoView {
                                         </div>
                                     }.into_any());
                                 }
-                                
+
                                 days
                             }}
                         </div>
-                        
+
                         <div class="calendar-legend">
                             <div class="legend-item">
                                 <div class="legend-color available"></div>
@@ -398,14 +431,14 @@ pub fn ArtistCalendar() -> impl IntoView {
                         </div>
                     </div>
                 </div>
-                
+
                 <Show when=move || show_sidebar.get()>
                     <div class="calendar-sidebar">
                         <div class="sidebar-section">
                             <div class="sidebar-header">
                                 <h3>"Pending Booking Requests"</h3>
                             </div>
-                        
+
                             <div class="booking-list">
                             <Suspense fallback=move || view! { <div>"Loading booking requests..."</div> }>
                                 {move || {
@@ -451,7 +484,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                     </div>
                 </Show>
             </div>
-            
+
             <Show when=move || show_availability_modal.get()>
                 <div class="modal-backdrop" on:click=move |_| show_availability_modal.set(false)>
                     <div class="availability-modal" on:click=|e| e.stop_propagation()>
@@ -459,18 +492,18 @@ pub fn ArtistCalendar() -> impl IntoView {
                             <h2>"Set Availability"</h2>
                             <Button on_click=move |_| show_availability_modal.set(false)>"×"</Button>
                         </div>
-                        
+
                         <div class="modal-content">
                             {move || {
                                 if let Some((year, month, day)) = selected_date.get() {
                                     view! {
                                         <div class="availability-form">
                                             <h3>{format!("Setting availability for {}/{}/{}", month, day, year)}</h3>
-                                            
+
                                             <div class="availability-note">
                                                 <p><strong>"Note:"</strong>" Days are available by default. You can override this for specific dates or use recurring rules to set patterns."</p>
                                             </div>
-                                            
+
                                             <div class="form-group">
                                                 <label>"Availability Type:"</label>
                                                 <RadioGroup value=availability_mode>
@@ -480,8 +513,8 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                     <label>"Blocked (explicit override)"</label>
                                                 </RadioGroup>
                                             </div>
-                                            
-                                            
+
+
                                             <div class="time-inputs">
                                                 <div class="form-group">
                                                     <label>"Start Time:"</label>
@@ -492,9 +525,9 @@ pub fn ArtistCalendar() -> impl IntoView {
                                                     <Input value=end_time placeholder="17:00"/>
                                                 </div>
                                             </div>
-                                            
+
                                             <div class="modal-actions">
-                                                <Button 
+                                                <Button
                                                     appearance=ButtonAppearance::Primary
                                                     on_click=move |_| handle_save_availability()
                                                 >
@@ -518,7 +551,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                     </div>
                 </div>
             </Show>
-            
+
             // Modal for showing more events in a day
             <Show when=move || show_more_events_modal.get()>
                 <div class="modal-backdrop" on:click=move |_| show_more_events_modal.set(false)>
@@ -557,13 +590,23 @@ pub fn ArtistCalendar() -> impl IntoView {
 }
 
 // Helper function to check if a day is blocked by FULL DAY recurring rules only
-fn check_full_day_blocking_rules(rules: &[RecurringRule], year: i32, month: u32, day: u32, dow: i32) -> bool {
+fn check_full_day_blocking_rules(
+    rules: &[RecurringRule],
+    year: i32,
+    month: u32,
+    day: u32,
+    dow: i32,
+) -> bool {
     for rule in rules {
         // Only check active rules that block availability AND have no specific times (full day)
-        if !rule.active || rule.action != "blocked" || rule.start_time.is_some() || rule.end_time.is_some() {
+        if !rule.active
+            || rule.action != "blocked"
+            || rule.start_time.is_some()
+            || rule.end_time.is_some()
+        {
             continue;
         }
-        
+
         match rule.rule_type.as_str() {
             "weekdays" => {
                 // Check if this day of week is in the blocked pattern
@@ -572,7 +615,7 @@ fn check_full_day_blocking_rules(rules: &[RecurringRule], year: i32, month: u32,
                         return true;
                     }
                 }
-            },
+            }
             "dates" => {
                 // Check if this month/day matches any annual date
                 let date_str = format!("{:02}/{:02}", month, day);
@@ -580,21 +623,33 @@ fn check_full_day_blocking_rules(rules: &[RecurringRule], year: i32, month: u32,
                     return true;
                 }
                 // Also check full month name format
-                let month_names = ["January", "February", "March", "April", "May", "June", 
-                                  "July", "August", "September", "October", "November", "December"];
+                let month_names = [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ];
                 if month > 0 && month <= 12 {
                     let month_day = format!("{} {}", month_names[(month - 1) as usize], day);
                     if rule.pattern.contains(&month_day) {
                         return true;
                     }
                 }
-            },
+            }
             "monthly" => {
                 // Check if this day of month matches the pattern
                 if rule.pattern.contains(&day.to_string()) {
                     return true;
                 }
-            },
+            }
             _ => {}
         }
     }
@@ -602,13 +657,19 @@ fn check_full_day_blocking_rules(rules: &[RecurringRule], year: i32, month: u32,
 }
 
 // Helper function to check if a day is blocked by recurring rules
-fn check_recurring_rules(rules: &[RecurringRule], year: i32, month: u32, day: u32, dow: i32) -> bool {
+fn check_recurring_rules(
+    rules: &[RecurringRule],
+    year: i32,
+    month: u32,
+    day: u32,
+    dow: i32,
+) -> bool {
     for rule in rules {
         // Only check active rules that block availability
         if !rule.active || rule.action != "blocked" {
             continue;
         }
-        
+
         match rule.rule_type.as_str() {
             "weekdays" => {
                 // Check if this day of week is in the blocked pattern
@@ -617,7 +678,7 @@ fn check_recurring_rules(rules: &[RecurringRule], year: i32, month: u32, day: u3
                         return true;
                     }
                 }
-            },
+            }
             "dates" => {
                 // Check if this month/day matches any annual date
                 let date_str = format!("{:02}/{:02}", month, day);
@@ -625,21 +686,33 @@ fn check_recurring_rules(rules: &[RecurringRule], year: i32, month: u32, day: u3
                     return true;
                 }
                 // Also check full month name format
-                let month_names = ["January", "February", "March", "April", "May", "June", 
-                                  "July", "August", "September", "October", "November", "December"];
+                let month_names = [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ];
                 if month > 0 && month <= 12 {
                     let month_day = format!("{} {}", month_names[(month - 1) as usize], day);
                     if rule.pattern.contains(&month_day) {
                         return true;
                     }
                 }
-            },
+            }
             "monthly" => {
                 // Check if this day of month matches the pattern
                 if rule.pattern.contains(&day.to_string()) {
                     return true;
                 }
-            },
+            }
             _ => {}
         }
     }
@@ -655,7 +728,13 @@ fn days_in_month(year: i32, month: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
-        2 => if is_leap_year(year) { 29 } else { 28 },
+        2 => {
+            if is_leap_year(year) {
+                29
+            } else {
+                28
+            }
+        }
         _ => 30,
     }
 }
@@ -664,32 +743,37 @@ fn day_of_week(year: i32, month: u32, day: u32) -> u32 {
     // Zeller's congruence algorithm
     let mut m = month as i32;
     let mut y = year;
-    
+
     if m <= 2 {
         m += 12;
         y -= 1;
     }
-    
+
     let k = y % 100;
     let j = y / 100;
-    
+
     let h = (day as i32 + ((13 * (m + 1)) / 5) + k + (k / 4) + (j / 4) - 2 * j) % 7;
-    
+
     // Convert to 0=Sunday format
     ((h + 5) % 7) as u32
 }
 
 // Helper function to get all applicable time blocks for a specific day
-fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32, dow: i32) -> Vec<CalendarTimeBlock> {
+fn get_day_time_blocks(
+    rules: &[RecurringRule],
+    _year: i32,
+    month: u32,
+    day: u32,
+    dow: i32,
+) -> Vec<CalendarTimeBlock> {
     let mut time_blocks = Vec::new();
-    
-    
+
     for rule in rules {
         // Only check active rules
         if !rule.active {
             continue;
         }
-        
+
         let applies_to_day = match rule.rule_type.as_str() {
             "weekdays" => {
                 if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
@@ -697,15 +781,26 @@ fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32
                 } else {
                     false
                 }
-            },
+            }
             "dates" => {
                 // Check if this month/day matches any annual date
                 let date_str = format!("{:02}/{:02}", month, day);
-                rule.pattern.contains(&date_str) ||
-                {
+                rule.pattern.contains(&date_str) || {
                     // Also check full month name format
-                    let month_names = ["January", "February", "March", "April", "May", "June", 
-                                      "July", "August", "September", "October", "November", "December"];
+                    let month_names = [
+                        "January",
+                        "February",
+                        "March",
+                        "April",
+                        "May",
+                        "June",
+                        "July",
+                        "August",
+                        "September",
+                        "October",
+                        "November",
+                        "December",
+                    ];
                     if month > 0 && month <= 12 {
                         let month_day = format!("{} {}", month_names[(month - 1) as usize], day);
                         rule.pattern.contains(&month_day)
@@ -713,14 +808,14 @@ fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32
                         false
                     }
                 }
-            },
+            }
             "monthly" => {
                 // Check if this day of month matches the pattern
                 rule.pattern.contains(&day.to_string())
-            },
-            _ => false
+            }
+            _ => false,
         };
-        
+
         if applies_to_day {
             // Add this rule as a time block
             time_blocks.push(CalendarTimeBlock {
@@ -733,6 +828,7 @@ fn get_day_time_blocks(rules: &[RecurringRule], _year: i32, month: u32, day: u32
             });
         }
     }
-    
+
     time_blocks
 }
+

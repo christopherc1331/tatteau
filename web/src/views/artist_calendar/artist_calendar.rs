@@ -1,8 +1,8 @@
-use leptos::prelude::*;
-use thaw::*;
+use super::{BookingModal, BookingSidebar, CalendarGrid};
 use crate::db::entities::{AvailabilitySlot, BookingRequest};
 use crate::server::{get_artist_availability, get_booking_requests};
-use super::{CalendarGrid, BookingSidebar, BookingModal};
+use leptos::prelude::*;
+use thaw::*;
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
@@ -11,13 +11,16 @@ pub fn ArtistCalendar() -> impl IntoView {
     let show_booking_modal = RwSignal::new(false);
     let selected_booking = RwSignal::new(None::<BookingRequest>);
     let sidebar_collapsed = RwSignal::new(false);
-    
+
     // Get current month for availability query
     let current_date = js_sys::Date::new_0();
     let year = current_date.get_full_year();
     let month = current_date.get_month() + 1.0; // JS months are 0-indexed
     let start_date = format!("{:04}-{:02}-01", year, month as u32);
-    let end_date = format!("{:04}-{:02}-{:02}", year, month as u32, 
+    let end_date = format!(
+        "{:04}-{:02}-{:02}",
+        year,
+        month as u32,
         js_sys::Date::new_with_year_month_day(year, month, 0.0).get_date()
     );
 
@@ -26,15 +29,13 @@ pub fn ArtistCalendar() -> impl IntoView {
         move || (artist_id.get(), start_date.clone(), end_date.clone()),
         |(artist_id, start_date, end_date)| async move {
             get_artist_availability(artist_id, start_date, end_date).await
-        }
+        },
     );
 
     // Load booking requests
     let booking_requests_resource = Resource::new(
         move || artist_id.get(),
-        |artist_id| async move {
-            get_booking_requests(artist_id).await
-        }
+        |artist_id| async move { get_booking_requests(artist_id).await },
     );
 
     let on_booking_select = move |booking: BookingRequest| {
@@ -55,7 +56,7 @@ pub fn ArtistCalendar() -> impl IntoView {
             <div class="calendar-header">
                 <h1>"Artist Calendar - Frank Reynolds"</h1>
                 <div class="header-actions">
-                    <Button 
+                    <Button
                         appearance=ButtonAppearance::Primary
                         on_click=toggle_sidebar
                     >
@@ -66,7 +67,7 @@ pub fn ArtistCalendar() -> impl IntoView {
 
             <div class="calendar-layout">
                 <div class="calendar-main">
-                    <CalendarGrid 
+                    <CalendarGrid
                         availability=availability_resource
                         booking_requests=booking_requests_resource
                         on_date_select=on_date_select
@@ -75,14 +76,14 @@ pub fn ArtistCalendar() -> impl IntoView {
                 </div>
 
                 <div class="calendar-sidebar" class:collapsed=move || sidebar_collapsed.get()>
-                    <BookingSidebar 
+                    <BookingSidebar
                         booking_requests=booking_requests_resource
                         on_booking_select=on_booking_select
                     />
                 </div>
             </div>
 
-            <BookingModal 
+            <BookingModal
                 show=show_booking_modal
                 booking=selected_booking
                 on_close=move || show_booking_modal.set(false)
@@ -90,3 +91,4 @@ pub fn ArtistCalendar() -> impl IntoView {
         </div>
     }
 }
+

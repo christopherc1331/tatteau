@@ -3,7 +3,7 @@ use leptos::task::spawn_local;
 use server_fn::ServerFnError;
 use thaw::*;
 use crate::db::entities::{QuestionnaireQuestion, ArtistQuestionnaire};
-use crate::server::{get_default_questions, get_artist_questionnaire_configuration, update_artist_questionnaire_configuration};
+use crate::server::{get_default_questions, get_artist_questionnaire_configuration, update_artist_questionnaire_configuration, delete_artist_questionnaire_question};
 use crate::utils::auth::use_authenticated_artist_id;
 
 #[component]
@@ -76,6 +76,9 @@ fn InteractiveQuestionnaireBuilder(
     let (is_saving, set_is_saving) = RwSignal::new(false).split();
     let (save_message, set_save_message) = RwSignal::new(None::<String>).split();
     let (has_changes, set_has_changes) = RwSignal::new(false).split();
+    let (delete_modal_open, set_delete_modal_open) = RwSignal::new(false).split();
+    let (question_to_delete, set_question_to_delete) = RwSignal::new(None::<i32>).split();
+    let (is_deleting, set_is_deleting) = RwSignal::new(false).split();
     
     // Save configuration to server
     let save_config = {
@@ -102,6 +105,39 @@ fn InteractiveQuestionnaireBuilder(
                     }
                 }
                 set_is_saving.set(false);
+            });
+        }
+    };
+    
+    // Delete question function
+    let delete_question = {
+        let on_updated = on_config_updated.clone();
+        move |question_id: i32| {
+            let on_updated = on_updated.clone();
+            let set_is_deleting = set_is_deleting.clone();
+            let set_save_message = set_save_message.clone();
+            let set_delete_modal_open = set_delete_modal_open.clone();
+            let set_current_config = set_current_config.clone();
+            
+            spawn_local(async move {
+                set_is_deleting.set(true);
+                set_save_message.set(None);
+                
+                match delete_artist_questionnaire_question(artist_id, question_id).await {
+                    Ok(_) => {
+                        // Remove from local state
+                        set_current_config.update(|config| {
+                            config.retain(|c| c.question_id != question_id);
+                        });
+                        set_save_message.set(Some("Question deleted successfully!".to_string()));
+                        set_delete_modal_open.set(false);
+                        on_updated(());
+                    }
+                    Err(e) => {
+                        set_save_message.set(Some(format!("Error deleting question: {}", e)));
+                    }
+                }
+                set_is_deleting.set(false);
             });
         }
     };
@@ -165,32 +201,34 @@ fn InteractiveQuestionnaireBuilder(
                         }
                     };
                     
-                    // Watch for enabled state changes - skip initial run to avoid duplicate effects
+                    // Watch for enabled state changes
                     let update_enabled_clone = update_enabled.clone();
-                    let initial_enabled = is_enabled.get_untracked();
-                    Effect::new(move |prev_run: Option<bool>| {
-                        let enabled = is_enabled.get();
-                        if let Some(_) = prev_run {
-                            // Only update after the first run to avoid initial trigger
-                            if enabled != initial_enabled {
-                                update_enabled_clone(enabled);
+                    Effect::new(move |prev_enabled: Option<bool>| {
+                        let current_enabled = is_enabled.get();
+                        
+                        // Only trigger update if this is not the initial run and the value actually changed
+                        if let Some(prev) = prev_enabled {
+                            if prev != current_enabled {
+                                update_enabled_clone(current_enabled);
                             }
                         }
-                        enabled
+                        
+                        current_enabled
                     });
                     
-                    // Watch for required state changes - skip initial run to avoid duplicate effects
+                    // Watch for required state changes  
                     let update_required_clone = update_required.clone();
-                    let initial_required = is_required.get_untracked();
-                    Effect::new(move |prev_run: Option<bool>| {
-                        let required = is_required.get();
-                        if let Some(_) = prev_run {
-                            // Only update after the first run to avoid initial trigger
-                            if required != initial_required {
-                                update_required_clone(required);
+                    Effect::new(move |prev_required: Option<bool>| {
+                        let current_required = is_required.get();
+                        
+                        // Only trigger update if this is not the initial run and the value actually changed
+                        if let Some(prev) = prev_required {
+                            if prev != current_required {
+                                update_required_clone(current_required);
                             }
                         }
-                        required
+                        
+                        current_required
                     });
                     
                     view! {
@@ -203,6 +241,25 @@ fn InteractiveQuestionnaireBuilder(
                                     <div class="question-status-text">
                                         {move || if is_enabled.get() { "Enabled" } else { "Disabled" }}
                                     </div>
+                                    {move || {
+                                        // Only show delete button if question is disabled
+                                        if !is_enabled.get() {
+                                            view! {
+                                                <button
+                                                    class="delete-question-btn"
+                                                    title="Delete this question permanently"
+                                                    on:click=move |_| {
+                                                        set_question_to_delete.set(Some(question_id));
+                                                        set_delete_modal_open.set(true);
+                                                    }
+                                                >
+                                                    "Delete"
+                                                </button>
+                                            }.into_any()
+                                        } else {
+                                            view! { <div></div> }.into_any()
+                                        }
+                                    }}
                                 </div>
                                 <div class="question-info">
                                     <h4>{question_text}</h4>
@@ -289,6 +346,68 @@ fn InteractiveQuestionnaireBuilder(
                     }}
                 </p>
             </div>
+            
+            {move || {
+                if delete_modal_open.get() {
+                    let close_modal = {
+                        let set_delete_modal_open = set_delete_modal_open.clone();
+                        let set_question_to_delete = set_question_to_delete.clone();
+                        move |_| {
+                            set_delete_modal_open.set(false);
+                            set_question_to_delete.set(None);
+                        }
+                    };
+                    
+                    let confirm_delete = {
+                        let delete_question = delete_question.clone();
+                        let question_to_delete = question_to_delete.clone();
+                        move |_| {
+                            if let Some(question_id) = question_to_delete.get() {
+                                delete_question(question_id);
+                            }
+                        }
+                    };
+                    
+                    view! {
+                        <div class="modal-overlay">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>"Delete Question"</h3>
+                                    <button 
+                                        class="modal-close"
+                                        on:click=close_modal.clone()
+                                    >
+                                        "×"
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>"Are you sure you want to permanently delete this question?"</p>
+                                    <p><strong>"This action cannot be undone."</strong></p>
+                                    <p>"Clients will no longer see this question in your booking form."</p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button
+                                        class="thaw-button thaw-button--secondary"
+                                        disabled=is_deleting.get()
+                                        on:click=close_modal
+                                    >
+                                        "Cancel"
+                                    </button>
+                                    <button
+                                        class="thaw-button thaw-button--danger"
+                                        disabled=is_deleting.get()
+                                        on:click=confirm_delete
+                                    >
+                                        {if is_deleting.get() { "Deleting..." } else { "Delete Question" }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }.into_any()
+                } else {
+                    view! { <div style="display: none;"></div> }.into_any()
+                }
+            }}
         </div>
     }
 }
