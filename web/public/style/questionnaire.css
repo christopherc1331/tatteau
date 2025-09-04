@@ -45,6 +45,13 @@
     border-bottom: 1px solid #e5e7eb;
 }
 
+.questions-subtitle {
+    color: #6b7280;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    padding: 0 1rem;
+}
+
 .question-config-item {
     border-bottom: 1px solid #f3f4f6;
     padding: 1.5rem;
@@ -64,6 +71,20 @@
     align-items: center;
     gap: 1rem;
     margin-bottom: 1rem;
+}
+
+.question-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.question-status-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    min-width: 60px;
 }
 
 .question-info {
@@ -140,6 +161,13 @@
     flex-direction: column;
     align-items: center;
     gap: 1rem;
+}
+
+.status-text {
+    color: #6b7280;
+    font-size: 0.95rem;
+    margin: 0;
+    text-align: center;
 }
 
 .success-message {
