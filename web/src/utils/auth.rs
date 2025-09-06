@@ -1,5 +1,7 @@
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
+use crate::server::get_artist_id_from_jwt_user_id;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Claims {
@@ -54,13 +56,28 @@ fn decode_jwt_artist_id(token: &str) -> Option<i32> {
     None
 }
 
-/// Hook to get the authenticated artist ID reactively
+/// Hook to get the authenticated artist ID reactively with proper server lookup
 pub fn use_authenticated_artist_id() -> Signal<Option<i32>> {
     let artist_id = RwSignal::new(None::<i32>);
     
     Effect::new(move |_| {
-        let id = get_authenticated_artist_id();
-        artist_id.set(id);
+        // Get JWT user_id first
+        if let Some((user_id, user_type)) = get_authenticated_user() {
+            if user_type == "artist" {
+                // Spawn async task to lookup artist_id from server
+                spawn_local(async move {
+                    match get_artist_id_from_jwt_user_id(user_id).await {
+                        Ok(Some(id)) => artist_id.set(Some(id)),
+                        Ok(None) => artist_id.set(None),
+                        Err(_) => artist_id.set(None),
+                    }
+                });
+            } else {
+                artist_id.set(None);
+            }
+        } else {
+            artist_id.set(None);
+        }
     });
     
     artist_id.into()

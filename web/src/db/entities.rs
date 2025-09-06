@@ -277,7 +277,7 @@ pub struct ClientQuestionnaireForm {
     pub questions: Vec<ClientQuestionnaireQuestion>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ClientQuestionnaireQuestion {
     pub id: i32,
     pub question_type: String,

@@ -33,7 +33,7 @@ use crate::db::repository::{
     get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
     get_artist_questionnaire, get_all_default_questions, get_artist_questionnaire_config,
     update_artist_questionnaire_config, delete_artist_question, save_questionnaire_responses, get_booking_questionnaire_responses,
-    log_error, get_recent_errors, get_errors_by_type,
+    get_artist_id_from_user_id, log_error, get_recent_errors, get_errors_by_type,
 };
 
 #[server]
@@ -2497,6 +2497,23 @@ pub async fn get_artist_questionnaire_configuration(artist_id: i32) -> Result<Ve
     #[cfg(not(feature = "ssr"))]
     {
         Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+#[server]
+pub async fn get_artist_id_from_jwt_user_id(
+    jwt_user_id: i32
+) -> Result<Option<i32>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match get_artist_id_from_user_id(jwt_user_id) {
+            Ok(artist_id) => Ok(artist_id),
+            Err(e) => Err(ServerFnError::new(format!("Database error: {}", e))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(None)
     }
 }
 

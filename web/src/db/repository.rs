@@ -1248,6 +1248,29 @@ pub fn update_artist_questionnaire_config(
 }
 
 #[cfg(feature = "ssr")]
+pub fn get_artist_id_from_user_id(user_id: i32) -> SqliteResult<Option<i32>> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT artist_id FROM artist_users WHERE id = ?1"
+    )?;
+    
+    let artist_id: Result<i32, rusqlite::Error> = stmt.query_row(
+        params![user_id],
+        |row| Ok(row.get(0)?)
+    );
+    
+    match artist_id {
+        Ok(id) => Ok(Some(id)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+#[cfg(feature = "ssr")]
 pub fn delete_artist_question(
     artist_id: i32,
     question_id: i32

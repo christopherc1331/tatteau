@@ -1,5 +1,6 @@
 pub mod artist_masonry_gallery;
 pub mod client_booking_modal;
+pub mod multi_step_questionnaire;
 pub mod error;
 pub mod error_boundary;
 pub mod instagram_embed;
@@ -19,6 +20,7 @@ pub mod auth_guard;
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
 pub use client_booking_modal::ClientBookingModal;
+pub use multi_step_questionnaire::MultiStepQuestionnaire;
 pub use error_boundary::{ErrorBoundary, log_component_error};
 pub use instagram_embed::{InstagramEmbed, process_instagram_embeds};
 pub use instagram_embed_ssr::InstagramEmbedSsr;

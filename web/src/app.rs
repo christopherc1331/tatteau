@@ -68,6 +68,9 @@ pub fn App() -> impl IntoView {
         // booking modal styles  
         <Stylesheet id="booking-modal" href="/style/booking_modal.css"/>
         
+        // multi-step questionnaire styles
+        <Stylesheet id="multi-step-questionnaire" href="/style/multi_step_questionnaire.css"/>
+        
         // authentication pages styles
         <Stylesheet id="auth" href="/style/auth.css"/>
         
