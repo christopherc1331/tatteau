@@ -117,6 +117,16 @@ pub fn MultiStepQuestionnaire(
                             <div class="question-content">
                                 <div class="question-header">
                                     <h4 class="question-text">{question.question_text.clone()}</h4>
+                                    {if question.question_type == "multiselect" {
+                                        view! {
+                                            <span 
+                                                class="info-icon" 
+                                                title="This is a list of options that the artist is currently accepting at this time"
+                                            >{"ⓘ"}</span>
+                                        }.into_any()
+                                    } else {
+                                        view! {}.into_any()
+                                    }}
                                     {if !question.is_required {
                                         view! {
                                             <span class="optional-indicator">"(optional)"</span>

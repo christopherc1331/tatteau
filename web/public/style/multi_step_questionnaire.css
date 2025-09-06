@@ -63,6 +63,11 @@
 
 .question-header {
     margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .question-text {
@@ -71,6 +76,22 @@
     color: #374151;
     margin: 0 0 0.5rem 0;
     line-height: 1.4;
+}
+
+.info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    background: #7c3aed;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: help;
+    margin-left: 0.25rem;
+    flex-shrink: 0;
 }
 
 .optional-indicator {

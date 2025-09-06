@@ -1119,14 +1119,27 @@ pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionna
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
 
+    // Fix: Only get the latest/most specific configuration per question_id
+    // Prioritize rows with custom_options, then take the one with highest id
     let mut stmt = conn.prepare("
-        SELECT q.id, q.question_type, q.question_text, aq.is_required, 
-               COALESCE(aq.custom_options, q.options_data) as options,
-               q.validation_rules
-        FROM questionnaire_questions q
-        JOIN artist_questionnaires aq ON q.id = aq.question_id
-        WHERE aq.artist_id = ?1
-        ORDER BY aq.display_order
+        WITH latest_configs AS (
+            SELECT q.id, q.question_type, q.question_text, aq.is_required, 
+                   COALESCE(aq.custom_options, q.options_data) as options,
+                   q.validation_rules, aq.display_order,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY q.id 
+                       ORDER BY 
+                           CASE WHEN aq.custom_options IS NOT NULL THEN 0 ELSE 1 END,
+                           aq.id DESC
+                   ) as rn
+            FROM questionnaire_questions q
+            JOIN artist_questionnaires aq ON q.id = aq.question_id
+            WHERE aq.artist_id = ?1
+        )
+        SELECT id, question_type, question_text, is_required, options, validation_rules
+        FROM latest_configs
+        WHERE rn = 1
+        ORDER BY display_order
     ")?;
 
     let question_rows = stmt.query_map(params![artist_id], |row| {
@@ -1146,12 +1159,81 @@ pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionna
         })
     })?;
 
-    let questions: Result<Vec<_>, _> = question_rows.collect();
+    let mut questions: Vec<ClientQuestionnaireQuestion> = question_rows.collect::<Result<Vec<_>, _>>()?;
+    
+    // Always append mandatory system appointment date question (question ID 6)
+    // Check if appointment date question is already included to avoid duplicates
+    let has_appointment_question = questions.iter().any(|q| q.id == 6);
+    if !has_appointment_question {
+        let mut system_stmt = conn.prepare("
+            SELECT id, question_type, question_text, validation_rules
+            FROM questionnaire_questions
+            WHERE id = 6
+        ")?;
+        if let Some(system_question) = system_stmt.query_row([], |row| {
+            Ok(ClientQuestionnaireQuestion {
+                id: row.get(0)?,
+                question_type: row.get(1)?,
+                question_text: row.get(2)?,
+                is_required: true, // Always required as system question
+                options: vec![],
+                validation_rules: row.get(3)?,
+            })
+        }).ok() {
+            questions.push(system_question);
+        }
+    }
     
     Ok(ClientQuestionnaireForm {
         artist_id,
-        questions: questions?,
+        questions,
     })
+}
+
+// Artist Availability and Booking Conflict Functions
+#[cfg(feature = "ssr")]
+pub fn check_artist_availability(artist_id: i32, requested_date: &str, requested_time: &str) -> SqliteResult<bool> {
+    use rusqlite::params;
+    
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+    
+    // Check for existing bookings at the requested time
+    let mut booking_stmt = conn.prepare("
+        SELECT COUNT(*) 
+        FROM bookings 
+        WHERE artist_id = ?1 
+        AND booking_date = ?2 
+        AND status NOT IN ('cancelled', 'rejected')
+    ")?;
+    
+    let booking_conflicts: i64 = booking_stmt.query_row(params![artist_id, requested_date], |row| {
+        row.get(0)
+    })?;
+    
+    if booking_conflicts > 0 {
+        return Ok(false); // Time slot already booked
+    }
+    
+    // Check for artist availability restrictions
+    // This is a simplified check - in production, this would need more complex time parsing
+    let mut availability_stmt = conn.prepare("
+        SELECT COUNT(*) 
+        FROM artist_availability 
+        WHERE artist_id = ?1 
+        AND (specific_date = ?2 OR day_of_week = strftime('%w', ?2))
+        AND is_available = 0
+    ")?;
+    
+    let availability_blocks: i64 = availability_stmt.query_row(params![artist_id, requested_date], |row| {
+        row.get(0)
+    })?;
+    
+    if availability_blocks > 0 {
+        return Ok(false); // Time slot is blocked by artist
+    }
+    
+    Ok(true) // Time slot appears to be available
 }
 
 #[cfg(feature = "ssr")]

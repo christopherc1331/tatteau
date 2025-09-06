@@ -33,7 +33,7 @@ use crate::db::repository::{
     get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
     get_artist_questionnaire, get_all_default_questions, get_artist_questionnaire_config,
     update_artist_questionnaire_config, delete_artist_question, save_questionnaire_responses, get_booking_questionnaire_responses,
-    get_artist_id_from_user_id, log_error, get_recent_errors, get_errors_by_type,
+    get_artist_id_from_user_id, log_error, get_recent_errors, get_errors_by_type, check_artist_availability,
 };
 
 #[server]
@@ -1923,6 +1923,24 @@ pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, S
     #[cfg(not(feature = "ssr"))]
     {
         Ok(0)
+    }
+}
+
+#[server]
+pub async fn check_availability(artist_id: i32, requested_date: String, requested_time: String) -> Result<bool, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match check_artist_availability(artist_id, &requested_date, &requested_time) {
+            Ok(is_available) => Ok(is_available),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to check availability: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(true) // Default to available on client-side
     }
 }
 
