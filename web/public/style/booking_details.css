@@ -55,6 +55,19 @@
   padding: 2rem 1rem;
   display: grid;
   gap: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ensure parent container is centered and full-width */
+.booking-details {
+  background: #f9fafb;
+  min-height: 100vh;
+  padding-bottom: 2rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Card Base Styles */
@@ -136,8 +149,8 @@
 }
 
 .status-approved {
-  background: #d1fae5;
-  color: #065f46;
+  background: #bbf7d0;
+  color: #064e3b;
   border-color: #10b981;
 }
 
@@ -170,11 +183,11 @@
 .notes-content {
   font-size: 1rem;
   line-height: 1.6;
-  color: #4b5563;
-  background: #f0fdf4;
+  color: #374151;
+  background: #ecfdf5;
   padding: 1rem;
   border-radius: 0.5rem;
-  border: 1px solid #bbf7d0;
+  border: 1px solid #a7f3d0;
 }
 
 /* History Card - Modern Card Design */
@@ -334,8 +347,8 @@
 }
 
 .history-status.status-approved {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #065f46;
+  background: linear-gradient(135deg, #bbf7d0 0%, #a7f3d0 100%);
+  color: #064e3b;
   border-color: #10b981;
 }
 

@@ -205,12 +205,32 @@ pub fn ClientBookingModal(
                                             }.into_any()
                                         },
                                         Some(None) => {
-                                            // No questionnaire configured, skip to appointment details
+                                            // No questionnaire configured, show message and let user proceed manually
                                             questionnaire_completed.set(true);
-                                            current_step.set(2);
                                             view! {
                                                 <div class="no-questionnaire">
-                                                    <p>"No questionnaire configured. Proceeding to appointment scheduling..."</p>
+                                                    <div class="questionnaire-empty-state">
+                                                        <h3>"No Questionnaire Required"</h3>
+                                                        <p>"This artist hasn't configured a custom questionnaire. You can proceed directly to scheduling your appointment."</p>
+                                                        <div class="form-actions">
+                                                            <Button 
+                                                                appearance=ButtonAppearance::Secondary
+                                                                on_click=move |_| {
+                                                                    close_modal();
+                                                                }
+                                                            >
+                                                                "Cancel"
+                                                            </Button>
+                                                            <Button 
+                                                                appearance=ButtonAppearance::Primary
+                                                                on_click=move |_| {
+                                                                    current_step.set(2);
+                                                                }
+                                                            >
+                                                                "Continue to Scheduling"
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             }.into_any()
                                         },

@@ -1,444 +1,444 @@
 /* Questionnaire Builder Styles */
 
 .questionnaire-builder {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
 }
 
 .questionnaire-header {
-    margin-bottom: 2rem;
-    text-align: center;
+  margin-bottom: 2rem;
+  text-align: center;
 }
 
 .questionnaire-header h2 {
-    color: #7c3aed;
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
+  color: #7c3aed;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
 }
 
 .questionnaire-header p {
-    color: #6b7280;
-    font-size: 1.1rem;
+  color: #6b7280;
+  font-size: 1.1rem;
 }
 
 .questionnaire-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .loading {
-    text-align: center;
-    padding: 3rem;
-    color: #6b7280;
-    font-size: 1.1rem;
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+  font-size: 1.1rem;
 }
 
 .questionnaire-form {
-    padding: 0;
+  padding: 0;
 }
 
 .questions-list {
-    border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .questions-subtitle {
-    color: #6b7280;
-    font-size: 0.95rem;
-    margin-bottom: 1.5rem;
-    padding: 0 1rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  padding: 0 1rem;
 }
 
 .question-config-item {
-    border-bottom: 1px solid #f3f4f6;
-    padding: 1.5rem;
-    transition: background-color 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+  padding: 1.5rem;
+  transition: background-color 0.2s ease;
 }
 
 .question-config-item:hover {
-    background-color: #f9fafb;
+  background-color: #f9fafb;
 }
 
 .question-config-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .question-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .question-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .question-status-text {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #374151;
-    min-width: 60px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  min-width: 60px;
 }
 
 .question-info {
-    flex: 1;
+  flex: 1;
 }
 
 .question-info h4 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #374151;
-    margin: 0 0 0.25rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.25rem 0;
 }
 
 .question-type {
-    font-size: 0.875rem;
-    color: #6b7280;
-    background-color: #f3f4f6;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    text-transform: capitalize;
+  font-size: 0.875rem;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-transform: capitalize;
 }
 
 .question-options {
-    margin-left: 3rem;
-    padding: 1rem;
-    background-color: #f8fafc;
-    border-radius: 8px;
-    border-left: 4px solid #7c3aed;
+  margin-left: 3rem;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border-radius: 8px;
+  border-left: 4px solid #7c3aed;
 }
 
 .option-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
 }
 
 .option-row:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .option-row label {
-    font-weight: 500;
-    color: #374151;
-    font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.9rem;
 }
 
 .options-display {
-    flex: 1;
-    margin-left: 1rem;
+  flex: 1;
+  margin-left: 1rem;
 }
 
 .options-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .option-tag {
-    background-color: #e0e7ff;
-    color: #3730a3;
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border: 1px solid #c7d2fe;
+  background-color: #e0e7ff;
+  color: #3730a3;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid #c7d2fe;
 }
 
 .save-section {
-    padding: 2rem;
-    background-color: #f9fafb;
-    border-top: 1px solid #e5e7eb;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
+  padding: 2rem;
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
 .status-text {
-    color: #6b7280;
-    font-size: 0.95rem;
-    margin: 0;
-    text-align: center;
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin: 0;
+  text-align: center;
 }
 
 .success-message {
-    color: #065f46;
-    background-color: #d1fae5;
-    border: 1px solid #a7f3d0;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    font-weight: 500;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
+  color: #065f46;
+  background-color: #d1fae5;
+  border: 1px solid #a7f3d0;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
 }
 
 .error-message {
-    color: #991b1b;
-    background-color: #fee2e2;
-    border: 1px solid #fecaca;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    font-weight: 500;
-    text-align: center;
-    width: 100%;
-    max-width: 400px;
+  color: #991b1b;
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .questionnaire-builder {
-        padding: 1rem;
-    }
-    
-    .question-config-item {
-        padding: 1rem;
-    }
-    
-    .question-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
-    }
-    
-    .question-options {
-        margin-left: 0;
-        margin-top: 1rem;
-    }
-    
-    .option-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-    
-    .options-display {
-        margin-left: 0;
-        width: 100%;
-    }
-    
-    .save-section {
-        padding: 1.5rem;
-    }
+  .questionnaire-builder {
+    padding: 1rem;
+  }
+
+  .question-config-item {
+    padding: 1rem;
+  }
+
+  .question-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .question-options {
+    margin-left: 0;
+    margin-top: 1rem;
+  }
+
+  .option-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .options-display {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .save-section {
+    padding: 1.5rem;
+  }
 }
 
 /* Enhanced Thaw component styling */
 .questionnaire-builder .thaw-switch {
-    --switch-checked-bg: #7c3aed;
-    --switch-checked-border: #7c3aed;
+  --switch-checked-bg: #7c3aed;
+  --switch-checked-border: #7c3aed;
 }
 
 .questionnaire-builder .thaw-button--primary {
-    background: linear-gradient(135deg, #7c3aed 0%, #f97316 100%);
-    border: none;
-    font-weight: 600;
-    padding: 0.75rem 2rem;
-    font-size: 1rem;
-    transition: all 0.2s ease;
+  background: linear-gradient(135deg, #7c3aed 0%, #f97316 100%);
+  border: none;
+  font-weight: 600;
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  transition: all 0.2s ease;
 }
 
 .questionnaire-builder .thaw-button--primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
 }
 
 .questionnaire-builder .thaw-button--primary:active {
-    transform: translateY(0);
+  transform: translateY(0);
 }
 
 /* Delete Button Styles */
 .delete-question-btn {
-    background-color: #dc2626;
-    color: white;
-    border: 1px solid #dc2626;
-    padding: 0.375rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-left: 0.5rem;
+  background-color: #dc2626;
+  color: white;
+  border: 1px solid #dc2626;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
 }
 
 .delete-question-btn:hover {
-    background-color: #b91c1c;
-    border-color: #b91c1c;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
 .delete-question-btn:active {
-    transform: translateY(0);
+  transform: translateY(0);
 }
 
 .delete-question-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* Delete Modal Styles */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 1rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
 }
 
 .modal-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    width: 100%;
-    max-width: 450px;
-    overflow: hidden;
+  background: white;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 450px;
+  overflow: hidden;
 }
 
 .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.5rem 1.5rem 0 1.5rem;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 1rem;
-    margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .modal-header h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #374151;
-    margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
 }
 
 .modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: #6b7280;
-    cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-close:hover {
-    background-color: #f3f4f6;
-    color: #374151;
+  background-color: #f3f4f6;
+  color: #374151;
 }
 
 .modal-body {
-    padding: 1.5rem;
-    line-height: 1.6;
+  padding: 1.5rem;
+  line-height: 1.6;
 }
 
 .modal-body p {
-    color: #374151;
-    margin: 0 0 0.75rem 0;
+  color: #374151;
+  margin: 0 0 0.75rem 0;
 }
 
 .modal-body p:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 .modal-body strong {
-    color: #dc2626;
+  color: #dc2626;
 }
 
 .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    padding: 1rem 1.5rem 1.5rem 1.5rem;
-    background-color: #f9fafb;
-    border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.5rem 1.5rem;
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
 }
 
 /* Thaw Button Overrides for Modal */
 .modal-footer .thaw-button {
-    padding: 0.625rem 1.25rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    border: 1px solid;
-    min-width: 80px;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid;
+  min-width: 80px;
 }
 
 .modal-footer .thaw-button--secondary {
-    background-color: white;
-    color: #374151;
-    border-color: #d1d5db;
+  background-color: white;
+  color: #374151;
+  border-color: #d1d5db;
 }
 
 .modal-footer .thaw-button--secondary:hover {
-    background-color: #f9fafb;
-    border-color: #9ca3af;
+  background-color: #f9fafb;
+  border-color: #9ca3af;
 }
 
 .modal-footer .thaw-button--danger {
-    background-color: #dc2626;
-    color: white;
-    border-color: #dc2626;
+  background-color: #dc2626;
+  color: white;
+  border-color: #dc2626;
 }
 
 .modal-footer .thaw-button--danger:hover {
-    background-color: #b91c1c;
-    border-color: #b91c1c;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
 .modal-footer .thaw-button:active {
-    transform: translateY(0);
+  transform: translateY(0);
 }
 
 .modal-footer .thaw-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* Responsive Modal */
 @media (max-width: 480px) {
-    .modal-overlay {
-        padding: 1rem 0.5rem;
-    }
-    
-    .modal-content {
-        max-width: none;
-    }
-    
-    .modal-footer {
-        flex-direction: column;
-    }
-    
-    .modal-footer .thaw-button {
-        width: 100%;
-    }
+  .modal-overlay {
+    padding: 1rem 0.5rem;
+  }
+
+  .modal-content {
+    max-width: none;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer .thaw-button {
+    width: 100%;
+  }
 }
+

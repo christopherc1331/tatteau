@@ -2,7 +2,7 @@ use crate::components::{EventItem, EventItemData, TimeBlock, TimeBlockData};
 use crate::db::entities::{AvailabilitySlot, AvailabilityUpdate, BookingRequest, RecurringRule};
 use crate::server::{
     get_artist_availability, get_booking_requests, get_business_hours, get_effective_availability,
-    get_recurring_rules, set_artist_availability, get_artist_id_from_user,
+    get_recurring_rules, set_artist_availability,
 };
 use crate::utils::auth::use_authenticated_artist_id;
 use crate::utils::timezone::{
@@ -18,27 +18,14 @@ type CalendarTimeBlock = TimeBlockData;
 
 #[component]
 pub fn ArtistCalendar() -> impl IntoView {
-    // Get authenticated user ID from JWT token
-    let user_id = use_authenticated_artist_id();
+    // Get authenticated artist ID directly using the proper hook
+    let artist_id_signal = use_authenticated_artist_id();
     
-    // Resource to get the actual artist_id from the user_id
-    let artist_id_resource = Resource::new_blocking(
-        move || user_id.get(),
-        move |id_opt| async move {
-            match id_opt {
-                Some(id) => get_artist_id_from_user(id).await.ok(),
-                None => None,
-            }
-        },
-    );
-    
-    // Signal to hold the resolved artist_id
+    // Convert the signal to RwSignal for compatibility with existing code
     let artist_id = RwSignal::new(None::<i32>);
     
     Effect::new(move |_| {
-        if let Some(Some(id)) = artist_id_resource.get() {
-            artist_id.set(Some(id));
-        }
+        artist_id.set(artist_id_signal.get());
     });
 
     // Initialize with current date (will update client-side)

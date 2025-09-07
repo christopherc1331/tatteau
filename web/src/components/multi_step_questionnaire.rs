@@ -172,7 +172,11 @@ pub fn MultiStepQuestionnaire(
                                                                     } else { 
                                                                         ButtonAppearance::Secondary 
                                                                     }
-                                                                    class="option-button"
+                                                                    class=if is_selected {
+                                                                        "option-button selected"
+                                                                    } else {
+                                                                        "option-button"
+                                                                    }
                                                                     on_click=move |_| {
                                                                         let current_selected = responses.get()
                                                                             .get(&question_id)

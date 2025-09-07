@@ -648,14 +648,13 @@ pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerF
             SELECT 
                 s.id,
                 s.name,
-                s.description,
                 COUNT(DISTINCT ast.artist_id) as artist_count,
                 GROUP_CONCAT(DISTINCT ai.instagram_url, '|') as sample_images
             FROM styles s
             LEFT JOIN artists_styles ast ON s.id = ast.style_id
             LEFT JOIN artists a ON ast.artist_id = a.id
             LEFT JOIN artists_images ai ON a.id = ai.artist_id
-            GROUP BY s.id, s.name, s.description
+            GROUP BY s.id, s.name
             HAVING artist_count > 0
             ORDER BY artist_count DESC, s.name ASC
         ",
@@ -664,7 +663,7 @@ pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerF
 
         let styles = stmt
             .query_map([], |row| {
-                let sample_images_str: Option<String> = row.get(4).ok();
+                let sample_images_str: Option<String> = row.get(3).ok();
                 let sample_images = sample_images_str
                     .and_then(|s| if s.trim().is_empty() { None } else { Some(s) })
                     .map(|s| {
@@ -677,8 +676,8 @@ pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerF
                 Ok(StyleWithCount {
                     id: row.get(0)?,
                     name: row.get(1)?,
-                    description: row.get(2).ok(),
-                    artist_count: row.get(3)?,
+                    description: None, // No description column in the table
+                    artist_count: row.get(2)?,
                     sample_images,
                 })
             })
@@ -1188,50 +1187,64 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
             let db_path = Path::new("tatteau.db");
             let conn = Connection::open(db_path)?;
 
-            // Disable foreign key constraints
-            conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-
-            // Create table if it doesn't exist
-            conn.execute(
-                "
-                CREATE TABLE IF NOT EXISTS recurring_rules (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    artist_id INTEGER NOT NULL,
-                    name TEXT NOT NULL,
-                    rule_type TEXT NOT NULL,
-                    pattern TEXT NOT NULL,
-                    action TEXT NOT NULL,
-                    start_time TEXT,
-                    end_time TEXT,
-                    active INTEGER DEFAULT 1,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ",
-                [],
-            )?;
-
+            // Query artist_availability table for recurring rules
             let mut stmt = conn.prepare(
                 "
-                SELECT id, artist_id, name, rule_type, pattern, action, 
-                       start_time, end_time, active, created_at
-                FROM recurring_rules 
-                WHERE artist_id = ?1 
-                ORDER BY created_at DESC
+                SELECT id, artist_id, day_of_week, start_time, end_time, is_available, created_at
+                FROM artist_availability 
+                WHERE artist_id = ?1 AND is_recurring = 1
+                ORDER BY day_of_week, start_time
             ",
             )?;
 
             let rule_iter = stmt.query_map([artist_id], |row| {
+                let day_of_week: Option<i32> = row.get(2)?;
+                let start_time: Option<String> = row.get(3)?;
+                let end_time: Option<String> = row.get(4)?;
+                let is_available: bool = row.get(5)?;
+                
+                // Map day_of_week to day name
+                let day_name = match day_of_week {
+                    Some(0) => "Sunday",
+                    Some(1) => "Monday", 
+                    Some(2) => "Tuesday",
+                    Some(3) => "Wednesday",
+                    Some(4) => "Thursday",
+                    Some(5) => "Friday",
+                    Some(6) => "Saturday",
+                    _ => "Unknown Day",
+                };
+                
+                // Create descriptive name
+                let name = if is_available {
+                    format!("{} Available: {} - {}", 
+                        day_name, 
+                        start_time.as_deref().unwrap_or("00:00"), 
+                        end_time.as_deref().unwrap_or("00:00"))
+                } else {
+                    format!("{} Blocked: {} - {}", 
+                        day_name, 
+                        start_time.as_deref().unwrap_or("00:00"), 
+                        end_time.as_deref().unwrap_or("00:00"))
+                };
+                
+                // Create pattern from day_of_week
+                let pattern = match day_of_week {
+                    Some(day) => format!("[{}]", day),
+                    None => "[]".to_string(),
+                };
+
                 Ok(RecurringRule {
                     id: row.get(0)?,
                     artist_id: row.get(1)?,
-                    name: row.get(2)?,
-                    rule_type: row.get(3)?,
-                    pattern: row.get(4)?,
-                    action: row.get(5)?,
-                    start_time: row.get(6)?,
-                    end_time: row.get(7)?,
-                    active: row.get(8)?,
-                    created_at: row.get(9)?,
+                    name,
+                    rule_type: "weekdays".to_string(),
+                    pattern,
+                    action: if is_available { "available".to_string() } else { "blocked".to_string() },
+                    start_time,
+                    end_time,
+                    active: true, // All recurring rules are considered active
+                    created_at: row.get(6)?,
                 })
             })?;
 
