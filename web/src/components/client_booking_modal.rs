@@ -159,9 +159,9 @@ pub fn ClientBookingModal(
     };
 
     view! {
-        <div class=move || if show.get() { "booking-modal-overlay show" } else { "booking-modal-overlay" }>
-            <div class="booking-modal">
-                <div class="modal-header">
+        <div class=move || if show.get() { "modalOverlay-b63567f show-b63567f" } else { "modalOverlay-b63567f" }>
+            <div class="modal-b63567f">
+                <div class="modalHeader-b63567f">
                     <h2>{move || match current_step.get() {
                         1 => "Artist Questionnaire".to_string(),
                         2 => "Schedule Appointment".to_string(),
@@ -171,19 +171,19 @@ pub fn ClientBookingModal(
                     <Button 
                         appearance=ButtonAppearance::Subtle
                         on_click=move |_| close_modal()
-                        class="close-button"
+                        class="closeButton-b63567f"
                     >
                         "×"
                     </Button>
                 </div>
 
-                <div class="modal-content">
+                <div class="modalContent-b63567f">
                     {move || match current_step.get() {
                         1 => view! {
                             // Step 1: Multi-Step Questionnaire
                             <Suspense fallback=move || view! { 
-                                <div class="loading-questionnaire">
-                                    <div class="loading-spinner"></div>
+                                <div class="loadingQuestionnaire-b63567f">
+                                    <div class="loadingSpinner-b63567f"></div>
                                     <p>"Loading questionnaire..."</p>
                                 </div>
                             }>

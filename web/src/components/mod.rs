@@ -16,6 +16,7 @@ pub mod time_picker;
 pub mod time_block;
 pub mod event_item;
 pub mod auth_guard;
+// pub mod scoped_test_button;  // Commented out while implementing scoped CSS system
 
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
@@ -33,3 +34,4 @@ pub use time_picker::TimePicker;
 pub use time_block::{TimeBlock, TimeBlockData};
 pub use event_item::{EventItem, EventItemData};
 pub use auth_guard::ArtistAuthGuard;
+// pub use scoped_test_button::ScopedTestButton;  // Commented out while implementing scoped CSS system

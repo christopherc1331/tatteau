@@ -82,6 +82,9 @@ pub fn App() -> impl IntoView {
         
         // error boundary styles
         <Stylesheet id="error-boundary" href="/style/error_boundary.css"/>
+        
+        // stylance generated scoped CSS
+        <Stylesheet id="stylance" href="/stylance.css"/>
 
         // sets the document title
         <Title text="tatteau"/>

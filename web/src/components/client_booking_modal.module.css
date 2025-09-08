@@ -1,0 +1,316 @@
+/* ClientBookingModal - Scoped CSS Module */
+
+/* Modal Overlay */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 1rem;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  overflow-y: auto;
+}
+
+.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Main Modal Container */
+.modal {
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 800px;
+  min-width: 600px;
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  transform: translateY(50px);
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+}
+
+.modalOverlay.show .modal {
+  transform: translateY(0);
+}
+
+/* Modal Header */
+.modalHeader {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #f97316 100%);
+  color: white;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.modalHeader::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.headerContent {
+  position: relative;
+  z-index: 1;
+}
+
+.modalTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.02em;
+}
+
+.closeButton {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.closeButton:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+/* Modal Content */
+.modalContent {
+  padding: 2rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 16rem);
+}
+
+/* Loading States */
+.loadingQuestionnaire {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.loadingSpinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* No Questionnaire State */
+.noQuestionnaire {
+  text-align: center;
+  padding: 2rem;
+  background: #f3f4f6;
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+}
+
+.questionnaireEmptyState h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.questionnaireEmptyState p {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+/* Form Actions */
+.formActions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Appointment Form */
+.appointmentForm {
+  padding: 0;
+}
+
+.artistInfo h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.artistSubtitle {
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.appointmentFormContent {
+  width: 100%;
+}
+
+.formSection {
+  margin-bottom: 2rem;
+}
+
+.formSection h4 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+}
+
+.authNote {
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.formGroup {
+  margin-bottom: 1.5rem;
+}
+
+.formGroup label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 0.5rem;
+}
+
+/* Error Message */
+.errorMessage {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Confirmation Step */
+.confirmationStep {
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+.successIcon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2.5rem;
+}
+
+.confirmationStep h3 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+.confirmationText {
+  font-size: 1.125rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.bookingDetails {
+  background: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.bookingId {
+  font-weight: 600;
+  color: #7c3aed;
+  margin-bottom: 0.5rem;
+}
+
+.nextSteps {
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.confirmationActions {
+  display: flex;
+  justify-content: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .modal {
+    min-width: unset;
+    max-width: calc(100% - 2rem);
+    margin: 0.5rem;
+  }
+
+  .modalTitle {
+    font-size: 1.5rem;
+  }
+
+  .modalContent {
+    padding: 1.5rem;
+  }
+
+  .formActions {
+    flex-direction: column;
+  }
+}
