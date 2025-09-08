@@ -6,7 +6,7 @@ output_file = "target/site/stylance.css"
 folders = ["web/src"]
 
 # File extensions to process
-extensions = ["module.css", "module.scss"]
+extensions = [".module.css", ".module.scss"]
 
 # Class name format (can be short for development, long for production)
 class_name_pattern = "[local]_[hash:base64:8]"

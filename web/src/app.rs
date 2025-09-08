@@ -68,8 +68,6 @@ pub fn App() -> impl IntoView {
         // booking modal styles  
         <Stylesheet id="booking-modal" href="/style/booking_modal.css"/>
         
-        // multi-step questionnaire styles
-        <Stylesheet id="multi-step-questionnaire" href="/style/multi_step_questionnaire.css"/>
         
         // authentication pages styles
         <Stylesheet id="auth" href="/style/auth.css"/>
@@ -83,11 +81,12 @@ pub fn App() -> impl IntoView {
         // error boundary styles
         <Stylesheet id="error-boundary" href="/style/error_boundary.css"/>
         
-        // stylance generated scoped CSS
-        <Stylesheet id="stylance" href="/stylance.css"/>
 
         // sets the document title
         <Title text="tatteau"/>
+        
+        // Generated stylance CSS with scoped class names
+        <Stylesheet id="stylance" href="/stylance.css"/>
 
         // content for this welcome page
         <ConfigProvider>

@@ -4,6 +4,8 @@ use thaw::{MessageBar, MessageBarIntent, Button};
 use crate::server::log_client_error;
 use serde_json;
 
+stylance::import_crate_style!(style, "src/components/error_boundary.module.css");
+
 #[component]
 pub fn ErrorBoundary(children: Children) -> impl IntoView {
     // Simple error boundary that just wraps children

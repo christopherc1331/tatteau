@@ -4,6 +4,8 @@ use crate::db::entities::ClientQuestionnaireForm;
 use std::collections::HashMap;
 use serde_json;
 
+stylance::import_crate_style!(style, "src/components/multi_step_questionnaire.module.css");
+
 #[component]
 pub fn MultiStepQuestionnaire(
     questionnaire_form: ClientQuestionnaireForm,
@@ -86,42 +88,49 @@ pub fn MultiStepQuestionnaire(
     };
     
     view! {
-        <div class="multi-step-questionnaire">
+        <div class=style::multiStepQuestionnaire>
             // Progress Bar
-            <div class="progress-container">
-                <div class="progress-info">
+            <div class=style::progressContainer>
+                <div class=style::progressInfo>
                     <h3>"Artist Questionnaire"</h3>
-                    <p class="progress-text">
+                    <p class=style::progressText>
                         {move || format!("Question {} of {}", 
                             current_step.get() + 1, 
                             total_steps
                         )}
                     </p>
                 </div>
-                <div class="progress-bar">
+                <div class=style::progressBar>
                     <div 
-                        class="progress-fill"
+                        class=style::progressFill
                         style:width=move || format!("{}%", progress_percentage.get())
                     ></div>
                 </div>
             </div>
             
             // Question Content
-            <div class="question-container">
+            <div class=style::questionContainer>
                 {move || {
                     if let Some(question) = current_question.get() {
                         let question_id = question.id;
                         let current_response = responses.get().get(&question_id).cloned().unwrap_or_default();
                         
                         view! {
-                            <div class="question-content">
-                                <div class="question-header">
-                                    <h4 class="question-text">{question.question_text.clone()}</h4>
+                            <div class=style::questionContent>
+                                <div class=style::questionHeader>
+                                    <h4 class=style::questionText>{question.question_text.clone()}</h4>
                                     {if question.question_type == "multiselect" {
                                         view! {
                                             <span 
-                                                class="info-icon" 
+                                                class=style::infoIcon 
                                                 title="This is a list of options that the artist is currently accepting at this time"
+                                            >{"ⓘ"}</span>
+                                        }.into_any()
+                                    } else if question.question_type == "singleselect" {
+                                        view! {
+                                            <span 
+                                                class=style::infoIcon 
+                                                title="Please select one option"
                                             >{"ⓘ"}</span>
                                         }.into_any()
                                     } else {
@@ -129,17 +138,17 @@ pub fn MultiStepQuestionnaire(
                                     }}
                                     {if !question.is_required {
                                         view! {
-                                            <span class="optional-indicator">"(optional)"</span>
+                                            <span class=style::optionalIndicator>"(optional)"</span>
                                         }.into_any()
                                     } else {
                                         view! {}.into_any()
                                     }}
                                 </div>
                                 
-                                <div class="answer-section">
+                                <div class=style::answerSection>
                                     {match question.question_type.as_str() {
                                         "text" => view! {
-                                            <div class="text-input-container">
+                                            <div class=style::textInputContainer>
                                                 <Textarea
                                                     placeholder="Please provide details..."
                                                     value=RwSignal::new(current_response.clone())
@@ -150,6 +159,38 @@ pub fn MultiStepQuestionnaire(
                                                 />
                                             </div>
                                         }.into_any(),
+                                        "singleselect" => {
+                                            let options = question.options.clone();
+                                            let current_selection = current_response.clone();
+                                            
+                                            view! {
+                                                <div class=style::multiselectContainer>
+                                                    {options.into_iter().map(|option| {
+                                                        let option_value = option.clone();
+                                                        let is_selected = current_selection == option;
+                                                        
+                                                        view! {
+                                                            <div class=style::optionItem>
+                                                                <Button
+                                                                    appearance=if is_selected { 
+                                                                        ButtonAppearance::Primary 
+                                                                    } else { 
+                                                                        ButtonAppearance::Secondary 
+                                                                    }
+                                                                    class=style::optionButton
+                                                                    on_click=move |_| {
+                                                                        // Single selection - replace previous choice
+                                                                        handle_response(question_id, option_value.clone());
+                                                                    }
+                                                                >
+                                                                    {option}
+                                                                </Button>
+                                                            </div>
+                                                        }
+                                                    }).collect::<Vec<_>>()}
+                                                </div>
+                                            }.into_any()
+                                        },
                                         "multiselect" => {
                                             let options = question.options.clone();
                                             let selected: Vec<String> = if current_response.is_empty() {
@@ -159,20 +200,20 @@ pub fn MultiStepQuestionnaire(
                                             };
                                             
                                             view! {
-                                                <div class="multiselect-container">
+                                                <div class=style::multiselectContainer>
                                                     {options.into_iter().map(|option| {
                                                         let option_value = option.clone();
                                                         let is_selected = selected.contains(&option);
                                                         
                                                         view! {
-                                                            <div class="option-item">
+                                                            <div class=style::optionItem>
                                                                 <Button
                                                                     appearance=if is_selected { 
                                                                         ButtonAppearance::Primary 
                                                                     } else { 
                                                                         ButtonAppearance::Secondary 
                                                                     }
-                                                                    class="option-button"
+                                                                    class=style::optionButton
                                                                     on_click=move |_| {
                                                                         let current_selected = responses.get()
                                                                             .get(&question_id)
@@ -204,7 +245,7 @@ pub fn MultiStepQuestionnaire(
                                             }.into_any()
                                         },
                                         "datetime" => view! {
-                                            <div class="datetime-input-container">
+                                            <div class=style::datetimeInputContainer>
                                                 <Input
                                                     input_type=InputType::DatetimeLocal
                                                     value=RwSignal::new(current_response.clone())
@@ -216,15 +257,15 @@ pub fn MultiStepQuestionnaire(
                                             </div>
                                         }.into_any(),
                                         "boolean" => view! {
-                                            <div class="boolean-container">
-                                                <div class="boolean-options">
+                                            <div class=style::booleanContainer>
+                                                <div class=style::booleanOptions>
                                                     <Button
                                                         appearance=if current_response == "true" { 
                                                             ButtonAppearance::Primary 
                                                         } else { 
                                                             ButtonAppearance::Secondary 
                                                         }
-                                                        class="boolean-button"
+                                                        class=style::booleanButton
                                                         on_click=move |_| {
                                                             handle_boolean_response(question_id, "true".to_string());
                                                         }
@@ -237,7 +278,7 @@ pub fn MultiStepQuestionnaire(
                                                         } else { 
                                                             ButtonAppearance::Secondary 
                                                         }
-                                                        class="boolean-button"
+                                                        class=style::booleanButton
                                                         on_click=move |_| {
                                                             handle_boolean_response(question_id, "false".to_string());
                                                         }
@@ -248,7 +289,7 @@ pub fn MultiStepQuestionnaire(
                                             </div>
                                         }.into_any(),
                                         _ => view! {
-                                            <div class="default-input-container">
+                                            <div class=style::defaultInputContainer>
                                                 <Input
                                                     placeholder="Your answer..."
                                                     value=RwSignal::new(current_response.clone())
@@ -265,7 +306,7 @@ pub fn MultiStepQuestionnaire(
                         }.into_any()
                     } else {
                         view! {
-                            <div class="no-questions">
+                            <div class=style::noQuestions>
                                 <p>"No questionnaire configured for this artist."</p>
                             </div>
                         }.into_any()
@@ -274,7 +315,7 @@ pub fn MultiStepQuestionnaire(
             </div>
             
             // Navigation Controls
-            <div class="navigation-controls">
+            <div class=style::navigationControls>
                 <Button
                     appearance=ButtonAppearance::Secondary
                     on_click=move |_| handle_previous()

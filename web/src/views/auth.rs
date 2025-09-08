@@ -4,6 +4,8 @@ use leptos_router::{components::A, hooks::{use_query_map, use_navigate}};
 use serde::{Deserialize, Serialize};
 use thaw::*;
 
+stylance::import_crate_style!(style, "src/views/auth.module.css");
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginData {
     pub email: String,
@@ -123,17 +125,17 @@ pub fn LoginPage() -> impl IntoView {
     };
 
     view! {
-        <div class="auth-container">
-            <div class="auth-card">
-                <div class="auth-header">
+        <div class=style::authContainer>
+            <div class=style::authCard>
+                <div class=style::authHeader>
                     <h1>"Welcome Back"</h1>
                     <p>"Sign in to your Tatteau account"</p>
                 </div>
 
-                <div class="user-type-toggle">
-                    <div class="toggle-buttons">
+                <div class=style::userTypeToggle>
+                    <div class=style::toggleButtons>
                         <button
-                            class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "client" { format!("{} active", style::toggleBtn) } else { style::toggleBtn.to_string() }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -155,7 +157,7 @@ pub fn LoginPage() -> impl IntoView {
                             "I'm a Client"
                         </button>
                         <button
-                            class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "artist" { format!("{} active", style::toggleBtn) } else { style::toggleBtn.to_string() }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -182,8 +184,8 @@ pub fn LoginPage() -> impl IntoView {
                 {move || {
                     if let Some(msg) = success_message.get() {
                         view! {
-                            <div class="success-message">
-                                <span class="success-icon">"✓"</span>
+                            <div class=style::successMessage>
+                                <span class=style::successIcon>"✓"</span>
                                 <p>{msg}</p>
                             </div>
                         }.into_any()
@@ -196,7 +198,7 @@ pub fn LoginPage() -> impl IntoView {
                     ev.prevent_default();
                     submit_login(());
                 }>
-                    <div class="form-group">
+                    <div class=style::formGroup>
                         <Input
                             placeholder="Email"
                             input_type=InputType::Email
@@ -210,11 +212,11 @@ pub fn LoginPage() -> impl IntoView {
                     </div>
 
                     {move || error_message.get().map(|msg| view! {
-                        <div class="error-message">{msg}</div>
+                        <div class=style::errorMessage>{msg}</div>
                     })}
 
                     <Button
-                        class="auth-submit-btn"
+                        class=style::authSubmitBtn
                         button_type=ButtonType::Submit
                         loading=Signal::from(loading)
                         disabled=Signal::from(is_button_disabled)
@@ -223,7 +225,7 @@ pub fn LoginPage() -> impl IntoView {
                     </Button>
                 </form>
 
-                <div class="auth-footer">
+                <div class=style::authFooter>
                     <p>
                         "Don't have an account? "
                         <A href="/signup">"Sign up here"</A>
@@ -313,17 +315,17 @@ pub fn SignupPage() -> impl IntoView {
     };
 
     view! {
-        <div class="auth-container">
-            <div class="auth-card">
-                <div class="auth-header">
+        <div class=style::authContainer>
+            <div class=style::authCard>
+                <div class=style::authHeader>
                     <h1>"Create Your Account"</h1>
                     <p>"Join the Tatteau community"</p>
                 </div>
 
-                <div class="user-type-toggle">
-                    <div class="toggle-buttons">
+                <div class=style::userTypeToggle>
+                    <div class=style::toggleButtons>
                         <button
-                            class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "client" { format!("{} active", style::toggleBtn) } else { style::toggleBtn.to_string() }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -345,7 +347,7 @@ pub fn SignupPage() -> impl IntoView {
                             "I'm a Client"
                         </button>
                         <button
-                            class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "artist" { format!("{} active", style::toggleBtn) } else { style::toggleBtn.to_string() }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -371,8 +373,8 @@ pub fn SignupPage() -> impl IntoView {
 
                 {move || if user_type.get() == "artist" {
                     view! {
-                        <div class="artist-notice">
-                            <span class="info-icon">"ℹ"</span>
+                        <div class=style::artistNotice>
+                            <span class=style::infoIcon>"ℹ"</span>
                             <p>"After signing up, you'll choose a subscription tier to access booking features."</p>
                         </div>
                     }.into_any()
@@ -384,14 +386,14 @@ pub fn SignupPage() -> impl IntoView {
                     ev.prevent_default();
                     submit_signup(());
                 }>
-                    <div class="form-row">
-                        <div class="form-group">
+                    <div class=style::formRow>
+                        <div class=style::formGroup>
                             <Input
                                 placeholder="First Name"
                                 value=first_name
                             />
                         </div>
-                        <div class="form-group">
+                        <div class=style::formGroup>
                             <Input
                                 placeholder="Last Name"
                                 value=last_name
@@ -399,7 +401,7 @@ pub fn SignupPage() -> impl IntoView {
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class=style::formGroup>
                         <Input
                             placeholder="Email"
                             input_type=InputType::Email
@@ -407,7 +409,7 @@ pub fn SignupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-group">
+                    <div class=style::formGroup>
                         <Input
                             placeholder="Phone (optional)"
                             input_type=InputType::Tel
@@ -415,7 +417,7 @@ pub fn SignupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-group">
+                    <div class=style::formGroup>
                         <Input
                             placeholder="Password"
                             input_type=InputType::Password
@@ -423,7 +425,7 @@ pub fn SignupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-group">
+                    <div class=style::formGroup>
                         <Input
                             placeholder="Confirm Password"
                             input_type=InputType::Password
@@ -432,11 +434,11 @@ pub fn SignupPage() -> impl IntoView {
                     </div>
 
                     {move || error_message.get().map(|msg| view! {
-                        <div class="error-message">{msg}</div>
+                        <div class=style::errorMessage>{msg}</div>
                     })}
 
                     <Button
-                        class="auth-submit-btn"
+                        class=style::authSubmitBtn
                         button_type=ButtonType::Submit
                         loading=Signal::from(loading)
                         disabled=Signal::from(is_button_disabled)
@@ -449,7 +451,7 @@ pub fn SignupPage() -> impl IntoView {
                     </Button>
                 </form>
 
-                <div class="auth-footer">
+                <div class=style::authFooter>
                     <p>
                         "Already have an account? "
                         <A href="/login">"Sign in here"</A>

@@ -182,49 +182,132 @@
   width: 100%;
 }
 
+/* Form Sections - Rich Styling */
 .formSection {
-  margin-bottom: 2rem;
+  padding: 2.5rem 3rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  position: relative;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: unset !important;
+  box-sizing: border-box;
+  margin-bottom: 0;
+}
+
+.formSection:last-child {
+  border-bottom: none;
 }
 
 .formSection h4 {
+  margin: 0 0 1.5rem 0;
   font-size: 1.25rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 0.75rem;
+  font-weight: 700;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.formSection h4::before {
+  content: "";
+  width: 4px;
+  height: 20px;
+  background: linear-gradient(to bottom, #7c3aed, #f97316);
+  border-radius: 2px;
 }
 
 .authNote {
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background: #f9fafb;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
   border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  color: #0369a1;
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: center;
 }
 
+/* Form Layout - Enhanced */
 .formRow {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
   margin-bottom: 1.5rem;
+  width: 100%;
 }
 
-@media (max-width: 768px) {
-  .formRow {
-    grid-template-columns: 1fr;
-  }
-}
 
 .formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
   margin-bottom: 1.5rem;
 }
 
 .formGroup label {
-  display: block;
-  font-size: 0.95rem;
   font-weight: 600;
-  color: #4b5563;
-  margin-bottom: 0.5rem;
+  color: #374151;
+  font-size: 0.95rem;
+  letter-spacing: 0.025em;
+}
+
+/* Enhanced Input Styling */
+.formGroup input,
+.formGroup textarea,
+.formGroup select {
+  padding: 1rem 1.25rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  background: #ffffff;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus,
+.formGroup select:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+  transform: translateY(-1px);
+}
+
+.formGroup input:hover,
+.formGroup textarea:hover,
+.formGroup select:hover {
+  border-color: #cbd5e1;
+}
+
+.formGroup textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Required Field Indicators */
+.formGroup label[for="client-name"]::after,
+.formGroup label[for="client-email"]::after,
+.formGroup label[for="requested-date"]::after,
+.formGroup label[for="requested-start-time"]::after {
+  content: " *";
+  color: #ef4444;
+  font-weight: 700;
+}
+
+/* Special Input Types */
+input[type="date"],
+input[type="time"] {
+  cursor: pointer;
+}
+
+input[type="tel"] {
+  letter-spacing: 0.025em;
 }
 
 /* Error Message */
@@ -294,7 +377,7 @@
   justify-content: center;
 }
 
-/* Responsive Design */
+/* Enhanced Responsive Design */
 @media (max-width: 768px) {
   .modal {
     min-width: unset;
@@ -310,7 +393,21 @@
     padding: 1.5rem;
   }
 
+  .formSection {
+    padding: 1.5rem;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
   .formActions {
     flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .formActions button {
+    width: 100%;
   }
 }
