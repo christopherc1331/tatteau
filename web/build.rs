@@ -2,9 +2,9 @@
 use std::process::Command;
 
 fn main() {
-    // Run stylance to generate scoped CSS
+    // Run stylance using the stylance.toml configuration (from workspace root)
     let status = Command::new("stylance")
-        .args(["web", "--output-file", "target/site/stylance.css", "--folder", "src"])
+        .arg("..") // Use parent directory (workspace root) with stylance.toml config
         .status()
         .expect("Failed to execute stylance command");
     
@@ -13,6 +13,6 @@ fn main() {
     }
     
     // Tell cargo to rerun build script if CSS modules change
-    println!("cargo:rerun-if-changed=web/src/**/*.module.css");
-    println!("cargo:rerun-if-changed=stylance.toml");
+    println!("cargo:rerun-if-changed=src/**/*.module.css");
+    println!("cargo:rerun-if-changed=../stylance.toml");
 }
