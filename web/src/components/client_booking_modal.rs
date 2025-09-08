@@ -6,9 +6,6 @@ use crate::db::entities::{ClientQuestionnaireSubmission, QuestionnaireResponse};
 use crate::components::MultiStepQuestionnaire;
 use std::collections::HashMap;
 
-stylance::import_crate_style!(style, "src/components/client_booking_modal.module.css");
-// Force recompile
-
 #[component]
 pub fn ClientBookingModal(
     show: RwSignal<bool>,
@@ -162,9 +159,9 @@ pub fn ClientBookingModal(
     };
 
     view! {
-        <div class=move || if show.get() { format!("{} {}", style::modalOverlay, style::show) } else { style::modalOverlay.to_string() }>
-            <div class=style::modal>
-                <div class=style::modalHeader>
+        <div class=move || if show.get() { "booking-modal-overlay show" } else { "booking-modal-overlay" }>
+            <div class="booking-modal">
+                <div class="modal-header">
                     <h2>{move || match current_step.get() {
                         1 => "Artist Questionnaire".to_string(),
                         2 => "Schedule Appointment".to_string(),
@@ -174,19 +171,19 @@ pub fn ClientBookingModal(
                     <Button 
                         appearance=ButtonAppearance::Subtle
                         on_click=move |_| close_modal()
-                        class=style::closeButton
+                        class="close-button"
                     >
                         "×"
                     </Button>
                 </div>
 
-                <div class=style::modalContent>
+                <div class="modal-content">
                     {move || match current_step.get() {
                         1 => view! {
                             // Step 1: Multi-Step Questionnaire
                             <Suspense fallback=move || view! { 
-                                <div class=style::loadingQuestionnaire>
-                                    <div class=style::loadingSpinner></div>
+                                <div class="loading-questionnaire">
+                                    <div class="loading-spinner"></div>
                                     <p>"Loading questionnaire..."</p>
                                 </div>
                             }>
@@ -211,11 +208,11 @@ pub fn ClientBookingModal(
                                             // No questionnaire configured, show message and let user proceed manually
                                             questionnaire_completed.set(true);
                                             view! {
-                                                <div class=style::noQuestionnaire>
-                                                    <div class=style::questionnaireEmptyState>
+                                                <div class="no-questionnaire">
+                                                    <div class="questionnaire-empty-state">
                                                         <h3>"No Questionnaire Required"</h3>
                                                         <p>"This artist hasn't configured a custom questionnaire. You can proceed directly to scheduling your appointment."</p>
-                                                        <div class=style::formActions>
+                                                        <div class="form-actions">
                                                             <Button 
                                                                 appearance=ButtonAppearance::Secondary
                                                                 on_click=move |_| {
@@ -239,8 +236,8 @@ pub fn ClientBookingModal(
                                         },
                                         None => {
                                             view! {
-                                                <div class=style::loadingQuestionnaire>
-                                                    <div class=style::loadingSpinner></div>
+                                                <div class="loading-questionnaire">
+                                                    <div class="loading-spinner"></div>
                                                     <p>"Loading questionnaire..."</p>
                                                 </div>
                                             }.into_any()
@@ -251,7 +248,7 @@ pub fn ClientBookingModal(
                         }.into_any(),
                         2 => view! {
                             // Step 2: Appointment Details
-                            <div class=style::appointmentForm>
+                            <div class="appointment-form">
                                 <Suspense fallback=move || view! { 
                                     <div class="loading">"Loading artist information..."</div>
                                 }>
@@ -260,16 +257,16 @@ pub fn ClientBookingModal(
                                             if let Some(artist_data) = artist_opt {
                                                 let artist_name = artist_data.artist.name.clone().unwrap_or_else(|| "Artist".to_string());
                                                 view! {
-                                                    <div class=style::artistInfo>
+                                                    <div class="artist-info">
                                                         <h3>{format!("Schedule with {}", artist_name)}</h3>
-                                                        <p class=style::artistSubtitle>"Choose your preferred appointment time"</p>
+                                                        <p class="artist-subtitle">"Choose your preferred appointment time"</p>
                                                     </div>
                                                 }.into_any()
                                             } else {
                                                 view! {
-                                                    <div class=style::artistInfo>
+                                                    <div class="artist-info">
                                                         <h3>"Artist Not Found"</h3>
-                                                        <p class=style::artistSubtitle>"Unable to load artist information"</p>
+                                                        <p class="artist-subtitle">"Unable to load artist information"</p>
                                                     </div>
                                                 }.into_any()
                                             }
@@ -277,17 +274,17 @@ pub fn ClientBookingModal(
                                     }}
                                 </Suspense>
 
-                                <form class=style::appointmentFormContent on:submit=move |ev| {
+                                <form class="appointment-form-content" on:submit=move |ev| {
                                     ev.prevent_default();
                                     if is_appointment_form_valid() && questionnaire_completed.get() {
                                         handle_submit();
                                     }
                                 }>
-                                    <div class=style::formSection>
+                                    <div class="form-section">
                                         <h4>"Appointment Preference"</h4>
-                                        <p class=style::authNote>"Since you're logged in, we'll use your account information for this booking."</p>
-                                        <div class=style::formRow>
-                                            <div class=style::formGroup>
+                                        <p class="auth-note">"Since you're logged in, we'll use your account information for this booking."</p>
+                                        <div class="form-row">
+                                            <div class="form-group">
                                                 <label for="requested-date">"Preferred Date *"</label>
                                                 <Input
                                                     id="requested-date"
@@ -295,7 +292,7 @@ pub fn ClientBookingModal(
                                                     value=requested_date
                                                 />
                                             </div>
-                                            <div class=style::formGroup>
+                                            <div class="form-group">
                                                 <label for="requested-start-time">"Preferred Start Time *"</label>
                                                 <Input
                                                     id="requested-start-time"
@@ -303,7 +300,7 @@ pub fn ClientBookingModal(
                                                     value=requested_start_time
                                                 />
                                             </div>
-                                            <div class=style::formGroup>
+                                            <div class="form-group">
                                                 <label for="requested-end-time">"End Time (optional)"</label>
                                                 <Input
                                                     id="requested-end-time"
@@ -314,9 +311,9 @@ pub fn ClientBookingModal(
                                         </div>
                                     </div>
 
-                                    <div class=style::formSection>
+                                    <div class="form-section">
                                         <h4>"Additional Message (Optional)"</h4>
-                                        <div class=style::formGroup>
+                                        <div class="form-group">
                                             <label for="additional-message">"Message to Artist"</label>
                                             <Textarea
                                                 id="additional-message"
@@ -329,7 +326,7 @@ pub fn ClientBookingModal(
                                     {move || {
                                         if let Some(error) = submission_error.get() {
                                             view! {
-                                                <div class=style::errorMessage>
+                                                <div class="error-message">
                                                     <p>{error}</p>
                                                 </div>
                                             }.into_any()
@@ -338,7 +335,7 @@ pub fn ClientBookingModal(
                                         }
                                     }}
 
-                                    <div class=style::formActions>
+                                    <div class="form-actions">
                                         <Button 
                                             appearance=ButtonAppearance::Secondary
                                             on_click=move |_| current_step.set(1)
@@ -359,27 +356,27 @@ pub fn ClientBookingModal(
                         }.into_any(),
                         3 => view! {
                             // Step 3: Confirmation
-                            <div class=style::confirmationStep>
-                                <div class=style::successIcon>
+                            <div class="confirmation-step">
+                                <div class="success-icon">
                                     "✓"
                                 </div>
                                 <h3>"Booking Request Submitted Successfully!"</h3>
-                                <p class=style::confirmationText>
+                                <p class="confirmation-text">
                                     "Your questionnaire responses and appointment request have been sent to the artist. You will receive a confirmation email shortly."
                                 </p>
                                 {move || {
                                     if let Some(id) = booking_id.get() {
                                         view! {
-                                            <div class=style::bookingDetails>
-                                                <p class=style::bookingId>{format!("Reference ID: #{}", id)}</p>
-                                                <p class=style::nextSteps>"The artist will review your questionnaire and appointment request, then respond within 24-48 hours. You'll be notified via email with their response."</p>
+                                            <div class="booking-details">
+                                                <p class="booking-id">{format!("Reference ID: #{}", id)}</p>
+                                                <p class="next-steps">"The artist will review your questionnaire and appointment request, then respond within 24-48 hours. You'll be notified via email with their response."</p>
                                             </div>
                                         }.into_any()
                                     } else {
                                         view! {}.into_any()
                                     }
                                 }}
-                                <div class=style::confirmationActions>
+                                <div class="confirmation-actions">
                                     <Button 
                                         appearance=ButtonAppearance::Primary
                                         on_click=move |_| close_modal()
