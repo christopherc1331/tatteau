@@ -1,0 +1,45 @@
+// ArtistMasonryGallery Component Styles
+// All classes namespaced with 'artist-masonry-gallery-' prefix
+
+.artist-masonry-gallery {
+  &-container {
+    // Container for the entire gallery component
+  }
+  
+  &-filter-container {
+    margin-bottom: 1.5rem;
+  }
+  
+  &-filter-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  
+  &-filter-label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-right: 0.5rem;
+  }
+  
+  &-filter-button {
+    padding: 0.25rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    
+    // Active state (selected)
+    &--active {
+      background: #667eea;
+      color: white;
+    }
+    
+    // Inactive state (not selected)
+    &--inactive {
+      background: white;
+      color: #374151;
+    }
+  }
+}

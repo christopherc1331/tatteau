@@ -52,19 +52,18 @@ pub fn ArtistMasonryGallery(
     });
 
     view! {
-        <div>
-            <div style="margin-bottom: 1.5rem;">
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
-                    <span style="font-weight: 600; color: #4a5568; margin-right: 0.5rem;">"Filter by style:"</span>
+        <div class="artist-masonry-gallery-container">
+            <div class="artist-masonry-gallery-filter-container">
+                <div class="artist-masonry-gallery-filter-wrapper">
+                    <span class="artist-masonry-gallery-filter-label">"Filter by style:"</span>
 
                     <button
                         on:click=move |_| {
                             set_selected_style.set(None);
                         }
-                        style=move || format!(
-                            "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
-                            if selected_style.get().is_none() { "#667eea" } else { "white" },
-                            if selected_style.get().is_none() { "white" } else { "#374151" }
+                        class=move || format!(
+                            "artist-masonry-gallery-filter-button {}",
+                            if selected_style.get().is_none() { "artist-masonry-gallery-filter-button--active" } else { "artist-masonry-gallery-filter-button--inactive" }
                         )
                     >
                         "All"
@@ -80,10 +79,9 @@ pub fn ArtistMasonryGallery(
                                 on:click=move |_| {
                                     set_selected_style.set(Some(style_id));
                                 }
-                                style=move || format!(
-                                    "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
-                                    if selected_style.get() == Some(style_id) { "#667eea" } else { "white" },
-                                    if selected_style.get() == Some(style_id) { "white" } else { "#374151" }
+                                class=move || format!(
+                                    "artist-masonry-gallery-filter-button {}",
+                                    if selected_style.get() == Some(style_id) { "artist-masonry-gallery-filter-button--active" } else { "artist-masonry-gallery-filter-button--inactive" }
                                 )
                             >
                                 {style_name_for_display}
