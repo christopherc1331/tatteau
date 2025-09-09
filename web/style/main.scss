@@ -12,6 +12,9 @@ body {
 @import 'artist_dashboard';
 @import 'tattoo_gallery';
 @import 'artist_masonry_gallery';
+@import 'auth_guard';
+@import 'client_booking_modal';
+@import 'error_boundary';
 
 // Global animations
 @keyframes spin {

@@ -212,7 +212,7 @@ pub fn ClientBookingModal(
                                                     <div class="questionnaire-empty-state">
                                                         <h3>"No Questionnaire Required"</h3>
                                                         <p>"This artist hasn't configured a custom questionnaire. You can proceed directly to scheduling your appointment."</p>
-                                                        <div class="form-actions">
+                                                        <div class="booking-modal-form-actions">
                                                             <Button 
                                                                 appearance=ButtonAppearance::Secondary
                                                                 on_click=move |_| {
@@ -257,14 +257,14 @@ pub fn ClientBookingModal(
                                             if let Some(artist_data) = artist_opt {
                                                 let artist_name = artist_data.artist.name.clone().unwrap_or_else(|| "Artist".to_string());
                                                 view! {
-                                                    <div class="artist-info">
+                                                    <div class="booking-modal-artist-info">
                                                         <h3>{format!("Schedule with {}", artist_name)}</h3>
                                                         <p class="artist-subtitle">"Choose your preferred appointment time"</p>
                                                     </div>
                                                 }.into_any()
                                             } else {
                                                 view! {
-                                                    <div class="artist-info">
+                                                    <div class="booking-modal-artist-info">
                                                         <h3>"Artist Not Found"</h3>
                                                         <p class="artist-subtitle">"Unable to load artist information"</p>
                                                     </div>
@@ -335,7 +335,7 @@ pub fn ClientBookingModal(
                                         }
                                     }}
 
-                                    <div class="form-actions">
+                                    <div class="booking-modal-form-actions">
                                         <Button 
                                             appearance=ButtonAppearance::Secondary
                                             on_click=move |_| current_step.set(1)

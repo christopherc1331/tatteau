@@ -20,12 +20,12 @@ pub fn use_artist_auth() -> (Signal<bool>, Signal<bool>) {
 #[component]
 pub fn LoadingState() -> impl IntoView {
     view! {
-        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
-            <div style="text-align: center;">
-                <div style="font-size: 1.5rem; color: #667eea; margin-bottom: 0.5rem;">
+        <div class="auth-guard-container">
+            <div class="auth-guard-content">
+                <div class="auth-guard-loading-title">
                     "🔐 Verifying access..."
                 </div>
-                <div style="font-size: 0.9rem; color: #6b7280;">
+                <div class="auth-guard-loading-subtitle">
                     "Please wait while we check your credentials"
                 </div>
             </div>
@@ -42,12 +42,12 @@ pub fn AccessDeniedState() -> impl IntoView {
     });
     
     view! {
-        <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc;">
-            <div style="text-align: center;">
-                <div style="font-size: 1.5rem; color: #f59e0b; margin-bottom: 0.5rem;">
+        <div class="auth-guard-container">
+            <div class="auth-guard-content">
+                <div class="auth-guard-denied-title">
                     "🚫 Access Denied"
                 </div>
-                <div style="font-size: 0.9rem; color: #6b7280;">
+                <div class="auth-guard-denied-subtitle">
                     "Redirecting to login..."
                 </div>
             </div>

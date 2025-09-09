@@ -1,0 +1,41 @@
+/* Auth Guard Component Styles */
+
+.auth-guard {
+  /* Full viewport container for loading and access denied states */
+  &-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+  }
+
+  /* Inner centered content container */
+  &-content {
+    text-align: center;
+  }
+
+  /* Loading state styles */
+  &-loading-title {
+    font-size: 1.5rem;
+    color: #667eea;
+    margin-bottom: 0.5rem;
+  }
+
+  &-loading-subtitle {
+    font-size: 0.9rem;
+    color: #6b7280;
+  }
+
+  /* Access denied state styles */
+  &-denied-title {
+    font-size: 1.5rem;
+    color: #f59e0b;
+    margin-bottom: 0.5rem;
+  }
+
+  &-denied-subtitle {
+    font-size: 0.9rem;
+    color: #6b7280;
+  }
+}
