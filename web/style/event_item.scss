@@ -1,0 +1,80 @@
+// EventItem Component Styles
+.event-item {
+  &-container {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    transition: all 0.2s ease;
+
+    &--clickable {
+      cursor: pointer;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+      }
+    }
+
+    &--available {
+      background: #f0f9ff;
+      border-color: #0ea5e9;
+    }
+
+    &--blocked {
+      background: #fef2f2;
+      border-color: #ef4444;
+
+      .event-item-name {
+        color: #dc2626;
+      }
+    }
+
+    &--booking-pending {
+      background: #fffbeb;
+      border-color: #f59e0b;
+
+      .event-item-name {
+        color: #92400e;
+      }
+    }
+
+    &--booking-accepted {
+      background: #f0fdf4;
+      border-color: #10b981;
+
+      .event-item-name {
+        color: #065f46;
+      }
+    }
+  }
+
+  &-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  &-name {
+    font-weight: 600;
+    color: #374151;
+  }
+
+  &-time {
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+
+  &-tattoo {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-style: italic;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.375rem 0.5rem;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+  }
+}

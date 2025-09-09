@@ -28,11 +28,11 @@ pub fn EventItem(
     
     let booking_id = event.booking_id;
     let event_class = match event.action.as_str() {
-        "blocked" => "event-item blocked",
-        "available" => "event-item available", 
-        "accepted" => "event-item booking-accepted clickable",
-        "pending" => "event-item booking-pending clickable",
-        _ => "event-item"
+        "blocked" => "event-item-container event-item-container--blocked",
+        "available" => "event-item-container event-item-container--available", 
+        "accepted" => "event-item-container event-item-container--booking-accepted event-item-container--clickable",
+        "pending" => "event-item-container event-item-container--booking-pending event-item-container--clickable",
+        _ => "event-item-container"
     };
 
     view! {
@@ -45,13 +45,13 @@ pub fn EventItem(
                      }
                  }
              }>
-            <div class="event-header">
-                <div class="event-name">{event.name.clone()}</div>
-                <div class="event-time">{time_str}</div>
+            <div class="event-item-header">
+                <div class="event-item-name">{event.name.clone()}</div>
+                <div class="event-item-time">{time_str}</div>
             </div>
             {if let Some(desc) = &event.tattoo_description {
                 view! {
-                    <div class="event-tattoo">{desc.clone()}</div>
+                    <div class="event-item-tattoo">{desc.clone()}</div>
                 }.into_any()
             } else {
                 view! {}.into_any()

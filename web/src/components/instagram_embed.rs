@@ -16,21 +16,21 @@ impl Default for InstagramEmbedSize {
 }
 
 impl InstagramEmbedSize {
-    fn container_style(&self) -> &'static str {
+    fn container_class(&self) -> &'static str {
         match self {
-            Self::Thumbnail => "position: relative; width: 100%; height: 260px; overflow: hidden;",
-            Self::Small => "position: relative; min-height: 200px;",
-            Self::Medium => "position: relative; min-height: 300px;",
-            Self::Large => "position: relative; min-height: 500px;",
+            Self::Thumbnail => "instagram-embed-container instagram-embed-container--thumbnail",
+            Self::Small => "instagram-embed-container instagram-embed-container--small",
+            Self::Medium => "instagram-embed-container instagram-embed-container--medium",
+            Self::Large => "instagram-embed-container instagram-embed-container--large",
         }
     }
     
-    fn media_style(&self) -> &'static str {
+    fn media_class(&self) -> &'static str {
         match self {
-            Self::Thumbnail => "background: transparent; transform: scale(0.35); transform-origin: top left; width: 285%; height: 1600px; margin-left: -92%; margin-top: -200px;",
-            Self::Small => "background: transparent; max-width: 320px; margin: 0 auto;",
-            Self::Medium => "background: transparent; max-width: 420px; margin: 0 auto;",
-            Self::Large => "background: transparent; max-width: 540px; margin: 0 auto;",
+            Self::Thumbnail => "instagram-embed-media instagram-embed-media--thumbnail",
+            Self::Small => "instagram-embed-media instagram-embed-media--small",
+            Self::Medium => "instagram-embed-media instagram-embed-media--medium",
+            Self::Large => "instagram-embed-media instagram-embed-media--large",
         }
     }
 }
@@ -140,30 +140,23 @@ pub fn InstagramEmbed(
         let _ = web_sys::js_sys::eval(&js_code);
     });
 
-    let container_style = size.container_style();
-    let media_style = size.media_style();
+    let container_class = size.container_class();
+    let media_class = size.media_class();
 
     view! {
-        <div id={embed_id_for_view} style={container_style}>
+        <div id={embed_id_for_view} class={container_class}>
             <div
+                class={media_class}
                 inner_html={format!(
-                    r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14" style="{}" data-instgrm-payload-id="instagram-media-payload-0"><a href="https://www.instagram.com/p/{}/"></a></blockquote>"#,
-                    short_code_for_html, media_style, short_code_for_html
+                    r#"<blockquote class="instagram-media" data-instgrm-captioned data-instgrm-permalink="https://www.instagram.com/p/{}/" data-instgrm-version="14" data-instgrm-payload-id="instagram-media-payload-0"><a href="https://www.instagram.com/p/{}/"></a></blockquote>"#,
+                    short_code_for_html, short_code_for_html
                 )}
             ></div>
 
-            <div data-instagram-loading="true" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; background: rgba(249, 250, 251, 0.95); border-radius: 8px; padding: 1rem; pointer-events: none;">
-                <div style="text-align: center;">
-                    <div style="display: inline-block; width: 32px; height: 32px; border: 2px solid #e5e7eb; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;">
-                        <style>
-                            {r#"
-                            @keyframes spin {
-                                to { transform: rotate(360deg); }
-                            }
-                            "#}
-                        </style>
-                    </div>
-                    <div style="margin-top: 0.5rem; color: #6b7280; font-size: 0.75rem;">
+            <div data-instagram-loading="true" class="instagram-embed-loading-overlay">
+                <div class="instagram-embed-loading-content">
+                    <div class="instagram-embed-loading-spinner"></div>
+                    <div class="instagram-embed-loading-text">
                         "Loading..."
                     </div>
                 </div>
