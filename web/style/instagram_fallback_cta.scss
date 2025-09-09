@@ -1,8 +1,67 @@
-.instagram-cta-button:hover {
-    background: rgba(255, 255, 255, 0.3) !important;
-    transform: translateY(-1px);
-}
+.instagram-fallback-cta {
+  &-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    min-height: var(--min-height, 200px);
+  }
 
-.instagram-cta-button:active {
-    transform: translateY(0);
+  &-icon-container {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    font-size: 24px;
+  }
+
+  &-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    opacity: 0.95;
+  }
+
+  &-message {
+    margin: 0 0 1.5rem 0;
+    opacity: 0.8;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  &-button {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
 }

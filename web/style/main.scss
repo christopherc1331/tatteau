@@ -17,6 +17,9 @@ body {
 @import 'error_boundary';
 @import 'event_item';
 @import 'instagram_embed';
+@import 'instagram_fallback_cta';
+@import 'instagram_posts_grid';
+@import 'loading';
 
 // Global animations
 @keyframes spin {
