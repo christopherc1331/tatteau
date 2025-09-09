@@ -18,41 +18,15 @@ pub fn InstagramEmbedSsr(
     );
 
     view! {
+        <link rel="stylesheet" href="/pkg/instagram_embed_ssr.css"/>
         <div class="instagram-embed-ssr-container">
             <Suspense fallback=move || {
                 view! {
-                    <div class="instagram-embed-loading">
-                        <div style="
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            min-height: 400px;
-                            background: #f8fafc;
-                            border-radius: 12px;
-                            border: 1px solid #e2e8f0;
-                        ">
-                            <div style="text-align: center;">
-                                <div style="
-                                    display: inline-block;
-                                    width: 32px;
-                                    height: 32px;
-                                    border: 2px solid #e5e7eb;
-                                    border-top-color: #667eea;
-                                    border-radius: 50%;
-                                    animation: spin 1s linear infinite;
-                                    margin-bottom: 1rem;
-                                ">
-                                    <style>
-                                        {r#"
-                                        @keyframes spin {
-                                            to { transform: rotate(360deg); }
-                                        }
-                                        "#}
-                                    </style>
-                                </div>
-                                <div style="color: #6b7280; font-size: 0.9rem;">
-                                    "Loading Instagram post..."
-                                </div>
+                    <div class="instagram-embed-ssr-loading">
+                        <div class="instagram-embed-ssr-loading-content">
+                            <div class="instagram-embed-ssr-spinner"></div>
+                            <div class="instagram-embed-ssr-loading-text">
+                                "Loading Instagram post..."
                             </div>
                         </div>
                     </div>
@@ -62,14 +36,14 @@ pub fn InstagramEmbedSsr(
                     match embed_resource.get() {
                         Some(Ok(html)) => {
                             view! {
-                                <div class="instagram-embed-success">
+                                <div class="instagram-embed-ssr-success">
                                     <div inner_html={html}></div>
                                 </div>
                             }.into_any()
                         }
                         Some(Err(_)) => {
                             view! {
-                                <div class="instagram-embed-error">
+                                <div class="instagram-embed-ssr-error">
                                     <InstagramFallbackCta
                                         short_code=short_code_for_fallback.clone()
                                         message="Server-side Instagram embed failed".to_string()
@@ -79,30 +53,11 @@ pub fn InstagramEmbedSsr(
                         }
                         None => {
                             view! {
-                                <div class="instagram-embed-loading">
-                                    <div style="
-                                        display: flex;
-                                        align-items: center;
-                                        justify-content: center;
-                                        min-height: 400px;
-                                        background: #f8fafc;
-                                        border-radius: 12px;
-                                        border: 1px solid #e2e8f0;
-                                    ">
-                                        <div style="text-align: center;">
-                                            <div style="
-                                                display: inline-block;
-                                                width: 32px;
-                                                height: 32px;
-                                                border: 2px solid #e5e7eb;
-                                                border-top-color: #667eea;
-                                                border-radius: 50%;
-                                                animation: spin 1s linear infinite;
-                                                margin-bottom: 1rem;
-                                            "></div>
-                                            <div style="color: #6b7280; font-size: 0.9rem;">
-                                                "Loading Instagram post..."
-                                            </div>
+                                <div class="instagram-embed-ssr-loading">
+                                    <div class="instagram-embed-ssr-loading-content">
+                                        <div class="instagram-embed-ssr-spinner"></div>
+                                        <div class="instagram-embed-ssr-loading-text">
+                                            "Loading Instagram post..."
                                         </div>
                                     </div>
                                 </div>

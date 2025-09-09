@@ -1,0 +1,52 @@
+// InstagramEmbedSSR Component Styles
+
+.instagram-embed-ssr {
+  &-container {
+    // Base container styling
+  }
+
+  &-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+  }
+
+  &-loading-content {
+    text-align: center;
+  }
+
+  &-spinner {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: instagram-embed-ssr-spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+
+  &-loading-text {
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
+  &-success {
+    // Success state styling
+  }
+
+  &-error {
+    // Error state styling
+  }
+}
+
+// Keyframe animation for spinner
+@keyframes instagram-embed-ssr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
