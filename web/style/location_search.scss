@@ -1,17 +1,24 @@
-.location-search-container {
-    position: relative;
-    width: 100%;
-    max-width: 600px;
-    margin: 0 auto;
-    z-index: 10000; // Create a high stacking context for the entire container
+/* Location Search Component Styles */
 
-    .search-input-wrapper {
+.location-search {
+    /* Main container */
+    &-container {
+        position: relative;
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        z-index: 10000; // Create a high stacking context for the entire container
+    }
+
+    /* Input wrapper containing search input, button, and GPS button */
+    &-input-wrapper {
         display: flex;
         gap: 0.5rem;
         position: relative;
     }
 
-    .location-search-input {
+    /* Main search input field */
+    &-input {
         flex: 1;
         padding: 0.75rem 1rem;
         font-size: 1rem;
@@ -31,7 +38,8 @@
         }
     }
 
-    .search-button {
+    /* Search button */
+    &-button {
         padding: 0.75rem 1.5rem;
         background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
         color: white;
@@ -56,7 +64,8 @@
         }
     }
 
-    .gps-button {
+    /* GPS location button */
+    &-gps-button {
         padding: 0.75rem;
         background: white;
         border: 2px solid #e5e7eb;
@@ -71,49 +80,8 @@
         }
     }
 
-    .search-suggestions {
-        position: fixed; // Changed from absolute to fixed to escape stacking context
-        top: auto; // Will be set via JavaScript
-        left: auto; // Will be set via JavaScript
-        right: auto;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-        max-height: 300px;
-        overflow-y: auto;
-        z-index: 999999; // Very high z-index to ensure it's above everything
-        min-width: 300px; // Ensure minimum width since we're using fixed positioning
-
-        .suggestion-item {
-            padding: 0.75rem 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            transition: background-color 0.15s;
-
-            &:hover,
-            &.selected {
-                background-color: #f3f4f6;
-            }
-
-            &:first-child {
-                border-radius: 8px 8px 0 0;
-            }
-
-            &:last-child {
-                border-radius: 0 0 8px 8px;
-            }
-
-            .suggestion-icon {
-                font-size: 1rem;
-                opacity: 0.7;
-            }
-        }
-    }
-
-    .search-error {
+    /* Error message display */
+    &-error {
         margin-top: 0.5rem;
         padding: 0.5rem 1rem;
         background: #fee2e2;
@@ -122,41 +90,42 @@
         font-size: 0.875rem;
     }
 
-    .quick-locations {
+    /* Quick locations section */
+    &-quick-locations {
         margin-top: 0.75rem;
         display: flex;
         align-items: center;
         gap: 0.5rem;
         flex-wrap: wrap;
+    }
 
-        .quick-label {
-            font-size: 0.875rem;
-            color: #6b7280;
-            margin-right: 0.25rem;
-        }
+    &-quick-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+        margin-right: 0.25rem;
+    }
 
-        .quick-location-btn {
-            padding: 0.375rem 0.75rem;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            color: #4b5563;
-            cursor: pointer;
-            transition: all 0.15s;
+    &-quick-location-btn {
+        padding: 0.375rem 0.75rem;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        color: #4b5563;
+        cursor: pointer;
+        transition: all 0.15s;
 
-            &:hover {
-                background: #7c3aed;
-                color: white;
-                border-color: #7c3aed;
-                transform: translateY(-1px);
-            }
+        &:hover {
+            background: #7c3aed;
+            color: white;
+            border-color: #7c3aed;
+            transform: translateY(-1px);
         }
     }
 }
 
-// Portal-based suggestions dropdown (rendered at document root)
-.search-suggestions-portal {
+/* Portal-based suggestions dropdown (rendered at document root) */
+.location-search-suggestions-portal {
     position: fixed !important;
     background: white !important;
     border: 1px solid #e5e7eb !important;
@@ -167,7 +136,7 @@
     z-index: 2147483647 !important; // Maximum possible z-index value
     min-width: 300px !important;
 
-    .suggestion-item {
+    .location-search-suggestion-item {
         padding: 0.75rem 1rem;
         display: flex;
         align-items: center;
@@ -187,10 +156,10 @@
         &:last-child {
             border-radius: 0 0 8px 8px;
         }
+    }
 
-        .suggestion-icon {
-            font-size: 1rem;
-            opacity: 0.7;
-        }
+    .location-search-suggestion-icon {
+        font-size: 1rem;
+        opacity: 0.7;
     }
 }

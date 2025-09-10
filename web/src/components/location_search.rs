@@ -175,7 +175,7 @@ where
 
                 // Find the portal suggestions dropdown
                 if let Some(suggestions_el) = document
-                    .query_selector(".search-suggestions-portal")
+                    .query_selector(".location-search-suggestions-portal")
                     .unwrap()
                 {
                     let suggestions_html =
@@ -199,7 +199,7 @@ where
 
     view! {
         <div class="location-search-container">
-            <div class="search-input-wrapper">
+            <div class="location-search-input-wrapper">
                 <input
                     type="text"
                     class="location-search-input"
@@ -223,7 +223,7 @@ where
                 />
 
                 <button
-                    class="search-button"
+                    class="location-search-button"
                     class:searching=move || is_searching.get()
                     on:click=move |_| perform_search(search_input.get(), false)
                     disabled=move || is_searching.get() || search_input.get().trim().is_empty()
@@ -237,7 +237,7 @@ where
 
                 // GPS location button
                 <button
-                    class="gps-button"
+                    class="location-search-gps-button"
                     title="Use my location"
                     on:click=move |_| {
                         leptos::logging::log!("GPS location not yet implemented");
@@ -252,12 +252,12 @@ where
             <Portal>
                 {move || if show_suggestions.get() && !suggestions.get().is_empty() {
                     view! {
-                        <div class="search-suggestions-portal">
+                        <div class="location-search-suggestions-portal">
                             {suggestions.get().into_iter().enumerate().map(|(idx, suggestion)| {
                                 let suggestion_clone = suggestion.clone();
                                 view! {
                                     <div
-                                        class="suggestion-item"
+                                        class="location-search-suggestion-item"
                                         class:selected=move || selected_index.get() == idx
                                         on:mousedown=move |_| {
                                             handle_suggestion_click(suggestion_clone.clone())
@@ -268,7 +268,7 @@ where
                                             // Postal code suggestion
                                             view! {
                                                 <>
-                                                    <span class="suggestion-icon">"📮"</span>
+                                                    <span class="location-search-suggestion-icon">"📮"</span>
                                                     <span>{suggestion.clone()}</span>
                                                 </>
                                             }.into_any()
@@ -276,7 +276,7 @@ where
                                             // City suggestion
                                             view! {
                                                 <>
-                                                    <span class="suggestion-icon">"📍"</span>
+                                                    <span class="location-search-suggestion-icon">"📍"</span>
                                                     <span>{suggestion.clone()}</span>
                                                 </>
                                             }.into_any()
@@ -294,7 +294,7 @@ where
             // Error message
             {move || if let Some(error) = search_error.get() {
                 view! {
-                    <div class="search-error">
+                    <div class="location-search-error">
                         {error}
                     </div>
                 }.into_any()
@@ -303,28 +303,28 @@ where
             }}
 
             // Quick location shortcuts
-            <div class="quick-locations">
-                <span class="quick-label">"Quick access: "</span>
+            <div class="location-search-quick-locations">
+                <span class="location-search-quick-label">"Quick access: "</span>
                 <button
-                    class="quick-location-btn"
+                    class="location-search-quick-location-btn"
                     on:click=move |_| perform_search("Seattle".to_string(), true)
                 >
                     "Seattle"
                 </button>
                 <button
-                    class="quick-location-btn"
+                    class="location-search-quick-location-btn"
                     on:click=move |_| perform_search("Portland".to_string(), true)
                 >
                     "Portland"
                 </button>
                 <button
-                    class="quick-location-btn"
+                    class="location-search-quick-location-btn"
                     on:click=move |_| perform_search("Los Angeles".to_string(), true)
                 >
                     "Los Angeles"
                 </button>
                 <button
-                    class="quick-location-btn"
+                    class="location-search-quick-location-btn"
                     on:click=move |_| perform_search("New York".to_string(), true)
                 >
                     "New York"
