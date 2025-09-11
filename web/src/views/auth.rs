@@ -130,10 +130,10 @@ pub fn LoginPage() -> impl IntoView {
                     <p>"Sign in to your Tatteau account"</p>
                 </div>
 
-                <div class="user-type-toggle">
-                    <div class="toggle-buttons">
+                <div class="auth-user-type-toggle">
+                    <div class="auth-toggle-buttons">
                         <button
-                            class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "client" { "auth-toggle-btn auth-active" } else { "auth-toggle-btn" }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -155,7 +155,7 @@ pub fn LoginPage() -> impl IntoView {
                             "I'm a Client"
                         </button>
                         <button
-                            class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "artist" { "auth-toggle-btn auth-active" } else { "auth-toggle-btn" }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -182,8 +182,8 @@ pub fn LoginPage() -> impl IntoView {
                 {move || {
                     if let Some(msg) = success_message.get() {
                         view! {
-                            <div class="success-message">
-                                <span class="success-icon">"✓"</span>
+                            <div class="auth-success-message">
+                                <span class="auth-success-icon">"✓"</span>
                                 <p>{msg}</p>
                             </div>
                         }.into_any()
@@ -196,7 +196,7 @@ pub fn LoginPage() -> impl IntoView {
                     ev.prevent_default();
                     submit_login(());
                 }>
-                    <div class="form-group">
+                    <div class="auth-form-group">
                         <Input
                             placeholder="Email"
                             input_type=InputType::Email
@@ -210,7 +210,7 @@ pub fn LoginPage() -> impl IntoView {
                     </div>
 
                     {move || error_message.get().map(|msg| view! {
-                        <div class="error-message">{msg}</div>
+                        <div class="auth-error-message">{msg}</div>
                     })}
 
                     <Button
@@ -320,10 +320,10 @@ pub fn SignupPage() -> impl IntoView {
                     <p>"Join the Tatteau community"</p>
                 </div>
 
-                <div class="user-type-toggle">
-                    <div class="toggle-buttons">
+                <div class="auth-user-type-toggle">
+                    <div class="auth-toggle-buttons">
                         <button
-                            class=move || if user_type.get() == "client" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "client" { "auth-toggle-btn auth-active" } else { "auth-toggle-btn" }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -345,7 +345,7 @@ pub fn SignupPage() -> impl IntoView {
                             "I'm a Client"
                         </button>
                         <button
-                            class=move || if user_type.get() == "artist" { "toggle-btn active" } else { "toggle-btn" }
+                            class=move || if user_type.get() == "artist" { "auth-toggle-btn auth-active" } else { "auth-toggle-btn" }
                             on:click={
                                 let navigate = navigate.clone();
                                 move |_| {
@@ -371,8 +371,8 @@ pub fn SignupPage() -> impl IntoView {
 
                 {move || if user_type.get() == "artist" {
                     view! {
-                        <div class="artist-notice">
-                            <span class="info-icon">"ℹ"</span>
+                        <div class="auth-artist-notice">
+                            <span class="auth-info-icon">"ℹ"</span>
                             <p>"After signing up, you'll choose a subscription tier to access booking features."</p>
                         </div>
                     }.into_any()
@@ -384,14 +384,14 @@ pub fn SignupPage() -> impl IntoView {
                     ev.prevent_default();
                     submit_signup(());
                 }>
-                    <div class="form-row">
-                        <div class="form-group">
+                    <div class="auth-form-row">
+                        <div class="auth-form-group">
                             <Input
                                 placeholder="First Name"
                                 value=first_name
                             />
                         </div>
-                        <div class="form-group">
+                        <div class="auth-form-group">
                             <Input
                                 placeholder="Last Name"
                                 value=last_name
@@ -399,7 +399,7 @@ pub fn SignupPage() -> impl IntoView {
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class="auth-form-group">
                         <Input
                             placeholder="Email"
                             input_type=InputType::Email
@@ -407,7 +407,7 @@ pub fn SignupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-group">
+                    <div class="auth-form-group">
                         <Input
                             placeholder="Phone (optional)"
                             input_type=InputType::Tel
@@ -415,7 +415,7 @@ pub fn SignupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-group">
+                    <div class="auth-form-group">
                         <Input
                             placeholder="Password"
                             input_type=InputType::Password
@@ -423,7 +423,7 @@ pub fn SignupPage() -> impl IntoView {
                         />
                     </div>
 
-                    <div class="form-group">
+                    <div class="auth-form-group">
                         <Input
                             placeholder="Confirm Password"
                             input_type=InputType::Password
@@ -432,7 +432,7 @@ pub fn SignupPage() -> impl IntoView {
                     </div>
 
                     {move || error_message.get().map(|msg| view! {
-                        <div class="error-message">{msg}</div>
+                        <div class="auth-error-message">{msg}</div>
                     })}
 
                     <Button
