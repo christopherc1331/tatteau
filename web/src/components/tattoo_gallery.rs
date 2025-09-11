@@ -88,20 +88,6 @@ pub fn TattooGallery(
 
     view! {
         <div class="tattoo-gallery">
-            <style>
-                {r#"
-                .posts-grid .instagram-media {
-                    cursor: pointer;
-                }
-                .posts-grid [style*="position: absolute"][style*="background: rgba(0,0,0,0.8)"] {
-                    cursor: pointer;
-                    transition: background-color 0.2s ease;
-                }
-                .posts-grid [style*="position: absolute"][style*="background: rgba(0,0,0,0.8)"]:hover {
-                    background: rgba(0,0,0,0.9) !important;
-                }
-                "#}
-            </style>
 
             // Use a custom wrapper to handle artist clicks
             <div on:click=move |ev| {
@@ -182,46 +168,30 @@ pub fn TattooGallery(
             // Pagination controls
             {(total_pages > 1).then(|| {
                 view! {
-                    <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem; padding: 1rem;">
+                    <div class="tattoo-gallery-pagination">
                         <button
+                            class="tattoo-gallery-pagination-button"
                             disabled=move || prev_btn_disabled.get()
                             on:click=move |_| {
                                 if !prev_btn_disabled.get() {
                                     set_current_page.set(current_page.get() - 1);
                                 }
                             }
-                            style=move || {
-                                let is_disabled = prev_btn_disabled.get();
-                                format!(
-                                    "padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #d1d5db; background: {}; color: {}; cursor: {}; font-weight: 500; transition: all 0.2s ease;",
-                                    if is_disabled { "#f9fafb" } else { "white" },
-                                    if is_disabled { "#9ca3af" } else { "#374151" },
-                                    if is_disabled { "not-allowed" } else { "pointer" }
-                                )
-                            }
                         >
                             "← Previous"
                         </button>
 
-                        <span style="color: #6b7280; font-size: 0.9rem;">
+                        <span class="tattoo-gallery-pagination-info">
                             {move || format!("Page {} of {}", current_page.get() + 1, total_pages)}
                         </span>
 
                         <button
+                            class="tattoo-gallery-pagination-button"
                             disabled=move || next_btn_disabled.get()
                             on:click=move |_| {
                                 if !next_btn_disabled.get() {
                                     set_current_page.set(current_page.get() + 1);
                                 }
-                            }
-                            style=move || {
-                                let is_disabled = next_btn_disabled.get();
-                                format!(
-                                    "padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #d1d5db; background: {}; color: {}; cursor: {}; font-weight: 500; transition: all 0.2s ease;",
-                                    if is_disabled { "#f9fafb" } else { "white" },
-                                    if is_disabled { "#9ca3af" } else { "#374151" },
-                                    if is_disabled { "not-allowed" } else { "pointer" }
-                                )
                             }
                         >
                             "Next →"

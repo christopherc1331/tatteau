@@ -1,10 +1,61 @@
 .tattoo-gallery {
   width: 100%;
   padding: 0;
+
+  // Instagram posts interaction styles
+  .posts-grid .instagram-media {
+    cursor: pointer;
+  }
+
+  .posts-grid [style*="position: absolute"][style*="background: rgba(0,0,0,0.8)"] {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background: rgba(0,0,0,0.9) !important;
+    }
+  }
 }
 
-// Modal overlay for artist details
-.artist-modal-overlay {
+// Pagination styles
+.tattoo-gallery-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1rem;
+}
+
+.tattoo-gallery-pagination-button {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+
+  &:disabled {
+    background: #f9fafb;
+    color: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  &:not(:disabled):hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+  }
+}
+
+.tattoo-gallery-pagination-info {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+// Modal overlay for artist details (keeping existing for potential future use)
+.tattoo-gallery-artist-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -18,7 +69,7 @@
   padding: 20px;
 }
 
-.artist-modal {
+.tattoo-gallery-artist-modal {
   background: white;
   border-radius: 16px;
   max-width: 480px;
@@ -29,7 +80,7 @@
   box-shadow: 0 20px 60px rgba(0,0,0,0.2);
 }
 
-.modal-close {
+.tattoo-gallery-modal-close {
   position: absolute;
   top: 16px;
   right: 16px;
