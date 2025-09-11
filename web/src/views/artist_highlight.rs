@@ -54,15 +54,7 @@ pub fn ArtistHighlight() -> impl IntoView {
     });
 
     view! {
-        <style>
-            {r#"
-            .shop-link:hover {
-                border-bottom: 1px solid rgba(255,255,255,0.9) !important;
-                opacity: 1 !important;
-            }
-            "#}
-        </style>
-        <div style="min-height: 100vh; background: #f8fafc;">
+        <div class="artist-highlight-container">
             <Suspense fallback=move || view! {
                 <LoadingView message=Some("Loading artist information...".to_string()) />
             }>
@@ -86,24 +78,23 @@ pub fn ArtistHighlight() -> impl IntoView {
                             let state = artist_data.location.state.unwrap_or_else(|| "Unknown".to_string());
                             
                             view! {
-                                <div style="min-height: 100vh; background: #f8fafc;">
-                                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem 1rem;">
-                                        <div style="max-width: 1200px; margin: 0 auto;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                                <div class="artist-highlight-container">
+                                    <div class="artist-highlight-header">
+                                        <div class="artist-highlight-header-inner">
+                                            <div class="artist-highlight-header-layout">
                                                 <div>
-                                                    <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 0.5rem 0;">
+                                                    <h1 class="artist-highlight-artist-name">
                                                         {artist_name.clone()}
                                                     </h1>
-                                                    <div style="font-size: 1.1rem; opacity: 0.9;">
+                                                    <div class="artist-highlight-shop-info">
                                                         <a href={format!("/shop/{}", artist_data.location.id)} 
-                                                           style="color: rgba(255,255,255,0.9); text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.5); padding-bottom: 2px; transition: all 0.2s ease;"
-                                                           class="shop-link">
+                                                           class="artist-highlight-shop-link">
                                                             {format!("🏪 {} • {}, {}", shop_name, city, state)}
                                                         </a>
                                                     </div>
                                                 </div>
                                                 
-                                                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                                                <div class="artist-highlight-buttons-container">
                                                     <button 
                                                        on:click={
                                                            let navigate = navigate.clone();
@@ -121,14 +112,14 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                                }
                                                            }
                                                        }
-                                                       style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600; border: none; cursor: pointer; font-size: 1rem;">
+                                                       class="artist-highlight-book-button">
                                                         "📅 Book Appointment"
                                                     </button>
                                                     
                                                     {artist_data.artist.social_links.and_then(|links| {
                                                         (!links.is_empty()).then(|| view! {
                                                             <a href={links} target="_blank" 
-                                                               style="background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none;">
+                                                               class="artist-highlight-social-button">
                                                                 "📱 Instagram"
                                                             </a>
                                                         })
@@ -137,7 +128,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                     {artist_data.artist.email.and_then(|email| {
                                                         (!email.is_empty()).then(|| view! {
                                                             <a href={format!("mailto:{}", email)} 
-                                                               style="background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none;">
+                                                               class="artist-highlight-social-button">
                                                                 "✉️ Email"
                                                             </a>
                                                         })
@@ -146,7 +137,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                     {artist_data.artist.phone.and_then(|phone| {
                                                         (!phone.is_empty()).then(|| view! {
                                                             <a href={format!("tel:{}", phone)} 
-                                                               style="background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none;">
+                                                               class="artist-highlight-social-button">
                                                                 "📞 Call"
                                                             </a>
                                                         })
@@ -156,16 +147,16 @@ pub fn ArtistHighlight() -> impl IntoView {
                                         </div>
                                     </div>
 
-                                    <div style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;">
-                                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; margin-bottom: 2rem;">
+                                    <div class="artist-highlight-content">
+                                        <div class="artist-highlight-main-grid">
                                             {(!artist_data.styles.is_empty()).then(|| {
                                                 view! {
-                                                    <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                        <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Specializes In"</h3>
-                                                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                                    <div class="artist-highlight-card">
+                                                        <h3 class="artist-highlight-card-heading">"Specializes In"</h3>
+                                                        <div class="artist-highlight-styles-container">
                                                             {artist_data.styles.into_iter().map(|style| {
                                                                 view! {
-                                                                    <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem;">
+                                                                    <span class="artist-highlight-style-tag">
                                                                         {style.name}
                                                                     </span>
                                                                 }
@@ -175,12 +166,12 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                 }
                                             })}
 
-                                            <div style="display: grid; gap: 1rem;">
+                                            <div class="artist-highlight-info-grid">
                                                 {artist_data.artist.years_experience.and_then(|years| {
                                                     (years > 0).then(|| view! {
-                                                        <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 0.5rem 0;">"Experience"</h3>
-                                                            <div style="font-size: 2rem; font-weight: 700; color: #667eea;">
+                                                        <div class="artist-highlight-card">
+                                                            <h3 class="artist-highlight-experience-heading">"Experience"</h3>
+                                                            <div class="artist-highlight-experience-value">
                                                                 {format!("{} years", years)}
                                                             </div>
                                                         </div>
@@ -193,26 +184,26 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                     let encoded_addr = urlencoding::encode(&addr);
                                                     
                                                     view! {
-                                                        <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                            <h3 style="font-size: 1.25rem; font-weight: 600; color: #2d3748; margin: 0 0 0.5rem 0;">"📍 Shop Location"</h3>
-                                                            <p style="color: #4a5568; margin: 0 0 1rem 0; font-size: 0.9rem;">
+                                                        <div class="artist-highlight-card">
+                                                            <h3 class="artist-highlight-card-heading">"📍 Shop Location"</h3>
+                                                            <p class="artist-highlight-location-text">
                                                                 {addr.clone()}
                                                             </p>
                                                             
-                                                            <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; position: relative;">
+                                                            <div class="artist-highlight-map-container">
                                                                 <iframe
                                                                     src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}", 
                                                                         long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
-                                                                    style="width: 100%; height: 100%; border: none; pointer-events: none;"
+                                                                    class="artist-highlight-map-iframe"
                                                                     title="Shop Location Map"
                                                                 ></iframe>
-                                                                <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; pointer-events: none;"></div>
+                                                                <div class="artist-highlight-map-overlay"></div>
                                                             </div>
                                                             
-                                                            <div style="margin-top: 0.5rem; text-align: center;">
+                                                            <div class="artist-highlight-map-link-container">
                                                                 <a href={format!("https://www.google.com/maps/search/?api=1&query={}", encoded_addr)} 
                                                                    target="_blank"
-                                                                   style="color: #667eea; text-decoration: none; font-size: 0.8rem;">
+                                                                   class="artist-highlight-map-link">
                                                                     "Open in Google Maps"
                                                                 </a>
                                                             </div>
@@ -224,8 +215,8 @@ pub fn ArtistHighlight() -> impl IntoView {
 
                                         {(!instagram_posts.is_empty()).then(|| {
                                             view! {
-                                                <div style="background: white; border-radius: 16px; padding: 1.5rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                    <h2 style="font-size: 1.5rem; font-weight: 600; color: #2d3748; margin: 0 0 1rem 0;">"Portfolio"</h2>
+                                                <div class="artist-highlight-portfolio-card">
+                                                    <h2 class="artist-highlight-portfolio-heading">"Portfolio"</h2>
                                                     <ArtistMasonryGallery instagram_posts=instagram_posts artist_styles=artist_styles_for_filter />
                                                 </div>
                                             }
@@ -235,21 +226,21 @@ pub fn ArtistHighlight() -> impl IntoView {
                             }.into_any()
                         }).unwrap_or_else(|| {
                             view! {
-                                <div style="min-height: 100vh; background: #f8fafc;">
-                                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem 1rem;">
-                                        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
-                                            <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 0.5rem 0;">
+                                <div class="artist-highlight-not-found-container">
+                                    <div class="artist-highlight-not-found-header">
+                                        <div class="artist-highlight-not-found-header-inner">
+                                            <h1 class="artist-highlight-not-found-heading">
                                                 "🎨 Artist Not Found"
                                             </h1>
-                                            <div style="font-size: 1.1rem; opacity: 0.9;">
+                                            <div class="artist-highlight-not-found-subtitle">
                                                 "The requested artist could not be found"
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;">
-                                        <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08); text-align: center;">
-                                            <p style="color: #4a5568; margin: 0;">
+                                    <div class="artist-highlight-not-found-content">
+                                        <div class="artist-highlight-not-found-card">
+                                            <p class="artist-highlight-not-found-text">
                                                 "Please check the artist ID and try again."
                                             </p>
                                         </div>
