@@ -18,7 +18,6 @@ pub fn InstagramEmbedSsr(
     );
 
     view! {
-        <link rel="stylesheet" href="/pkg/instagram_embed_ssr.css"/>
         <div class="instagram-embed-ssr-container">
             <Suspense fallback=move || {
                 view! {

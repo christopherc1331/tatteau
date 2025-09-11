@@ -412,7 +412,7 @@ fn InstagramEmbed(post: InstagramPost) -> impl IntoView {
 
                     // Create the blockquote element programmatically
                     if let Ok(blockquote) = document.create_element("blockquote") {
-                        blockquote.set_class_name("instagram-media");
+                        blockquote.set_class_name("masonry-gallery-instagram-media");
                         blockquote.set_attribute("data-instgrm-captioned", "").ok();
                         blockquote
                             .set_attribute(
@@ -475,17 +475,17 @@ fn InstagramEmbed(post: InstagramPost) -> impl IntoView {
     });
 
     view! {
-        <div class="instagram-embed-container">
+        <div class="masonry-gallery-instagram-embed-container">
             <Show
                 when=move || !is_client.get()
                 fallback=move || view! {
                     // Client-side: Container for the Instagram embed
-                    <div node_ref=embed_container_ref class="instagram-wrapper"></div>
+                    <div node_ref=embed_container_ref class="masonry-gallery-instagram-wrapper"></div>
                 }
             >
                 // Server-side: Render a placeholder
-                <div class="instagram-placeholder">
-                    <div class="placeholder-content">
+                <div class="masonry-gallery-instagram-placeholder">
+                    <div class="masonry-gallery-placeholder-content">
                         <svg width="50" height="50" viewBox="0 0 60 60" fill="#ccc">
                             <path d="M30,0 C13.4314567,0 0,13.4314567 0,30 C0,46.5685433 13.4314567,60 30,60 C46.5685433,60 60,46.5685433 60,30 C60,13.4314567 46.5685433,0 30,0 Z M30,54 C16.745166,54 6,43.254834 6,30 C6,16.745166 16.745166,6 30,6 C43.254834,6 54,16.745166 54,30 C54,43.254834 43.254834,54 30,54 Z"></path>
                         </svg>
@@ -493,7 +493,7 @@ fn InstagramEmbed(post: InstagramPost) -> impl IntoView {
                         <a
                             href=format!("https://www.instagram.com/p/{}/", post.image.short_code)
                             target="_blank"
-                            class="fallback-link"
+                            class="masonry-gallery-fallback-link"
                         >
                             "View on Instagram"
                         </a>
@@ -551,176 +551,13 @@ pub fn MasonryGallery(
     });
 
     view! {
-        <div class="masonry-gallery">
+        <div class="masonry-gallery-container">
             <h1>"Tattoo Artist Gallery"</h1>
-            <p style="font-size: 0.75rem; color: #666;">
+            <p class="masonry-gallery-debug-info">
                 {move || format!("Screen width: {}px | Columns: {}", screen_width.get(), column_count.get())}
             </p>
 
-            <style>
-                {r#"
-                    .masonry-grid {
-                        column-count: 4;
-                        column-gap: 1.5rem;
-                        padding: 1.5rem;
-                        max-width: 1800px;
-                        margin: 0 auto;
-                    }
-                    
-                    @media (max-width: 1400px) {
-                        .masonry-grid {
-                            column-count: 3;
-                        }
-                    }
-                    
-                    @media (max-width: 1000px) {
-                        .masonry-grid {
-                            column-count: 2;
-                        }
-                    }
-                    
-                    @media (max-width: 768px) {
-                        .masonry-grid {
-                            column-count: 1;
-                        }
-                    }
-                    
-                    .masonry-item {
-                        width: 100%;
-                        break-inside: avoid;
-                        margin-bottom: 1.5rem;
-                        display: inline-block;
-                    }
-                    
-                    .instagram-card {
-                        background: white;
-                        border-radius: 12px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-                        overflow: hidden;
-                        transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        width: 100%;
-                        min-width: 0;
-                        height: fit-content;
-                    }
-                    
-                    .instagram-card:hover {
-                        transform: translateY(-2px);
-                        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-                    }
-                    
-                    .style-chips {
-                        padding: 0.75rem;
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 0.375rem;
-                        background: #fafafa;
-                        border-bottom: 1px solid #eee;
-                    }
-                    
-                    .style-chip {
-                        padding: 0.25rem 0.625rem;
-                        border-radius: 14px;
-                        background: #333;
-                        color: white;
-                        font-size: 0.625rem;
-                        font-weight: 600;
-                        letter-spacing: 0.4px;
-                        text-transform: uppercase;
-                        transition: all 0.2s ease;
-                        display: inline-flex;
-                        align-items: center;
-                        white-space: nowrap;
-                        border: 2px solid transparent;
-                    }
-                    
-                    .style-chip:hover {
-                        background: #555;
-                        transform: translateY(-1px);
-                    }
-                    
-                    /* Different colors for variety - more subtle */
-                    .style-chip:nth-child(2n) {
-                        background: #5a67d8;
-                    }
-                    
-                    .style-chip:nth-child(3n) {
-                        background: #ed8936;
-                    }
-                    
-                    .style-chip:nth-child(4n) {
-                        background: #38a169;
-                    }
-                    
-                    .style-chip:nth-child(5n) {
-                        background: #e53e3e;
-                    }
-                    
-                    .style-chip:nth-child(6n) {
-                        background: #805ad5;
-                    }
-                    
-                    .style-chip:nth-child(7n) {
-                        background: #2d3748;
-                    }
-                    
-                    .instagram-embed-container {
-                        position: relative;
-                        width: 100%;
-                        min-width: 0;
-                        overflow: hidden;
-                        height: auto;
-                    }
-                    
-                    .instagram-wrapper {
-                        width: 100%;
-                        min-width: 0;
-                        height: auto;
-                    }
-                    
-                    /* Force Instagram embeds to be responsive */
-                    .instagram-media {
-                        max-width: 100% !important;
-                        min-width: 200px !important;
-                        width: 100% !important;
-                        margin: 0 auto !important;
-                    }
-                    
-                    .instagram-media iframe {
-                        max-width: 100% !important;
-                        min-width: 200px !important;
-                        width: 100% !important;
-                    }
-                    
-                    .instagram-placeholder {
-                        min-height: 400px;
-                        background: #fafafa;
-                        border: 1px solid #e1e8ed;
-                        border-radius: 3px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    }
-                    
-                    .placeholder-content {
-                        text-align: center;
-                        color: #8899a6;
-                    }
-                    
-                    .fallback-link {
-                        color: #3897f0;
-                        text-decoration: none;
-                        font-weight: 600;
-                        margin-top: 10px;
-                        display: inline-block;
-                    }
-                    
-                    .fallback-link:hover {
-                        text-decoration: underline;
-                    }
-                "#}
-            </style>
-
-            <div class="masonry-grid">
+            <div class="masonry-gallery-grid">
                 <For
                     each=move || gallery_posts.clone()
                     key=|post| post.image.id
@@ -729,15 +566,15 @@ pub fn MasonryGallery(
                         let styles = post.styles.clone();
 
                         view! {
-                            <div class="masonry-item">
-                                <div class="instagram-card">
-                                    <div class="style-chips">
+                            <div class="masonry-gallery-item">
+                                <div class="masonry-gallery-instagram-card">
+                                    <div class="masonry-gallery-style-chips">
                                         <For
                                             each=move || styles.clone()
                                             key=|style| style.id
                                             children=move |style: Style| {
                                                 view! {
-                                                    <span class="style-chip">{style.name}</span>
+                                                    <span class="masonry-gallery-style-chip">{style.name}</span>
                                                 }
                                             }
                                         />
