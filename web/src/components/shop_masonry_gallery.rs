@@ -18,20 +18,18 @@ pub fn ShopMasonryGallery(
 
 
     view! {
-        <div>
-            <div style="margin-bottom: 1.5rem;">
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
-                    <span style="font-weight: 600; color: #4a5568; margin-right: 0.5rem;">"Filter by style:"</span>
+        <div class="shop-masonry-gallery__container">
+            <div class="shop-masonry-gallery__filter-container">
+                <div class="shop-masonry-gallery__filter-wrapper">
+                    <span class="shop-masonry-gallery__filter-label">"Filter by style:"</span>
                     
                     <button 
                         on:click=move |_| {
                             set_selected_style.set(None);
                         }
-                        style=move || format!(
-                            "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
-                            if selected_style.get().is_none() { "#667eea" } else { "white" },
-                            if selected_style.get().is_none() { "white" } else { "#374151" }
-                        )
+                        class:shop-masonry-gallery__filter-button--active=move || selected_style.get().is_none()
+                        class:shop-masonry-gallery__filter-button--inactive=move || selected_style.get().is_some()
+                        class="shop-masonry-gallery__filter-button"
                     >
                         "All"
                     </button>
@@ -44,11 +42,9 @@ pub fn ShopMasonryGallery(
                                 on:click=move |_| {
                                     set_selected_style.set(Some(style_id));
                                 }
-                                style=move || format!(
-                                    "background: {}; color: {}; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 20px; font-size: 0.8rem; cursor: pointer;",
-                                    if selected_style.get() == Some(style_id) { "#667eea" } else { "white" },
-                                    if selected_style.get() == Some(style_id) { "white" } else { "#374151" }
-                                )
+                                class:shop-masonry-gallery__filter-button--active=move || selected_style.get() == Some(style_id)
+                                class:shop-masonry-gallery__filter-button--inactive=move || selected_style.get() != Some(style_id)
+                                class="shop-masonry-gallery__filter-button"
                             >
                                 {style_name}
                             </button>
@@ -57,33 +53,7 @@ pub fn ShopMasonryGallery(
                 </div>
             </div>
             
-            <style>
-                {r#"
-                .shop-masonry {
-                    columns: 4;
-                    column-gap: 1rem;
-                    column-fill: balance;
-                    width: 100%;
-                }
-                @media (max-width: 1200px) {
-                    .shop-masonry { columns: 3 !important; }
-                }
-                @media (max-width: 768px) {
-                    .shop-masonry { columns: 2 !important; }
-                }
-                @media (max-width: 480px) {
-                    .shop-masonry { columns: 1 !important; }
-                }
-                .instagram-media {
-                    max-width: 100% !important;
-                    min-width: 280px !important;
-                }
-                .hidden {
-                    display: none !important;
-                }
-                "#}
-            </style>
-            <div class="shop-masonry">
+            <div class="shop-masonry-gallery__masonry">
                 {shop_posts.into_iter().map(|post| {
                     let short_code = post.image.short_code.clone();
                     let artist_name = post.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
@@ -92,19 +62,19 @@ pub fn ShopMasonryGallery(
                     
                     view! {
                         <div 
-                            class:hidden=move || {
+                            class:shop-masonry-gallery__post--hidden=move || {
                                 if let Some(style_id) = selected_style.get() {
                                     !post_styles.iter().any(|s| s.id == style_id)
                                 } else {
                                     false
                                 }
                             }
-                            style="break-inside: avoid; margin-bottom: 1rem; position: relative;"
+                            class="shop-masonry-gallery__post"
                         >
-                            <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
-                                <div style="padding: 0.5rem; background: white;">
+                            <div class="shop-masonry-gallery__card">
+                                <div class="shop-masonry-gallery__artist-header">
                                     <a href={format!("/artist/{}", post.artist.id)} 
-                                       style="color: #374151; text-decoration: none; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; font-weight: 600;">
+                                       class="shop-masonry-gallery__artist-link">
                                         <span>"👤"</span>
                                         <span>{artist_name}</span>
                                     </a>
@@ -114,11 +84,11 @@ pub fn ShopMasonryGallery(
                                 
                                 {(!post.styles.is_empty()).then(|| {
                                     view! {
-                                        <div style="padding: 0.5rem; background: white;">
-                                            <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                                        <div class="shop-masonry-gallery__styles-container">
+                                            <div class="shop-masonry-gallery__styles-wrapper">
                                                 {post.styles.into_iter().map(|style| {
                                                     view! {
-                                                        <span style="background: rgba(102, 126, 234, 0.9); color: white; padding: 0.125rem 0.375rem; border-radius: 10px; font-size: 0.6rem; font-weight: 500;">
+                                                        <span class="shop-masonry-gallery__style-tag">
                                                             {style.name}
                                                         </span>
                                                     }
