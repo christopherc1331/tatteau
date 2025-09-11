@@ -1,0 +1,160 @@
+// TimeBlock Component Styles
+// Migrated from artist_dashboard.scss and organized
+
+// Base time block styles - used for individual time blocks
+.time-block {
+  // Booking status styles
+  &.booking-pending {
+    background-color: #fbbf24;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+  }
+
+  &.booking-accepted {
+    background-color: #34d399;
+    color: #065f46;
+    border: 1px solid #10b981;
+  }
+
+  // Clickable behavior
+  &.clickable {
+    cursor: pointer;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+  }
+
+  // More indicator styling
+  &.more-indicator {
+    background: #667eea;
+    border: 1px solid #667eea;
+    color: white;
+  }
+}
+
+// Time blocks container
+.time-blocks-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+// Time blocks grid styles - used in calendar views
+.time-blocks {
+  position: absolute;
+  top: 1.75rem;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem; // Reduced gap from 0.15rem
+  pointer-events: none;
+
+  .time-block {
+    background: rgba(124, 58, 237, 0.9);
+    color: white;
+    border-radius: 3px;
+    padding: 0.1rem 0.25rem; // Reduced padding
+    font-size: 0.6rem; // Reduced font size
+    line-height: 1; // Tighter line height
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    min-height: 16px; // Reduced from 20px
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+
+    &.blocked {
+      background: rgba(239, 68, 68, 0.9);
+      color: white;
+    }
+
+    &.available {
+      background: rgba(107, 114, 128, 0.8);
+      color: white;
+    }
+
+    &.booking-pending {
+      background: rgba(251, 191, 36, 0.95);
+      color: #92400e;
+      border: 1px solid #f59e0b;
+    }
+
+    &.booking-accepted {
+      background: rgba(16, 185, 129, 0.9);
+      color: white;
+      border: 1px solid #10b981;
+    }
+
+    // Hover effects for better visibility
+    &:hover {
+      transform: scale(1.02);
+      z-index: 10;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  // When multiple blocks stack, make them even smaller
+  &:has(.time-block + .time-block + .time-block) {
+    .time-block {
+      min-height: 16px;
+      padding: 0.1rem 0.25rem;
+
+      .time-block-name {
+        font-size: 0.5rem;
+      }
+
+      .time-block-time {
+        font-size: 0.45rem;
+      }
+    }
+  }
+
+  // When 2 blocks stack, make them medium sized
+  &:has(.time-block + .time-block):not(
+      :has(.time-block + .time-block + .time-block)
+    ) {
+    .time-block {
+      min-height: 18px;
+      padding: 0.12rem 0.3rem;
+
+      .time-block-name {
+        font-size: 0.52rem;
+      }
+
+      .time-block-time {
+        font-size: 0.48rem;
+      }
+    }
+  }
+}
+
+// Time block content elements
+.time-block-name {
+  font-weight: 600;
+  font-size: 0.55rem;
+  margin-bottom: 0.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-block-time {
+  font-size: 0.5rem;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.time-block-time-only {
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-align: center;
+  color: white;
+}
