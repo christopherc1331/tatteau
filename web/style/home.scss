@@ -1,0 +1,55 @@
+// Home component styles
+
+.home-container {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.home-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.home-title {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.home-subtitle {
+  font-size: 1.2rem;
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+.home-buttons {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.home-styles-section {
+  margin-top: 3rem;
+}
+
+.home-styles-title {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.home-styles-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.home-footer {
+  text-align: center;
+  margin-top: 4rem;
+}
+
+.home-footer-text {
+  color: #888;
+}

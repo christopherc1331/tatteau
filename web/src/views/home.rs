@@ -4,15 +4,15 @@ use leptos_router::components::A;
 #[component]
 pub fn HomePage() -> impl IntoView {
     view! {
-        <div class="homepage-container" style="padding: 2rem; max-width: 1200px; margin: 0 auto;">
-            <div style="text-align: center; margin-bottom: 3rem;">
-                <h1 style="font-size: 3rem; margin-bottom: 1rem;">"Tatteau"</h1>
-                <p style="font-size: 1.2rem; color: #666; margin-bottom: 2rem;">
+        <div class="home-container">
+            <div class="home-header">
+                <h1 class="home-title">"Tatteau"</h1>
+                <p class="home-subtitle">
                     "Discover your perfect tattoo artist"
                 </p>
             </div>
 
-            <div style="display: flex; gap: 2rem; justify-content: center; margin-bottom: 3rem;">
+            <div class="home-buttons">
                 <A href="/explore">
                     <button class="btn-primary">"Explore Artists"</button>
                 </A>
@@ -24,9 +24,9 @@ pub fn HomePage() -> impl IntoView {
                 </A>
             </div>
 
-            <div style="margin-top: 3rem;">
-                <h2 style="text-align: center; margin-bottom: 2rem;">"Popular Styles"</h2>
-                <div style="display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;">
+            <div class="home-styles-section">
+                <h2 class="home-styles-title">"Popular Styles"</h2>
+                <div class="home-styles-grid">
                     <button class="btn-outlined">"Traditional"</button>
                     <button class="btn-outlined">"Neo-Traditional"</button>
                     <button class="btn-outlined">"Realism"</button>
@@ -38,8 +38,8 @@ pub fn HomePage() -> impl IntoView {
                 </div>
             </div>
 
-            <div style="text-align: center; margin-top: 4rem;">
-                <p style="color: #888;">
+            <div class="home-footer">
+                <p class="home-footer-text">
                     "Find the perfect artist for your next tattoo"
                 </p>
             </div>
