@@ -22,9 +22,9 @@ pub fn ArtistBooking() -> impl IntoView {
     });
 
     view! {
-        <div style="min-height: 100vh; background: #f8fafc; display: flex; align-items: center; justify-content: center;">
-            <div style="text-align: center;">
-                <p style="color: #4a5568;">"Redirecting to artist page..."</p>
+        <div class="booking-artist-container">
+            <div class="booking-artist-content">
+                <p class="booking-artist-text">"Redirecting to artist page..."</p>
             </div>
         </div>
     }
@@ -41,34 +41,34 @@ pub fn ShopBooking() -> impl IntoView {
     });
 
     view! {
-        <div style="min-height: 100vh; background: #f8fafc; padding: 2rem 1rem;">
-            <div style="max-width: 800px; margin: 0 auto;">
-                <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08); text-align: center;">
-                    <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 1rem 0; color: #2d3748;">
+        <div class="booking-shop-container">
+            <div class="booking-shop-wrapper">
+                <div class="booking-shop-card">
+                    <h1 class="booking-shop-title">
                         "🏪 Book at Shop"
                     </h1>
                     
-                    <p style="font-size: 1.1rem; color: #4a5568; margin: 0 0 2rem 0;">
+                    <p class="booking-shop-subtitle">
                         {format!("Booking system for shop ID: {}", shop_id.get())}
                     </p>
                     
-                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin: 2rem 0;">
-                        <p style="color: #92400e; margin: 0; font-weight: 600;">
+                    <div class="booking-shop-notice">
+                        <p class="booking-shop-notice-title">
                             "🚧 Coming Soon!"
                         </p>
-                        <p style="color: #92400e; margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                        <p class="booking-shop-notice-text">
                             "Our booking system is currently under development. Please contact the shop directly for appointments."
                         </p>
                     </div>
                     
-                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+                    <div class="booking-shop-actions">
                         <a href={format!("/shop/{}", shop_id.get())} 
-                           style="background: #667eea; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600;">
+                           class="booking-shop-btn-primary">
                             "← Back to Shop"
                         </a>
                         
                         <a href="/" 
-                           style="background: #e2e8f0; color: #4a5568; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 600;">
+                           class="booking-shop-btn-secondary">
                             "🏠 Home"
                         </a>
                     </div>

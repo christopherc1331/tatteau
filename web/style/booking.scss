@@ -1,0 +1,97 @@
+/* Booking Component Styles */
+
+// Artist Booking Styles
+.booking-artist-container {
+    min-height: 100vh;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.booking-artist-content {
+    text-align: center;
+}
+
+.booking-artist-text {
+    color: #4a5568;
+}
+
+// Shop Booking Styles
+.booking-shop-container {
+    min-height: 100vh;
+    background: #f8fafc;
+    padding: 2rem 1rem;
+}
+
+.booking-shop-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.booking-shop-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    text-align: center;
+}
+
+.booking-shop-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    color: #2d3748;
+}
+
+.booking-shop-subtitle {
+    font-size: 1.1rem;
+    color: #4a5568;
+    margin: 0 0 2rem 0;
+}
+
+.booking-shop-notice {
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 2rem 0;
+}
+
+.booking-shop-notice-title {
+    color: #92400e;
+    margin: 0;
+    font-weight: 600;
+}
+
+.booking-shop-notice-text {
+    color: #92400e;
+    margin: 0.5rem 0 0 0;
+    font-size: 0.9rem;
+}
+
+.booking-shop-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+}
+
+.booking-shop-btn-primary {
+    background: #667eea;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.booking-shop-btn-secondary {
+    background: #e2e8f0;
+    color: #4a5568;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+}
