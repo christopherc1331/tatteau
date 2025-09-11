@@ -1,0 +1,48 @@
+// Time Picker Component Styles
+.time-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  .time-picker-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+  }
+
+  .time-picker-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    select {
+      padding: 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      background: white;
+      font-size: 0.875rem;
+      color: #374151;
+
+      &:focus {
+        outline: none;
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 1px #7c3aed;
+      }
+
+      &.time-picker-hours,
+      &.time-picker-minutes {
+        min-width: 60px;
+      }
+
+      &.time-picker-ampm {
+        min-width: 65px;
+      }
+    }
+
+    .time-picker-separator {
+      font-weight: bold;
+      color: #6b7280;
+      font-size: 1rem;
+    }
+  }
+}
