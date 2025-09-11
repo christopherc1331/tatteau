@@ -86,41 +86,41 @@ pub fn MultiStepQuestionnaire(
     };
     
     view! {
-        <div class="multi-step-questionnaire">
+        <div class="multi-step-questionnaire-container">
             // Progress Bar
-            <div class="progress-container">
-                <div class="progress-info">
+            <div class="multi-step-questionnaire-progress-container">
+                <div class="multi-step-questionnaire-progress-info">
                     <h3>"Artist Questionnaire"</h3>
-                    <p class="progress-text">
+                    <p class="multi-step-questionnaire-progress-text">
                         {move || format!("Question {} of {}", 
                             current_step.get() + 1, 
                             total_steps
                         )}
                     </p>
                 </div>
-                <div class="progress-bar">
+                <div class="multi-step-questionnaire-progress-bar">
                     <div 
-                        class="progress-fill"
+                        class="multi-step-questionnaire-progress-fill"
                         style:width=move || format!("{}%", progress_percentage.get())
                     ></div>
                 </div>
             </div>
             
             // Question Content
-            <div class="question-container">
+            <div class="multi-step-questionnaire-question-container">
                 {move || {
                     if let Some(question) = current_question.get() {
                         let question_id = question.id;
                         let current_response = responses.get().get(&question_id).cloned().unwrap_or_default();
                         
                         view! {
-                            <div class="question-content">
-                                <div class="question-header">
-                                    <h4 class="question-text">{question.question_text.clone()}</h4>
+                            <div class="multi-step-questionnaire-question-content">
+                                <div class="multi-step-questionnaire-question-header">
+                                    <h4 class="multi-step-questionnaire-question-text">{question.question_text.clone()}</h4>
                                     {if question.question_type == "multiselect" {
                                         view! {
                                             <span 
-                                                class="info-icon" 
+                                                class="multi-step-questionnaire-info-icon" 
                                                 title="This is a list of options that the artist is currently accepting at this time"
                                             >{"ⓘ"}</span>
                                         }.into_any()
@@ -129,17 +129,17 @@ pub fn MultiStepQuestionnaire(
                                     }}
                                     {if !question.is_required {
                                         view! {
-                                            <span class="optional-indicator">"(optional)"</span>
+                                            <span class="multi-step-questionnaire-optional-indicator">"(optional)"</span>
                                         }.into_any()
                                     } else {
                                         view! {}.into_any()
                                     }}
                                 </div>
                                 
-                                <div class="answer-section">
+                                <div class="multi-step-questionnaire-answer-section">
                                     {match question.question_type.as_str() {
                                         "text" => view! {
-                                            <div class="text-input-container">
+                                            <div class="multi-step-questionnaire-text-input-container">
                                                 <Textarea
                                                     placeholder="Please provide details..."
                                                     value=RwSignal::new(current_response.clone())
@@ -159,13 +159,13 @@ pub fn MultiStepQuestionnaire(
                                             };
                                             
                                             view! {
-                                                <div class="multiselect-container">
+                                                <div class="multi-step-questionnaire-multiselect-container">
                                                     {options.into_iter().map(|option| {
                                                         let option_value = option.clone();
                                                         let is_selected = selected.contains(&option);
                                                         
                                                         view! {
-                                                            <div class="option-item">
+                                                            <div class="multi-step-questionnaire-option-item">
                                                                 <Button
                                                                     appearance=if is_selected { 
                                                                         ButtonAppearance::Primary 
@@ -173,9 +173,9 @@ pub fn MultiStepQuestionnaire(
                                                                         ButtonAppearance::Secondary 
                                                                     }
                                                                     class=if is_selected {
-                                                                        "option-button selected"
+                                                                        "multi-step-questionnaire-option-button selected"
                                                                     } else {
-                                                                        "option-button"
+                                                                        "multi-step-questionnaire-option-button"
                                                                     }
                                                                     on_click=move |_| {
                                                                         let current_selected = responses.get()
@@ -208,7 +208,7 @@ pub fn MultiStepQuestionnaire(
                                             }.into_any()
                                         },
                                         "datetime" => view! {
-                                            <div class="datetime-input-container">
+                                            <div class="multi-step-questionnaire-datetime-input-container">
                                                 <Input
                                                     input_type=InputType::DatetimeLocal
                                                     value=RwSignal::new(current_response.clone())
@@ -220,15 +220,15 @@ pub fn MultiStepQuestionnaire(
                                             </div>
                                         }.into_any(),
                                         "boolean" => view! {
-                                            <div class="boolean-container">
-                                                <div class="boolean-options">
+                                            <div class="multi-step-questionnaire-boolean-container">
+                                                <div class="multi-step-questionnaire-boolean-options">
                                                     <Button
                                                         appearance=if current_response == "true" { 
                                                             ButtonAppearance::Primary 
                                                         } else { 
                                                             ButtonAppearance::Secondary 
                                                         }
-                                                        class="boolean-button"
+                                                        class="multi-step-questionnaire-boolean-button"
                                                         on_click=move |_| {
                                                             handle_boolean_response(question_id, "true".to_string());
                                                         }
@@ -241,7 +241,7 @@ pub fn MultiStepQuestionnaire(
                                                         } else { 
                                                             ButtonAppearance::Secondary 
                                                         }
-                                                        class="boolean-button"
+                                                        class="multi-step-questionnaire-boolean-button"
                                                         on_click=move |_| {
                                                             handle_boolean_response(question_id, "false".to_string());
                                                         }
@@ -252,7 +252,7 @@ pub fn MultiStepQuestionnaire(
                                             </div>
                                         }.into_any(),
                                         _ => view! {
-                                            <div class="default-input-container">
+                                            <div class="multi-step-questionnaire-default-input-container">
                                                 <Input
                                                     placeholder="Your answer..."
                                                     value=RwSignal::new(current_response.clone())
@@ -269,7 +269,7 @@ pub fn MultiStepQuestionnaire(
                         }.into_any()
                     } else {
                         view! {
-                            <div class="no-questions">
+                            <div class="multi-step-questionnaire-no-questions">
                                 <p>"No questionnaire configured for this artist."</p>
                             </div>
                         }.into_any()
@@ -278,7 +278,7 @@ pub fn MultiStepQuestionnaire(
             </div>
             
             // Navigation Controls
-            <div class="navigation-controls">
+            <div class="multi-step-questionnaire-navigation-controls">
                 <Button
                     appearance=ButtonAppearance::Secondary
                     on_click=move |_| handle_previous()
