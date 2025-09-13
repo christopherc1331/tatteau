@@ -33,7 +33,7 @@ pub fn Shop() -> impl IntoView {
     );
 
     view! {
-        <div style="min-height: 100vh; background: #f8fafc;">
+        <div class="shop-container">
             <Suspense fallback=move || view! {
                 <LoadingView message=Some("Loading shop information...".to_string()) />
             }>
@@ -57,28 +57,28 @@ pub fn Shop() -> impl IntoView {
                                 .collect();
 
                             view! {
-                                <div style="min-height: 100vh; background: #f8fafc;">
-                                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem 1rem;">
-                                        <div style="max-width: 1200px; margin: 0 auto;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                                <div class="shop-container">
+                                    <div class="shop-header">
+                                        <div class="shop-header-content">
+                                            <div class="shop-header-flex">
                                                 <div>
-                                                    <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 0.5rem 0; line-height: 1;">
+                                                    <h1 class="shop-title">
                                                         {shop_name.clone()}
                                                     </h1>
-                                                    <div style="font-size: 1.1rem; opacity: 0.9;">
+                                                    <div class="shop-location">
                                                         {format!("{}, {}", city, state)}
                                                     </div>
                                                 </div>
 
-                                                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                                                <div class="shop-actions">
                                                     <a href={format!("/book/shop/{}", shop_id.get())}
-                                                       style="background: #f59e0b; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
+                                                       class="shop-action-button shop-action-book">
                                                         "📅 Book Appointment"
                                                     </a>
                                                     {shop_data.location.website_uri.as_ref().filter(|uri| !uri.is_empty()).map(|website_uri| {
                                                         view! {
                                                             <a href=website_uri.clone() target="_blank"
-                                                               style="background: #667eea; padding: 0.5rem 1rem; border-radius: 20px; color: white; text-decoration: none; font-weight: 600;">
+                                                               class="shop-action-button shop-action-website">
                                                                 "🌐 Visit Website"
                                                             </a>
                                                         }
@@ -88,33 +88,33 @@ pub fn Shop() -> impl IntoView {
                                         </div>
                                     </div>
 
-                                    <div style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;">
-                                        <div style="display: grid; grid-template-columns: 1fr 400px; gap: 2rem; margin-bottom: 2rem;">
+                                    <div class="shop-main-content">
+                                        <div class="shop-info-grid">
                                             // Left side: Artists and Styles combined
-                                            <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+                                            <div class="shop-info-card">
                                                 {(!shop_data.artists.is_empty()).then(|| {
                                                     view! {
-                                                        <div style="margin-bottom: 2rem;">
-                                                            <h3 style="font-size: 1.5rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"Our Artists"</h3>
-                                                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                                        <div class="shop-artists-section">
+                                                            <h3 class="shop-section-title">"Our Artists"</h3>
+                                                            <div class="shop-artists-list">
                                                                 {shop_data.artists.into_iter().map(|artist| {
                                                                     let artist_name = artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
                                                                     view! {
-                                                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                                                                        <div class="shop-artist-item">
                                                                             <div>
-                                                                                <div style="font-weight: 600; color: #2d3748;">
+                                                                                <div class="shop-artist-name">
                                                                                     {artist_name}
                                                                                 </div>
                                                                                 {artist.years_experience.and_then(|years| {
                                                                                     (years > 0).then(|| view! {
-                                                                                        <div style="font-size: 0.8rem; color: #6b7280;">
+                                                                                        <div class="shop-artist-experience">
                                                                                             {format!("{} years experience", years)}
                                                                                         </div>
                                                                                     })
                                                                                 })}
                                                                             </div>
                                                                             <a href={format!("/artist/{}", artist.id)}
-                                                                               style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.8rem;">
+                                                                               class="shop-artist-profile-link">
                                                                                 "View Profile"
                                                                             </a>
                                                                         </div>
@@ -128,11 +128,11 @@ pub fn Shop() -> impl IntoView {
                                                 {(!shop_data.all_styles.is_empty()).then(|| {
                                                     view! {
                                                         <div>
-                                                            <h3 style="font-size: 1.5rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"Styles We Do"</h3>
-                                                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                                            <h3 class="shop-section-title">"Styles We Do"</h3>
+                                                            <div class="shop-styles-list">
                                                                 {shop_data.all_styles.into_iter().map(|style| {
                                                                     view! {
-                                                                        <span style="background: #667eea; color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem;">
+                                                                        <span class="shop-style-tag">
                                                                             {style.name}
                                                                         </span>
                                                                     }
@@ -150,16 +150,16 @@ pub fn Shop() -> impl IntoView {
                                             let encoded_addr = urlencoding::encode(&addr);
 
                                             view! {
-                                                <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                    <h3 style="font-size: 1.5rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"📍 Shop Location"</h3>
+                                                <div class="shop-info-card">
+                                                    <h3 class="shop-section-title">"📍 Shop Location"</h3>
                                                     <div style="margin-bottom: 1.5rem;">
-                                                        <p style="color: #4a5568; margin: 0 0 1rem 0; font-size: 1rem; line-height: 1.5;">
+                                                        <p class="shop-location-text">
                                                             {addr.clone()}
                                                         </p>
                                                         <a href={format!("https://www.google.com/maps/dir/?api=1&destination={}",
                                                             shop_data.location.address.as_ref().unwrap_or(&"".to_string()))}
                                                            target="_blank"
-                                                           style="background: #4285f4; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 600;">
+                                                           class="shop-directions-link">
                                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                                                 <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M16.24,7.76L15.12,6.64L8.76,13L5.64,9.88L4.52,11L8.76,15.24L16.24,7.76Z"/>
                                                                 <path d="M2.5,19H21.5V21H2.5V19M22.07,9.64C21.86,8.84 21.03,8.36 20.23,8.58L14.92,10L8,3.57L6.09,4.08L10.23,11.25L5.26,12.58L3.29,11.04L1.84,11.43L3.66,14.59L4.43,15.92L6.03,15.5L11.34,14.07L15.69,12.91L21,11.5C21.81,11.26 22.28,10.44 22.07,9.64Z"/>
@@ -168,14 +168,14 @@ pub fn Shop() -> impl IntoView {
                                                         </a>
                                                     </div>
 
-                                                    <div style="width: 100%; height: 200px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; position: relative;">
+                                                    <div class="shop-map-container">
                                                         <iframe
                                                             src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}",
                                                                 long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
-                                                            style="width: 100%; height: 100%; border: none; pointer-events: none;"
+                                                            class="shop-map-iframe"
                                                             title="Shop Location Map"
                                                         ></iframe>
-                                                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; pointer-events: none;"></div>
+                                                        <div class="shop-map-overlay"></div>
                                                     </div>
                                                 </div>
                                             }
@@ -184,8 +184,8 @@ pub fn Shop() -> impl IntoView {
 
                                         {(!shop_posts.is_empty()).then(|| {
                                             view! {
-                                                <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
-                                                    <h2 style="font-size: 1.75rem; font-weight: 700; color: #1a202c; margin: 0 0 1.5rem 0; text-align: left;">"Shop Portfolio"</h2>
+                                                <div class="shop-info-card">
+                                                    <h2 class="shop-portfolio-title">"Shop Portfolio"</h2>
                                                     <ShopMasonryGallery shop_posts=shop_posts all_styles=all_styles_for_filter />
                                                 </div>
                                             }
@@ -195,21 +195,21 @@ pub fn Shop() -> impl IntoView {
                             }.into_any()
                         }).unwrap_or_else(|| {
                             view! {
-                                <div style="min-height: 100vh; background: #f8fafc;">
-                                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem 1rem;">
-                                        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
-                                            <h1 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 0.5rem 0;">
+                                <div class="shop-container">
+                                    <div class="shop-error-header">
+                                        <div class="shop-error-header-content">
+                                            <h1 class="shop-error-title">
                                                 "🏪 Shop Not Found"
                                             </h1>
-                                            <div style="font-size: 1.1rem; opacity: 0.9;">
+                                            <div class="shop-error-subtitle">
                                                 "The requested shop could not be found"
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div style="max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;">
-                                        <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 4px 16px rgba(0,0,0,0.08); text-align: center;">
-                                            <p style="color: #4a5568; margin: 0;">
+                                    <div class="shop-error-content">
+                                        <div class="shop-error-card">
+                                            <p class="shop-error-text">
                                                 "Please check the shop ID and try again."
                                             </p>
                                         </div>
