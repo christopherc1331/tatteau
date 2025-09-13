@@ -6,7 +6,7 @@
     padding: 2rem 1rem;
 }
 
-.page-header {
+.styles-page-header {
     text-align: center;
     margin-bottom: 3rem;
     
@@ -21,7 +21,7 @@
         background-clip: text;
     }
     
-    .subtitle {
+    .styles-subtitle {
         font-size: 1.2rem;
         color: #4a5568;
         margin: 0;
@@ -41,7 +41,7 @@
     margin-bottom: 4rem;
 }
 
-.style-card {
+.styles-style-card {
     background: white;
     border-radius: 16px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -55,13 +55,13 @@
     }
 }
 
-.style-card-header {
+.styles-style-card-header {
     padding: 1.5rem 1.5rem 1rem 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     
-    .style-name {
+    .styles-style-name {
         font-size: 1.5rem;
         font-weight: 700;
         color: #1a202c;
@@ -69,7 +69,7 @@
         flex-grow: 1;
     }
     
-    .artist-count-badge {
+    .styles-artist-count-badge {
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
         padding: 0.25rem 0.75rem;
@@ -81,15 +81,15 @@
     }
 }
 
-.style-samples {
+.styles-style-samples {
     padding: 0 1.5rem 1rem 1.5rem;
     
-    .sample-images {
+    .styles-sample-images {
         display: flex;
         gap: 0.5rem;
         margin-bottom: 0.5rem;
         
-        .sample-image {
+        .styles-sample-image {
             flex: 1;
             border-radius: 8px;
             overflow: hidden;
@@ -104,7 +104,7 @@
         }
     }
     
-    .more-samples {
+    .styles-more-samples {
         font-size: 0.8rem;
         color: #6b7280;
         text-align: center;
@@ -112,39 +112,39 @@
     }
 }
 
-.style-placeholder {
+.styles-style-placeholder {
     padding: 2rem 1.5rem;
     text-align: center;
     background: linear-gradient(135deg, #f7fafc, #edf2f7);
     
-    .placeholder-icon {
+    .styles-placeholder-icon {
         font-size: 3rem;
         margin-bottom: 1rem;
         opacity: 0.7;
     }
     
-    .placeholder-text {
+    .styles-placeholder-text {
         font-size: 1.1rem;
         color: #4a5568;
         font-weight: 600;
     }
 }
 
-.style-description {
+.styles-style-description {
     padding: 0 1.5rem 1.5rem 1.5rem;
     color: #4a5568;
     line-height: 1.6;
     font-size: 0.95rem;
 }
 
-.style-actions {
+.styles-style-actions {
     padding: 1rem 1.5rem 1.5rem 1.5rem;
     display: flex;
     gap: 1rem;
     border-top: 1px solid #e2e8f0;
     background: #f8fafc;
     
-    .btn-primary {
+    .styles-btn-primary {
         flex: 1;
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
@@ -163,7 +163,7 @@
         }
     }
     
-    .btn-outlined {
+    .styles-btn-outlined {
         flex: 1;
         background: white;
         color: #667eea;
@@ -183,7 +183,7 @@
     }
 }
 
-.explore-section {
+.styles-explore-section {
     background: white;
     border-radius: 16px;
     padding: 3rem 2rem;
@@ -207,14 +207,14 @@
         margin-right: auto;
     }
     
-    .explore-buttons {
+    .styles-explore-buttons {
         display: flex;
         gap: 1rem;
         justify-content: center;
         max-width: 400px;
         margin: 0 auto;
         
-        .btn-primary {
+        .styles-btn-primary {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             padding: 1rem 1.5rem;
@@ -233,7 +233,7 @@
             }
         }
         
-        .btn-outlined {
+        .styles-btn-outlined {
             background: white;
             color: #667eea;
             padding: 1rem 1.5rem;
@@ -254,7 +254,7 @@
     }
 }
 
-.no-styles {
+.styles-no-styles {
     text-align: center;
     padding: 4rem 2rem;
     background: white;
@@ -275,7 +275,7 @@
         line-height: 1.6;
     }
     
-    .btn-primary, .btn-outlined {
+    .styles-btn-primary, .styles-btn-outlined {
         display: inline-block;
         padding: 0.75rem 1.5rem;
         border-radius: 8px;
@@ -285,7 +285,7 @@
         border: none;
         cursor: pointer;
         
-        &.btn-primary {
+        &.styles-btn-primary {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             
@@ -295,7 +295,7 @@
             }
         }
         
-        &.btn-outlined {
+        &.styles-btn-outlined {
             background: white;
             color: #667eea;
             border: 2px solid #667eea;
@@ -314,14 +314,14 @@
         padding: 1rem 0.5rem;
     }
     
-    .page-header {
+    .styles-page-header {
         margin-bottom: 2rem;
         
         h1 {
             font-size: 2rem;
         }
         
-        .subtitle {
+        .styles-subtitle {
             font-size: 1rem;
         }
     }
@@ -332,23 +332,23 @@
         margin-bottom: 2rem;
     }
     
-    .explore-section {
+    .styles-explore-section {
         padding: 2rem 1rem;
         
         h2 {
             font-size: 1.5rem;
         }
         
-        .explore-buttons {
+        .styles-explore-buttons {
             flex-direction: column;
             max-width: 300px;
         }
     }
     
-    .style-actions {
+    .styles-style-actions {
         flex-direction: column;
         
-        .btn-primary, .btn-outlined {
+        .styles-btn-primary, .styles-btn-outlined {
             text-align: center;
         }
     }

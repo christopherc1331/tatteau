@@ -17,9 +17,9 @@ pub fn StylesShowcase() -> impl IntoView {
 
     view! {
         <div class="styles-showcase-container">
-            <div class="page-header">
+            <div class="styles-page-header">
                 <h1>"Tattoo Styles"</h1>
-                <p class="subtitle">
+                <p class="styles-subtitle">
                     "Explore different tattoo styles and find artists who specialize in each"
                 </p>
             </div>
@@ -30,11 +30,11 @@ pub fn StylesShowcase() -> impl IntoView {
                         Some(Ok(styles)) => {
                             if styles.is_empty() {
                                 view! {
-                                    <div class="no-styles">
+                                    <div class="styles-no-styles">
                                         <h3>"No styles found"</h3>
                                         <p>"We couldn't find any tattoo styles at the moment."</p>
                                         <A href="/">
-                                            <div class="btn-primary">
+                                            <div class="styles-btn-primary">
                                                 "Back to Home"
                                             </div>
                                         </A>
@@ -51,17 +51,17 @@ pub fn StylesShowcase() -> impl IntoView {
                                             }).collect_view()}
                                         </div>
 
-                                        <div class="explore-section">
+                                        <div class="styles-explore-section">
                                             <h2>"Find Artists by Style"</h2>
                                             <p>"Ready to find your perfect artist? Use our discovery tools to search by style, location, and more."</p>
-                                            <div class="explore-buttons">
+                                            <div class="styles-explore-buttons">
                                                 <A href="/explore">
-                                                    <div class="btn-primary">
+                                                    <div class="styles-btn-primary">
                                                         "🗺️ Explore Map"
                                                     </div>
                                                 </A>
                                                 <A href="/match">
-                                                    <div class="btn-outlined">
+                                                    <div class="styles-btn-outlined">
                                                         "✨ Take Quiz"
                                                     </div>
                                                 </A>
@@ -72,11 +72,11 @@ pub fn StylesShowcase() -> impl IntoView {
                             }
                         },
                         Some(Err(_)) => view! {
-                            <div class="no-styles">
+                            <div class="styles-no-styles">
                                 <h3>"Something went wrong"</h3>
                                 <p>"We couldn't load the styles right now. Please try again."</p>
                                 <A href="/">
-                                    <div class="btn-outlined">
+                                    <div class="styles-btn-outlined">
                                         "Back to Home"
                                     </div>
                                 </A>
@@ -101,21 +101,21 @@ pub fn StyleCard(style_info: StyleWithCount) -> impl IntoView {
     let sample_images = style_info.sample_images.unwrap_or_default();
 
     view! {
-        <div class="style-card">
-            <div class="style-card-header">
-                <h3 class="style-name">{style_name.clone()}</h3>
-                <div class="artist-count-badge">
+        <div class="styles-style-card">
+            <div class="styles-style-card-header">
+                <h3 class="styles-style-name">{style_name.clone()}</h3>
+                <div class="styles-artist-count-badge">
                     {format!("{} artists", artist_count)}
                 </div>
             </div>
 
             {if !sample_images.is_empty() {
                 view! {
-                    <div class="style-samples">
-                        <div class="sample-images">
+                    <div class="styles-style-samples">
+                        <div class="styles-sample-images">
                             {sample_images.clone().into_iter().take(3).map(|image_url| {
                                 view! {
-                                    <div class="sample-image">
+                                    <div class="styles-sample-image">
                                         <img src={image_url} alt={format!("{} style example", style_name)} />
                                     </div>
                                 }
@@ -123,7 +123,7 @@ pub fn StyleCard(style_info: StyleWithCount) -> impl IntoView {
                         </div>
                         {if sample_images.len() > 3 {
                             view! {
-                                <div class="more-samples">
+                                <div class="styles-more-samples">
                                     {format!("+{} more examples", sample_images.len() - 3)}
                                 </div>
                             }.into_any()
@@ -134,30 +134,30 @@ pub fn StyleCard(style_info: StyleWithCount) -> impl IntoView {
                 }.into_any()
             } else {
                 view! {
-                    <div class="style-placeholder">
-                        <div class="placeholder-icon">"🎨"</div>
-                        <div class="placeholder-text">
+                    <div class="styles-style-placeholder">
+                        <div class="styles-placeholder-icon">"🎨"</div>
+                        <div class="styles-placeholder-text">
                             {format!("Discover {} artists", artist_count)}
                         </div>
                     </div>
                 }.into_any()
             }}
 
-            <div class="style-description">
+            <div class="styles-style-description">
                 {style_info.description.unwrap_or_else(|| 
                     format!("Explore {} tattoo style with {} talented artists in our network.", 
                            style_name, artist_count)
                 )}
             </div>
 
-            <div class="style-actions">
+            <div class="styles-style-actions">
                 <A href={format!("/explore?style={}", style_info.id)}>
-                    <div class="btn-primary">
+                    <div class="styles-btn-primary">
                         "Find Artists"
                     </div>
                 </A>
                 <A href={format!("/match?preferred_style={}", style_info.id)}>
-                    <div class="btn-outlined">
+                    <div class="styles-btn-outlined">
                         "Get Matched"
                     </div>
                 </A>
