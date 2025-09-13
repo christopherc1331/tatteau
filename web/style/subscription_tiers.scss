@@ -1,0 +1,335 @@
+// Subscription Tiers Page Styles
+
+.subscription-tiers-container {
+    min-height: 100vh;
+    background: #f8fafc;
+    padding: 2rem 1rem;
+}
+
+.subscription-tiers-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    
+    h1 {
+        font-size: 2.75rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 1rem 0;
+        background: linear-gradient(135deg, #7c3aed, #f97316);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    p {
+        font-size: 1.2rem;
+        color: #4a5568;
+        margin: 0;
+        line-height: 1.6;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
+.subscription-tiers-loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4rem 2rem;
+    
+    p {
+        font-size: 1.1rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+}
+
+.subscription-tiers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto 3rem auto;
+}
+
+.subscription-tiers-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    position: relative;
+    
+    &:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+    
+    &.subscription-tiers-selected {
+        border-color: #7c3aed;
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(124, 58, 237, 0.2);
+    }
+}
+
+.subscription-tiers-header {
+    padding: 2rem 2rem 1rem 2rem;
+    text-align: center;
+    border-bottom: 1px solid #e2e8f0;
+    
+    h3 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 1rem 0;
+    }
+}
+
+.subscription-tiers-price {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    
+    .subscription-tiers-price-amount {
+        font-size: 3rem;
+        font-weight: 800;
+        color: #7c3aed;
+        line-height: 1;
+    }
+    
+    .subscription-tiers-price-period {
+        font-size: 1.1rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+}
+
+.subscription-tiers-features {
+    padding: 1.5rem 2rem;
+    
+    h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #374151;
+        margin: 0 0 1rem 0;
+    }
+    
+    ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        
+        li {
+            padding: 0.5rem 0;
+            color: #4a5568;
+            font-weight: 500;
+            position: relative;
+            padding-left: 1.5rem;
+            
+            &:before {
+                content: "✓";
+                position: absolute;
+                left: 0;
+                color: #10b981;
+                font-weight: 700;
+            }
+        }
+    }
+}
+
+.subscription-tiers-select-btn {
+    margin: 1.5rem 2rem 2rem 2rem !important;
+    width: calc(100% - 4rem) !important;
+    background: linear-gradient(135deg, #7c3aed, #f97316) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 1rem !important;
+    border-radius: 12px !important;
+    font-size: 1.1rem !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    
+    &:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3) !important;
+    }
+    
+    &:disabled,
+    &[disabled] {
+        background: #e2e8f0 !important;
+        color: #9ca3af !important;
+        cursor: not-allowed !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+}
+
+.subscription-tiers-actions {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    max-width: 600px;
+    margin: 2rem auto;
+    text-align: center;
+}
+
+.subscription-tiers-payment-notice {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 12px;
+    
+    p {
+        margin: 0;
+        color: #92400e;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+}
+
+.subscription-tiers-action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    
+    button,
+    a {
+        button {
+            background: linear-gradient(135deg, #7c3aed, #f97316) !important;
+            color: white !important;
+            border: none !important;
+            padding: 1rem 2rem !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            font-size: 1.1rem !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            text-decoration: none !important;
+            display: inline-block !important;
+            min-width: 140px !important;
+            
+            &:hover {
+                transform: translateY(-2px) !important;
+                box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3) !important;
+            }
+            
+            &:disabled,
+            &[disabled] {
+                background: #e2e8f0 !important;
+                color: #9ca3af !important;
+                cursor: not-allowed !important;
+                transform: none !important;
+                box-shadow: none !important;
+            }
+        }
+        
+        &:nth-child(2) button {
+            background: white !important;
+            color: #7c3aed !important;
+            border: 2px solid #7c3aed !important;
+            
+            &:hover {
+                background: #7c3aed !important;
+                color: white !important;
+            }
+        }
+    }
+}
+
+.subscription-tiers-error-message {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem auto;
+    max-width: 600px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.subscription-tiers-success-message {
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #16a34a;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin: 1.5rem auto;
+    max-width: 600px;
+    text-align: center;
+    font-weight: 500;
+}
+
+// Responsive design
+@media (max-width: 768px) {
+    .subscription-tiers-container {
+        padding: 1rem 0.5rem;
+    }
+    
+    .subscription-tiers-header {
+        margin-bottom: 2rem;
+        
+        h1 {
+            font-size: 2rem;
+        }
+        
+        p {
+            font-size: 1rem;
+        }
+    }
+    
+    .subscription-tiers-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .subscription-tiers-card {
+        .subscription-tiers-header {
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            
+            h3 {
+                font-size: 1.5rem;
+            }
+        }
+        
+        .subscription-tiers-price {
+            .subscription-tiers-price-amount {
+                font-size: 2.5rem;
+            }
+        }
+        
+        .subscription-tiers-features {
+            padding: 1rem 1.5rem;
+        }
+        
+        .subscription-tiers-select-btn {
+            margin: 1rem 1.5rem 1.5rem 1.5rem !important;
+            width: calc(100% - 3rem) !important;
+        }
+    }
+    
+    .subscription-tiers-actions {
+        padding: 1.5rem;
+        margin: 1.5rem 0.5rem;
+    }
+    
+    .subscription-tiers-action-buttons {
+        flex-direction: column;
+        align-items: center;
+        
+        button,
+        a button {
+            width: 100% !important;
+            max-width: 280px !important;
+        }
+    }
+}

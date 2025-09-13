@@ -79,15 +79,15 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
     };
 
     view! {
-        <div class="subscription-container">
-            <div class="subscription-header">
+        <div class="subscription-tiers-container">
+            <div class="subscription-tiers-header">
                 <h1>"Choose Your Artist Plan"</h1>
                 <p>"Select the perfect subscription tier to unlock the full potential of your tattoo business"</p>
             </div>
 
             <Suspense fallback=move || {
                 view! {
-                    <div class="loading-container">
+                    <div class="subscription-tiers-loading-container">
                         <p>"Loading subscription plans..."</p>
                     </div>
                 }
@@ -95,7 +95,7 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                 {move || {
                     tiers_resource.get().map(|tiers| {
                         view! {
-                            <div class="tiers-grid">
+                            <div class="subscription-tiers-grid">
                                 {tiers.into_iter().map(|tier| {
                                     let tier_id = tier.id;
                                     let is_selected = move || selected_tier.get() == Some(tier_id);
@@ -106,16 +106,16 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                                     };
 
                                     view! {
-                                        <div class=move || if is_selected() { "tier-card selected" } else { "tier-card" }>
-                                            <div class="tier-header">
+                                        <div class=move || if is_selected() { "subscription-tiers-card subscription-tiers-selected" } else { "subscription-tiers-card" }>
+                                            <div class="subscription-tiers-header">
                                                 <h3>{tier.tier_name.clone()}</h3>
-                                                <div class="tier-price">
-                                                    <span class="price">"$"{tier.price_monthly}</span>
-                                                    <span class="period">"/month"</span>
+                                                <div class="subscription-tiers-price">
+                                                    <span class="subscription-tiers-price-amount">"$"{tier.price_monthly}</span>
+                                                    <span class="subscription-tiers-price-period">"/month"</span>
                                                 </div>
                                             </div>
                                             
-                                            <div class="tier-features">
+                                            <div class="subscription-tiers-features">
                                                 <h4>"Features Included:"</h4>
                                                 <ul>
                                                     {features.into_iter().map(|feature| {
@@ -132,7 +132,7 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                                             </div>
 
                                             <Button
-                                                class="tier-select-btn"
+                                                class="subscription-tiers-select-btn"
                                                 on_click=move |_| select_tier(tier_id)
                                             >
                                                 {move || if is_selected() { "Selected" } else { "Select Plan" }}
@@ -147,12 +147,12 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
             </Suspense>
 
             <Show when=move || selected_tier.get().is_some()>
-                <div class="subscription-actions">
-                    <div class="payment-notice">
+                <div class="subscription-tiers-actions">
+                    <div class="subscription-tiers-payment-notice">
                         <p>"Payment processing is not yet implemented. This is a placeholder for the subscription flow."</p>
                     </div>
                     
-                    <div class="action-buttons">
+                    <div class="subscription-tiers-action-buttons">
                         <Button
                             loading=Signal::from(loading)
                             disabled=Signal::from(loading)
@@ -171,13 +171,13 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
             </Show>
 
             <Show when=move || error_message.get().is_some()>
-                <div class="error-message">
+                <div class="subscription-tiers-error-message">
                     {move || error_message.get()}
                 </div>
             </Show>
 
             <Show when=move || success_message.get().is_some()>
-                <div class="success-message">
+                <div class="subscription-tiers-success-message">
                     {move || success_message.get()}
                 </div>
             </Show>
