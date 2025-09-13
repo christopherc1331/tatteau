@@ -81,7 +81,7 @@ pub fn CalendarGrid(
     };
 
     let get_day_class = move |day: i32| -> String {
-        let mut classes = vec!["calendar-day"];
+        let mut classes = vec!["calendar-grid-day"];
         
         if is_date_available(day) {
             classes.push("available");
@@ -103,7 +103,7 @@ pub fn CalendarGrid(
 
     view! {
         <div class="calendar-grid">
-            <div class="calendar-navigation">
+            <div class="calendar-grid-navigation">
                 <Button 
                     appearance=ButtonAppearance::Subtle
                     on_click=move |_| navigate_month(-1)
@@ -126,7 +126,7 @@ pub fn CalendarGrid(
                 </Button>
             </div>
 
-            <div class="calendar-weekdays">
+            <div class="calendar-grid-weekdays">
                 <div class="weekday">"Sun"</div>
                 <div class="weekday">"Mon"</div>
                 <div class="weekday">"Tue"</div>
@@ -136,7 +136,7 @@ pub fn CalendarGrid(
                 <div class="weekday">"Sat"</div>
             </div>
 
-            <div class="calendar-days">
+            <div class="calendar-grid-days">
                 {move || {
                     let days_in_month = get_days_in_month(current_year.get(), current_month.get());
                     let first_day = get_first_day_of_month(current_year.get(), current_month.get());
@@ -146,7 +146,7 @@ pub fn CalendarGrid(
                     // Empty cells for days before the first day of the month
                     for _ in 0..first_day {
                         days.push(view! {
-                            <div class="calendar-day empty"></div>
+                            <div class="calendar-grid-day empty"></div>
                         }.into_any());
                     }
                     
@@ -181,7 +181,7 @@ pub fn CalendarGrid(
                 }}
             </div>
 
-            <div class="calendar-legend">
+            <div class="calendar-grid-legend">
                 <div class="legend-item">
                     <div class="legend-color available"></div>
                     <span>"Available"</span>

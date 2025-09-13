@@ -1,0 +1,202 @@
+// Calendar Grid Component Styles
+.calendar-grid {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+
+  &-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: #fff;
+
+    .current-month {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    button {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: background 0.2s;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+    }
+  }
+
+  &-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: #f8f9fa;
+
+    .weekday {
+      padding: 1rem;
+      text-align: center;
+      font-weight: 600;
+      color: #6b7280;
+      border-right: 1px solid #e9ecef;
+
+      &:last-child {
+        border-right: none;
+      }
+    }
+  }
+
+  &-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+
+    .calendar-grid-day {
+      position: relative;
+      min-height: 120px;
+      border: 1px solid #e9ecef;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+
+      &:hover {
+        background: #f8f9fa;
+        z-index: 1;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      &.empty {
+        background: #f8f9fa;
+        cursor: default;
+
+        &:hover {
+          background: #f8f9fa;
+          box-shadow: none;
+        }
+      }
+
+      &.selected {
+        background: #ede9fe;
+        border-color: #7c3aed;
+        box-shadow: inset 0 0 0 2px #7c3aed;
+      }
+
+      &.available {
+        // Available styling - no border per user feedback
+      }
+
+      &.blocked {
+        border-left: 4px solid #ef4444;
+        background: #fef2f2;
+      }
+
+      &.has-request {
+        background: #fef3c7;
+        border-color: #f59e0b;
+
+        &::after {
+          content: "";
+          position: absolute;
+          top: 0.5rem;
+          right: 0.5rem;
+          width: 10px;
+          height: 10px;
+          background: #f59e0b;
+          border-radius: 50%;
+        }
+      }
+
+      .day-number {
+        position: absolute;
+        top: 0.5rem;
+        left: 0.5rem;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      .request-indicator {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        width: 8px;
+        height: 8px;
+        background: #f59e0b;
+        border-radius: 50%;
+      }
+
+      .available-indicator {
+        position: absolute;
+        bottom: 0.5rem;
+        right: 0.5rem;
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+      }
+    }
+  }
+
+  &-legend {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+
+      .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+
+        &.available {
+          background: #ffffff;
+          border: 1px solid #e9ecef;
+        }
+
+        &.blocked {
+          background: #ef4444;
+        }
+
+        &.has-request {
+          background: #f59e0b;
+        }
+      }
+    }
+  }
+}
+
+// Old class name compatibility mapping (keeping the old calendar-day class)
+.calendar-day {
+  @extend .calendar-grid-day;
+}
+
+// Current month header class
+.current-month {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+// Weekday header class
+.weekday {
+  padding: 1rem;
+  text-align: center;
+  font-weight: 600;
+  color: #6b7280;
+  border-right: 1px solid #e9ecef;
+
+  &:last-child {
+    border-right: none;
+  }
+}
