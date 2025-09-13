@@ -1,0 +1,73 @@
+// Artist Calendar Component Styles
+// Migrated from artist_dashboard.scss with artist-calendar- namespace
+
+.artist-calendar {
+  &-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #f8f9fa;
+  }
+
+  &-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: #fff;
+
+    h1 {
+      margin: 0;
+      color: #374151;
+      font-size: 1.875rem;
+      font-weight: 600;
+    }
+  }
+
+  &-header-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  &-note {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    margin: 1rem 1.5rem 0;
+
+    p {
+      margin: 0;
+      color: #0369a1;
+      font-size: 0.875rem;
+    }
+  }
+
+  &-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  &-main {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+  }
+
+  &-sidebar {
+    width: 350px;
+    background: #fff;
+    border-left: 1px solid #e9ecef;
+    transition: transform 0.3s ease;
+    height: 100vh;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+
+    &--collapsed {
+      transform: translateX(100%);
+    }
+  }
+}

@@ -52,10 +52,10 @@ pub fn ArtistCalendar() -> impl IntoView {
     };
 
     view! {
-        <div class="artist-calendar">
-            <div class="calendar-header">
+        <div class="artist-calendar-container">
+            <div class="artist-calendar-header">
                 <h1>"Artist Calendar - Frank Reynolds"</h1>
-                <div class="header-actions">
+                <div class="artist-calendar-header-actions">
                     <Button
                         appearance=ButtonAppearance::Primary
                         on_click=toggle_sidebar
@@ -65,8 +65,8 @@ pub fn ArtistCalendar() -> impl IntoView {
                 </div>
             </div>
 
-            <div class="calendar-layout">
-                <div class="calendar-main">
+            <div class="artist-calendar-layout">
+                <div class="artist-calendar-main">
                     <CalendarGrid
                         availability=availability_resource
                         booking_requests=booking_requests_resource
@@ -75,7 +75,7 @@ pub fn ArtistCalendar() -> impl IntoView {
                     />
                 </div>
 
-                <div class="calendar-sidebar" class:collapsed=move || sidebar_collapsed.get()>
+                <div class="artist-calendar-sidebar" class:artist-calendar-sidebar--collapsed=move || sidebar_collapsed.get()>
                     <BookingSidebar
                         booking_requests=booking_requests_resource
                         on_booking_select=on_booking_select
