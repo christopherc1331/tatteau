@@ -91,4 +91,3 @@ pub fn ArtistCalendar() -> impl IntoView {
         </div>
     }
 }
-

@@ -93,8 +93,8 @@ pub fn BookingModal(
             {move || {
                 if let Some(booking_data) = booking.get() {
                     view! {
-                        <div class="booking-modal">
-                            <div class="modal-header">
+                        <div class="booking-modal-container">
+                            <div class="booking-modal-header">
                                 <h2>"Booking Request Details"</h2>
                                 <Button 
                                     appearance=ButtonAppearance::Subtle
@@ -104,7 +104,7 @@ pub fn BookingModal(
                                 </Button>
                             </div>
 
-                            <div class="modal-tabs">
+                            <div class="booking-modal-tabs">
                                 <Button 
                                     appearance=if active_tab.get() == "details" { 
                                         ButtonAppearance::Primary 
@@ -127,23 +127,23 @@ pub fn BookingModal(
                                 </Button>
                             </div>
 
-                            <div class="modal-content">
+                            <div class="booking-modal-content">
                                 {move || match active_tab.get().as_str() {
                                     "details" => view! {
-                                        <div class="booking-details-tab">
-                                            <div class="client-info">
+                                        <div class="booking-modal-details-tab">
+                                            <div class="booking-modal-client-info">
                                                 <h3>"Client Information"</h3>
-                                                <div class="info-grid">
-                                                    <div class="info-item">
+                                                <div class="booking-modal-info-grid">
+                                                    <div class="booking-modal-info-item">
                                                         <label>"Name:"</label>
                                                         <span>{&booking_data.client_name}</span>
                                                     </div>
-                                                    <div class="info-item">
+                                                    <div class="booking-modal-info-item">
                                                         <label>"Email:"</label>
                                                         <span>{&booking_data.client_email}</span>
                                                     </div>
                                                     {booking_data.client_phone.as_ref().map(|phone| view! {
-                                                        <div class="info-item">
+                                                        <div class="booking-modal-info-item">
                                                             <label>"Phone:"</label>
                                                             <span>{phone}</span>
                                                         </div>
@@ -151,14 +151,14 @@ pub fn BookingModal(
                                                 </div>
                                             </div>
 
-                                            <div class="tattoo-info">
+                                            <div class="booking-modal-tattoo-info">
                                                 <h3>"Tattoo Details"</h3>
-                                                <div class="info-grid">
-                                                    <div class="info-item">
+                                                <div class="booking-modal-info-grid">
+                                                    <div class="booking-modal-info-item">
                                                         <label>"Requested Date:"</label>
                                                         <span>{&booking_data.requested_date}</span>
                                                     </div>
-                                                    <div class="info-item">
+                                                    <div class="booking-modal-info-item">
                                                         <label>"Time:"</label>
                                                         <span>{&booking_data.requested_start_time}</span>
                                                         {booking_data.requested_end_time.as_ref().map(|end_time| 
@@ -166,19 +166,19 @@ pub fn BookingModal(
                                                         )}
                                                     </div>
                                                     {booking_data.tattoo_description.as_ref().map(|desc| view! {
-                                                        <div class="info-item">
+                                                        <div class="booking-modal-info-item">
                                                             <label>"Description:"</label>
                                                             <span>{desc}</span>
                                                         </div>
                                                     })}
                                                     {booking_data.placement.as_ref().map(|placement| view! {
-                                                        <div class="info-item">
+                                                        <div class="booking-modal-info-item">
                                                             <label>"Placement:"</label>
                                                             <span>{placement}</span>
                                                         </div>
                                                     })}
                                                     {booking_data.size_inches.map(|size| view! {
-                                                        <div class="info-item">
+                                                        <div class="booking-modal-info-item">
                                                             <label>"Size:"</label>
                                                             <span>{format!("{:.1} inches", size)}</span>
                                                         </div>
@@ -187,7 +187,7 @@ pub fn BookingModal(
                                             </div>
 
                                             {booking_data.message_from_client.as_ref().map(|message| view! {
-                                                <div class="client-message">
+                                                <div class="booking-modal-client-message">
                                                     <h3>"Client Message"</h3>
                                                     <p>{message}</p>
                                                 </div>
@@ -195,7 +195,7 @@ pub fn BookingModal(
 
                                             {if booking_data.status == "pending" {
                                                 view! {
-                                                    <div class="response-form">
+                                                    <div class="booking-modal-response-form">
                                                         <h3>"Your Response"</h3>
                                                         <Textarea 
                                                             placeholder="Add a message to the client (optional)"
@@ -205,7 +205,7 @@ pub fn BookingModal(
                                                             placeholder="Estimated price (optional)"
                                                             value=estimated_price
                                                         />
-                                                        <div class="response-actions">
+                                                        <div class="booking-modal-response-actions">
                                                             <Button 
                                                                 appearance=ButtonAppearance::Primary
                                                                 on_click=move |_| handle_approve()
@@ -223,16 +223,16 @@ pub fn BookingModal(
                                                 }.into()
                                             } else {
                                                 view! {
-                                                    <div class="booking-status">
+                                                    <div class="booking-modal-booking-status">
                                                         <h3>"Status: " {&booking_data.status}</h3>
                                                         {booking_data.artist_response.as_ref().map(|response| view! {
-                                                            <div class="artist-response">
+                                                            <div class="booking-modal-artist-response">
                                                                 <label>"Your Response:"</label>
                                                                 <p>{response}</p>
                                                             </div>
                                                         })}
                                                         {booking_data.estimated_price.map(|price| view! {
-                                                            <div class="estimated-price">
+                                                            <div class="booking-modal-estimated-price">
                                                                 <label>"Estimated Price:"</label>
                                                                 <span>{format!("${:.2}", price)}</span>
                                                             </div>
@@ -243,8 +243,8 @@ pub fn BookingModal(
                                         </div>
                                     }.into(),
                                     "messages" => view! {
-                                        <div class="messages-tab">
-                                            <div class="message-history">
+                                        <div class="booking-modal-messages-tab">
+                                            <div class="booking-modal-message-history">
                                                 <Suspense fallback=move || view! { 
                                                     <Spin size=SpinSize::Small />
                                                 }>
@@ -252,7 +252,7 @@ pub fn BookingModal(
                                                         if let Some(Ok(messages)) = messages_resource.get() {
                                                             if messages.is_empty() {
                                                                 view! {
-                                                                    <div class="no-messages">
+                                                                    <div class="booking-modal-no-messages">
                                                                         <p>"No messages yet. Start a conversation!"</p>
                                                                     </div>
                                                                 }.into()
@@ -260,8 +260,8 @@ pub fn BookingModal(
                                                                 messages.into_iter().map(|message| {
                                                                     let is_from_artist = message.sender_type == "artist";
                                                                     view! {
-                                                                        <div class=format!("message {}", if is_from_artist { "artist" } else { "client" })>
-                                                                            <div class="message-header">
+                                                                        <div class=format!("booking-modal-message {}", if is_from_artist { "artist" } else { "client" })>
+                                                                            <div class="booking-modal-message-header">
                                                                                 <span class="sender">
                                                                                     {if is_from_artist { "You" } else { &booking_data.client_name }}
                                                                                 </span>
@@ -269,7 +269,7 @@ pub fn BookingModal(
                                                                                     {message.created_at.unwrap_or_default()}
                                                                                 </span>
                                                                             </div>
-                                                                            <div class="message-content">
+                                                                            <div class="booking-modal-message-content">
                                                                                 {message.message}
                                                                             </div>
                                                                         </div>
@@ -278,7 +278,7 @@ pub fn BookingModal(
                                                             }
                                                         } else {
                                                             view! {
-                                                                <div class="loading-messages">
+                                                                <div class="booking-modal-loading-messages">
                                                                     <Spin size=SpinSize::Small />
                                                                     <span>"Loading messages..."</span>
                                                                 </div>
@@ -288,7 +288,7 @@ pub fn BookingModal(
                                                 </Suspense>
                                             </div>
                                             
-                                            <div class="message-input">
+                                            <div class="booking-modal-message-input">
                                                 <Textarea 
                                                     placeholder="Type your message..."
                                                     value=new_message
