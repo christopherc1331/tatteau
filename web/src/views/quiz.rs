@@ -59,7 +59,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                 let value_for_change = value_str.clone();
                                 let value_for_input = value_str.clone();
                                 view! {
-                                    <label class="quiz-style-option" class:selected=move || style_preferences.get().contains(&value_for_selected)>
+                                    <label class="quiz-style-option" class:quiz-selected=move || style_preferences.get().contains(&value_for_selected)>
                                         <input 
                                             type="checkbox"
                                             value=value_for_input
@@ -89,7 +89,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                             on:change=move |ev| {
                                 body_placement.set(event_target_value(&ev));
                             }
-                            class="form-input"
+                            class="quiz-form-input"
                         >
                             <option value="">"Select placement..."</option>
                             <option value="arm">"Arm"</option>
@@ -139,7 +139,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                         budget_min.set(val);
                                     }
                                 }
-                                class="form-input quiz-budget-input"
+                                class="quiz-budget-input"
                             />
                             <span>"to"</span>
                             <input 
@@ -151,7 +151,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                         budget_max.set(val);
                                     }
                                 }
-                                class="form-input quiz-budget-input"
+                                class="quiz-budget-input"
                             />
                         </div>
                     </div>
@@ -217,7 +217,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                     </div>
 
                     <div class="quiz-submit-section">
-                        <button type="submit" class="btn-primary">
+                        <button type="submit" class="quiz-btn-primary">
                             "Find My Artists"
                         </button>
                     </div>
