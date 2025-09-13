@@ -24,18 +24,18 @@ pub fn BookingSidebar(
 
     let get_status_badge_class = |status: &str| -> &'static str {
         match status {
-            "pending" => "status-badge pending",
-            "approved" => "status-badge approved", 
-            "declined" => "status-badge declined",
-            _ => "status-badge"
+            "pending" => "booking-sidebar-status-badge booking-sidebar-status-pending",
+            "approved" => "booking-sidebar-status-badge booking-sidebar-status-approved", 
+            "declined" => "booking-sidebar-status-badge booking-sidebar-status-declined",
+            _ => "booking-sidebar-status-badge"
         }
     };
 
     view! {
-        <div class="booking-sidebar">
-            <div class="sidebar-header">
+        <div class="booking-sidebar-container">
+            <div class="booking-sidebar-header">
                 <h3>"Booking Requests"</h3>
-                <div class="status-filter">
+                <div class="booking-sidebar-status-filter">
                     <Select 
                         value=filter_status
                         placeholder="Filter by status"
@@ -48,9 +48,9 @@ pub fn BookingSidebar(
                 </div>
             </div>
 
-            <div class="booking-list">
+            <div class="booking-sidebar-list">
                 <Suspense fallback=move || view! { 
-                    <div class="loading-bookings">
+                    <div class="booking-sidebar-loading">
                         <Spin size=SpinSize::Medium />
                         <span>"Loading booking requests..."</span>
                     </div>
@@ -59,7 +59,7 @@ pub fn BookingSidebar(
                         let bookings = filtered_bookings();
                         if bookings.is_empty() {
                             view! {
-                                <div class="no-bookings">
+                                <div class="booking-sidebar-no-bookings">
                                     <p>"No booking requests found."</p>
                                 </div>
                             }.into()
@@ -69,18 +69,18 @@ pub fn BookingSidebar(
                                 let booking_copy2 = booking.clone();
                                 view! {
                                     <div 
-                                        class="booking-card"
+                                        class="booking-sidebar-card"
                                         on:click=move |_| on_booking_select(booking_copy.clone())
                                     >
-                                        <div class="booking-header">
+                                        <div class="booking-sidebar-card-header">
                                             <h4>{&booking_copy2.client_name}</h4>
                                             <span class=get_status_badge_class(&booking_copy2.status)>
                                                 {&booking_copy2.status}
                                             </span>
                                         </div>
                                         
-                                        <div class="booking-details">
-                                            <div class="booking-date">
+                                        <div class="booking-sidebar-details">
+                                            <div class="booking-sidebar-date">
                                                 <strong>{&booking_copy2.requested_date}</strong>
                                                 <span>" at "</span>
                                                 <strong>{&booking_copy2.requested_start_time}</strong>
@@ -88,14 +88,14 @@ pub fn BookingSidebar(
                                             
                                             {booking_copy2.tattoo_description.as_ref().map(|desc| {
                                                 view! {
-                                                    <p class="tattoo-description">{desc}</p>
+                                                    <p class="booking-sidebar-tattoo-description">{desc}</p>
                                                 }
                                             })}
                                             
                                             {booking_copy2.placement.as_ref().map(|placement| {
                                                 view! {
-                                                    <div class="placement">
-                                                        <span class="label">"Placement: "</span>
+                                                    <div class="booking-sidebar-placement">
+                                                        <span class="booking-sidebar-label">"Placement: "</span>
                                                         <span>{placement}</span>
                                                     </div>
                                                 }
@@ -103,8 +103,8 @@ pub fn BookingSidebar(
                                             
                                             {booking_copy2.size_inches.map(|size| {
                                                 view! {
-                                                    <div class="size">
-                                                        <span class="label">"Size: "</span>
+                                                    <div class="booking-sidebar-size">
+                                                        <span class="booking-sidebar-label">"Size: "</span>
                                                         <span>{format!("{:.1}\"", size)}</span>
                                                     </div>
                                                 }
@@ -113,13 +113,13 @@ pub fn BookingSidebar(
                                         
                                         {booking_copy2.message_from_client.as_ref().map(|message| {
                                             view! {
-                                                <div class="client-message">
+                                                <div class="booking-sidebar-client-message">
                                                     <p>{message}</p>
                                                 </div>
                                             }
                                         })}
                                         
-                                        <div class="booking-actions">
+                                        <div class="booking-sidebar-actions">
                                             <Button 
                                                 appearance=ButtonAppearance::Primary
                                                 size=ButtonSize::Small
