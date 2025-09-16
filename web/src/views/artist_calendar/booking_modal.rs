@@ -1,7 +1,10 @@
+use crate::db::entities::{BookingMessage, BookingRequest};
+use crate::server::{
+    get_booking_messages, respond_to_booking, send_booking_message, BookingResponse,
+    NewBookingMessage,
+};
 use leptos::prelude::*;
 use thaw::*;
-use crate::db::entities::{BookingRequest, BookingMessage};
-use crate::server::{respond_to_booking, send_booking_message, get_booking_messages, BookingResponse, NewBookingMessage};
 
 #[component]
 pub fn BookingModal(
@@ -24,7 +27,7 @@ pub fn BookingModal(
             } else {
                 Ok(vec![])
             }
-        }
+        },
     );
 
     let submit_response = create_action(|response: &BookingResponse| {
@@ -43,10 +46,10 @@ pub fn BookingModal(
             let response = BookingResponse {
                 booking_id: booking_data.id,
                 status: "approved".to_string(),
-                artist_response: if artist_response.get().trim().is_empty() { 
-                    None 
-                } else { 
-                    Some(artist_response.get()) 
+                artist_response: if artist_response.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(artist_response.get())
                 },
                 estimated_price: price,
             };
@@ -59,10 +62,10 @@ pub fn BookingModal(
             let response = BookingResponse {
                 booking_id: booking_data.id,
                 status: "declined".to_string(),
-                artist_response: if artist_response.get().trim().is_empty() { 
-                    None 
-                } else { 
-                    Some(artist_response.get()) 
+                artist_response: if artist_response.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(artist_response.get())
                 },
                 estimated_price: None,
             };
@@ -85,8 +88,8 @@ pub fn BookingModal(
     };
 
     view! {
-        <Modal 
-            open=show 
+        <Modal
+            open=show
             on_close=move || on_close()
             mask_closable=true
         >
@@ -96,7 +99,7 @@ pub fn BookingModal(
                         <div class="booking-modal-container">
                             <div class="booking-modal-header">
                                 <h2>"Booking Request Details"</h2>
-                                <Button 
+                                <Button
                                     appearance=ButtonAppearance::Subtle
                                     on_click=move |_| on_close()
                                 >
@@ -105,21 +108,21 @@ pub fn BookingModal(
                             </div>
 
                             <div class="booking-modal-tabs">
-                                <Button 
-                                    appearance=if active_tab.get() == "details" { 
-                                        ButtonAppearance::Primary 
-                                    } else { 
-                                        ButtonAppearance::Subtle 
+                                <Button
+                                    appearance=if active_tab.get() == "details" {
+                                        ButtonAppearance::Primary
+                                    } else {
+                                        ButtonAppearance::Subtle
                                     }
                                     on_click=move |_| active_tab.set("details")
                                 >
                                     "Details"
                                 </Button>
-                                <Button 
-                                    appearance=if active_tab.get() == "messages" { 
-                                        ButtonAppearance::Primary 
-                                    } else { 
-                                        ButtonAppearance::Subtle 
+                                <Button
+                                    appearance=if active_tab.get() == "messages" {
+                                        ButtonAppearance::Primary
+                                    } else {
+                                        ButtonAppearance::Subtle
                                     }
                                     on_click=move |_| active_tab.set("messages")
                                 >
@@ -161,7 +164,7 @@ pub fn BookingModal(
                                                     <div class="booking-modal-info-item">
                                                         <label>"Time:"</label>
                                                         <span>{&booking_data.requested_start_time}</span>
-                                                        {booking_data.requested_end_time.as_ref().map(|end_time| 
+                                                        {booking_data.requested_end_time.as_ref().map(|end_time|
                                                             view! { <span>{format!(" - {}", end_time)}</span> }
                                                         )}
                                                     </div>
@@ -197,22 +200,22 @@ pub fn BookingModal(
                                                 view! {
                                                     <div class="booking-modal-response-form">
                                                         <h3>"Your Response"</h3>
-                                                        <Textarea 
+                                                        <Textarea
                                                             placeholder="Add a message to the client (optional)"
                                                             value=artist_response
                                                         />
-                                                        <Input 
+                                                        <Input
                                                             placeholder="Estimated price (optional)"
                                                             value=estimated_price
                                                         />
                                                         <div class="booking-modal-response-actions">
-                                                            <Button 
+                                                            <Button
                                                                 appearance=ButtonAppearance::Primary
                                                                 on_click=move |_| handle_approve()
                                                             >
                                                                 "Approve Booking"
                                                             </Button>
-                                                            <Button 
+                                                            <Button
                                                                 appearance=ButtonAppearance::Default
                                                                 on_click=move |_| handle_decline()
                                                             >
@@ -245,7 +248,7 @@ pub fn BookingModal(
                                     "messages" => view! {
                                         <div class="booking-modal-messages-tab">
                                             <div class="booking-modal-message-history">
-                                                <Suspense fallback=move || view! { 
+                                                <Suspense fallback=move || view! {
                                                     <Spin size=SpinSize::Small />
                                                 }>
                                                     {move || {
@@ -287,13 +290,13 @@ pub fn BookingModal(
                                                     }}
                                                 </Suspense>
                                             </div>
-                                            
+
                                             <div class="booking-modal-message-input">
-                                                <Textarea 
+                                                <Textarea
                                                     placeholder="Type your message..."
                                                     value=new_message
                                                 />
-                                                <Button 
+                                                <Button
                                                     appearance=ButtonAppearance::Primary
                                                     on_click=move |_| handle_send_message()
                                                     disabled=move || new_message.get().trim().is_empty()
@@ -315,3 +318,4 @@ pub fn BookingModal(
         </Modal>
     }
 }
+

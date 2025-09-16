@@ -1,10 +1,13 @@
+use crate::components::MultiStepQuestionnaire;
+use crate::db::entities::{ClientQuestionnaireSubmission, QuestionnaireResponse};
+use crate::server::{
+    fetch_artist_data, get_artist_questionnaire_form, submit_booking_request,
+    submit_questionnaire_responses, NewBookingRequest,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use thaw::*;
-use crate::server::{submit_booking_request, NewBookingRequest, fetch_artist_data, get_artist_questionnaire_form, submit_questionnaire_responses};
-use crate::db::entities::{ClientQuestionnaireSubmission, QuestionnaireResponse};
-use crate::components::MultiStepQuestionnaire;
 use std::collections::HashMap;
+use thaw::*;
 
 #[component]
 pub fn ClientBookingModal(
@@ -17,10 +20,10 @@ pub fn ClientBookingModal(
     let requested_start_time = RwSignal::new(String::new());
     let requested_end_time = RwSignal::new(String::new());
     let additional_message = RwSignal::new(String::new());
-    
+
     // Questionnaire state
     let questionnaire_responses = RwSignal::new(HashMap::<i32, String>::new());
-    
+
     // UI state
     let current_step = RwSignal::new(1); // 1: questionnaire, 2: appointment details, 3: confirmation
     let questionnaire_completed = RwSignal::new(false);
@@ -62,9 +65,7 @@ pub fn ClientBookingModal(
 
     let submit_booking = create_action(move |request: &NewBookingRequest| {
         let request = request.clone();
-        async move {
-            submit_booking_request(request).await
-        }
+        async move { submit_booking_request(request).await }
     });
 
     let handle_submit = move || {
@@ -77,15 +78,23 @@ pub fn ClientBookingModal(
             let request = NewBookingRequest {
                 artist_id: id,
                 client_name: "Authenticated User".to_string(), // TODO: Get from auth context
-                client_email: "user@example.com".to_string(), // TODO: Get from auth context
+                client_email: "user@example.com".to_string(),  // TODO: Get from auth context
                 client_phone: None,
                 tattoo_description: None, // Collected via questionnaire
-                placement: None, // Collected via questionnaire
-                size_inches: None, // Collected via questionnaire
+                placement: None,          // Collected via questionnaire
+                size_inches: None,        // Collected via questionnaire
                 requested_date: requested_date.get(),
                 requested_start_time: requested_start_time.get(),
-                requested_end_time: if requested_end_time.get().trim().is_empty() { None } else { Some(requested_end_time.get()) },
-                message_from_client: if additional_message.get().trim().is_empty() { None } else { Some(additional_message.get()) },
+                requested_end_time: if requested_end_time.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(requested_end_time.get())
+                },
+                message_from_client: if additional_message.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(additional_message.get())
+                },
             };
 
             submit_booking.dispatch(request);
@@ -99,28 +108,29 @@ pub fn ClientBookingModal(
             match result {
                 Ok(id) => {
                     booking_id.set(Some(id));
-                    
+
                     // Submit questionnaire responses if we have any
                     let responses = questionnaire_responses.get();
                     if !responses.is_empty() {
                         if let Some(booking_id_val) = booking_id.get() {
                             let submission = ClientQuestionnaireSubmission {
                                 booking_request_id: booking_id_val,
-                                responses: responses.into_iter().map(|(question_id, response)| {
-                                    QuestionnaireResponse {
+                                responses: responses
+                                    .into_iter()
+                                    .map(|(question_id, response)| QuestionnaireResponse {
                                         question_id,
                                         response_text: Some(response.clone()),
                                         response_data: None,
-                                    }
-                                }).collect(),
+                                    })
+                                    .collect(),
                             };
-                            
+
                             spawn_local(async move {
                                 let _ = submit_questionnaire_responses(submission).await;
                             });
                         }
                     }
-                    
+
                     current_step.set(3); // Move to confirmation step
                 }
                 Err(e) => {
@@ -131,8 +141,7 @@ pub fn ClientBookingModal(
     });
 
     let is_appointment_form_valid = move || {
-        !requested_date.get().trim().is_empty() &&
-        !requested_start_time.get().trim().is_empty()
+        !requested_date.get().trim().is_empty() && !requested_start_time.get().trim().is_empty()
     };
 
     // Create computed signal for button disabled state
@@ -168,7 +177,7 @@ pub fn ClientBookingModal(
                         3 => "Booking Request Submitted!".to_string(),
                         _ => "Request Booking".to_string()
                     }}</h2>
-                    <Button 
+                    <Button
                         appearance=ButtonAppearance::Subtle
                         on_click=move |_| close_modal()
                         class="close-button"
@@ -181,7 +190,7 @@ pub fn ClientBookingModal(
                     {move || match current_step.get() {
                         1 => view! {
                             // Step 1: Multi-Step Questionnaire
-                            <Suspense fallback=move || view! { 
+                            <Suspense fallback=move || view! {
                                 <div class="loading-questionnaire">
                                     <div class="loading-spinner"></div>
                                     <p>"Loading questionnaire..."</p>
@@ -213,7 +222,7 @@ pub fn ClientBookingModal(
                                                         <h3>"No Questionnaire Required"</h3>
                                                         <p>"This artist hasn't configured a custom questionnaire. You can proceed directly to scheduling your appointment."</p>
                                                         <div class="booking-modal-form-actions">
-                                                            <Button 
+                                                            <Button
                                                                 appearance=ButtonAppearance::Secondary
                                                                 on_click=move |_| {
                                                                     close_modal();
@@ -221,7 +230,7 @@ pub fn ClientBookingModal(
                                                             >
                                                                 "Cancel"
                                                             </Button>
-                                                            <Button 
+                                                            <Button
                                                                 appearance=ButtonAppearance::Primary
                                                                 on_click=move |_| {
                                                                     current_step.set(2);
@@ -249,7 +258,7 @@ pub fn ClientBookingModal(
                         2 => view! {
                             // Step 2: Appointment Details
                             <div class="appointment-form">
-                                <Suspense fallback=move || view! { 
+                                <Suspense fallback=move || view! {
                                     <div class="loading">"Loading artist information..."</div>
                                 }>
                                     {move || {
@@ -336,13 +345,13 @@ pub fn ClientBookingModal(
                                     }}
 
                                     <div class="booking-modal-form-actions">
-                                        <Button 
+                                        <Button
                                             appearance=ButtonAppearance::Secondary
                                             on_click=move |_| current_step.set(1)
                                         >
                                             "Back to Questionnaire"
                                         </Button>
-                                        <Button 
+                                        <Button
                                             button_type=ButtonType::Submit
                                             appearance=ButtonAppearance::Primary
                                             disabled=Signal::from(is_submit_disabled)
@@ -367,7 +376,7 @@ pub fn ClientBookingModal(
                                 {move || {
                                     if let Some(id) = booking_id.get() {
                                         view! {
-                                            <div class="booking-details">
+                                            <div class="client-booking-modal-booking-details">
                                                 <p class="booking-id">{format!("Reference ID: #{}", id)}</p>
                                                 <p class="next-steps">"The artist will review your questionnaire and appointment request, then respond within 24-48 hours. You'll be notified via email with their response."</p>
                                             </div>
@@ -377,7 +386,7 @@ pub fn ClientBookingModal(
                                     }
                                 }}
                                 <div class="confirmation-actions">
-                                    <Button 
+                                    <Button
                                         appearance=ButtonAppearance::Primary
                                         on_click=move |_| close_modal()
                                     >
@@ -393,3 +402,4 @@ pub fn ClientBookingModal(
         </div>
     }
 }
+

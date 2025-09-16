@@ -4,10 +4,10 @@ use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
 use crate::db::entities::{
-    Artist, ArtistImage, ArtistSubscription, AvailabilitySlot, AvailabilityUpdate, BookingMessage, BookingRequest,
-    CityCoords, Location, RecurringRule, Style, SubscriptionTier,
-    QuestionnaireQuestion, ArtistQuestionnaire, ClientQuestionnaireForm, ClientQuestionnaireSubmission,
-    BookingQuestionnaireResponse, ErrorLog, CreateErrorLog,
+    Artist, ArtistImage, ArtistQuestionnaire, ArtistSubscription, AvailabilitySlot,
+    AvailabilityUpdate, BookingMessage, BookingQuestionnaireResponse, BookingRequest, CityCoords,
+    ClientQuestionnaireForm, ClientQuestionnaireSubmission, CreateErrorLog, ErrorLog, Location,
+    QuestionnaireQuestion, RecurringRule, Style, SubscriptionTier,
 };
 use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};
@@ -28,12 +28,13 @@ struct InstagramOEmbedResponse {
 
 #[cfg(feature = "ssr")]
 use crate::db::repository::{
+    check_artist_availability, delete_artist_question, get_all_default_questions,
     get_all_images_with_styles_by_location, get_all_styles_by_location, get_artist_by_id,
-    get_artist_images_with_styles, get_artist_location, get_artist_styles, get_artists_by_location,
-    get_cities_and_coords, get_city_coordinates, get_location_by_id, get_states, query_locations,
-    get_artist_questionnaire, get_all_default_questions, get_artist_questionnaire_config,
-    update_artist_questionnaire_config, delete_artist_question, save_questionnaire_responses, get_booking_questionnaire_responses,
-    get_artist_id_from_user_id, log_error, get_recent_errors, get_errors_by_type, check_artist_availability,
+    get_artist_id_from_user_id, get_artist_images_with_styles, get_artist_location,
+    get_artist_questionnaire, get_artist_questionnaire_config, get_artist_styles,
+    get_artists_by_location, get_booking_questionnaire_responses, get_cities_and_coords,
+    get_city_coordinates, get_errors_by_type, get_location_by_id, get_recent_errors, get_states,
+    log_error, query_locations, save_questionnaire_responses, update_artist_questionnaire_config,
 };
 
 #[server]
@@ -1202,11 +1203,11 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
                 let start_time: Option<String> = row.get(3)?;
                 let end_time: Option<String> = row.get(4)?;
                 let is_available: bool = row.get(5)?;
-                
+
                 // Map day_of_week to day name
                 let day_name = match day_of_week {
                     Some(0) => "Sunday",
-                    Some(1) => "Monday", 
+                    Some(1) => "Monday",
                     Some(2) => "Tuesday",
                     Some(3) => "Wednesday",
                     Some(4) => "Thursday",
@@ -1214,20 +1215,24 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
                     Some(6) => "Saturday",
                     _ => "Unknown Day",
                 };
-                
+
                 // Create descriptive name
                 let name = if is_available {
-                    format!("{} Available: {} - {}", 
-                        day_name, 
-                        start_time.as_deref().unwrap_or("00:00"), 
-                        end_time.as_deref().unwrap_or("00:00"))
+                    format!(
+                        "{} Available: {} - {}",
+                        day_name,
+                        start_time.as_deref().unwrap_or("00:00"),
+                        end_time.as_deref().unwrap_or("00:00")
+                    )
                 } else {
-                    format!("{} Blocked: {} - {}", 
-                        day_name, 
-                        start_time.as_deref().unwrap_or("00:00"), 
-                        end_time.as_deref().unwrap_or("00:00"))
+                    format!(
+                        "{} Blocked: {} - {}",
+                        day_name,
+                        start_time.as_deref().unwrap_or("00:00"),
+                        end_time.as_deref().unwrap_or("00:00")
+                    )
                 };
-                
+
                 // Create pattern from day_of_week
                 let pattern = match day_of_week {
                     Some(day) => format!("[{}]", day),
@@ -1240,7 +1245,11 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
                     name,
                     rule_type: "weekdays".to_string(),
                     pattern,
-                    action: if is_available { "available".to_string() } else { "blocked".to_string() },
+                    action: if is_available {
+                        "available".to_string()
+                    } else {
+                        "blocked".to_string()
+                    },
                     start_time,
                     end_time,
                     active: true, // All recurring rules are considered active
@@ -1915,11 +1924,15 @@ pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, S
                 &request.client_phone.unwrap_or_else(|| "".to_string()),
                 &request.tattoo_description.unwrap_or_else(|| "".to_string()),
                 &request.placement.unwrap_or_else(|| "".to_string()),
-                &request.size_inches.map_or("".to_string(), |s| s.to_string()),
+                &request
+                    .size_inches
+                    .map_or("".to_string(), |s| s.to_string()),
                 &request.requested_date,
                 &request.requested_start_time,
                 &request.requested_end_time.unwrap_or_else(|| "".to_string()),
-                &request.message_from_client.unwrap_or_else(|| "".to_string()),
+                &request
+                    .message_from_client
+                    .unwrap_or_else(|| "".to_string()),
             ])?;
 
             Ok(conn.last_insert_rowid() as i32)
@@ -1940,7 +1953,11 @@ pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, S
 }
 
 #[server]
-pub async fn check_availability(artist_id: i32, requested_date: String, requested_time: String) -> Result<bool, ServerFnError> {
+pub async fn check_availability(
+    artist_id: i32,
+    requested_date: String,
+    requested_time: String,
+) -> Result<bool, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         match check_artist_availability(artist_id, &requested_date, &requested_time) {
@@ -1989,11 +2006,11 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
         use jsonwebtoken::{encode, EncodingKey, Header};
         use rusqlite::{params, Connection};
         use std::path::Path;
-        
+
         #[derive(Debug, Serialize, Deserialize)]
         struct Claims {
-            sub: String, // User ID
-            exp: usize,  // Expiration time
+            sub: String,       // User ID
+            exp: usize,        // Expiration time
             user_type: String, // "client" or "artist"
             user_id: i32,
         }
@@ -2003,59 +2020,57 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
             .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
         // Try to find user in appropriate table based on user_type
-        let (user_id, stored_password_hash, first_name, last_name) = if login_data.user_type == "client" {
+        let (user_id, stored_password_hash, first_name, last_name) = if login_data.user_type
+            == "client"
+        {
             // Query users table for clients
             let mut stmt = conn.prepare(
                 "SELECT id, password_hash, first_name, last_name FROM users WHERE email = ? AND is_active = TRUE"
             ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
 
-            let result: Result<(i32, String, String, String), _> = stmt.query_row(
-                params![login_data.email],
-                |row| Ok((
-                    row.get(0)?, 
-                    row.get(1)?, 
-                    row.get(2)?, 
-                    row.get(3)?
-                ))
-            );
+            let result: Result<(i32, String, String, String), _> = stmt
+                .query_row(params![login_data.email], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                });
 
             match result {
                 Ok(user_data) => user_data,
-                Err(_) => return Ok(AuthResponse {
-                    success: false,
-                    token: None,
-                    user_type: None,
-                    user_id: None,
-                    error: Some("Invalid email or password".to_string()),
-                }),
+                Err(_) => {
+                    return Ok(AuthResponse {
+                        success: false,
+                        token: None,
+                        user_type: None,
+                        user_id: None,
+                        error: Some("Invalid email or password".to_string()),
+                    })
+                }
             }
         } else {
             // Query artist_users table for artists
-            let mut stmt = conn.prepare(
-                "SELECT au.id, au.password_hash, a.name, '' FROM artist_users au 
+            let mut stmt = conn
+                .prepare(
+                    "SELECT au.id, au.password_hash, a.name, '' FROM artist_users au 
                  JOIN artists a ON au.artist_id = a.id 
-                 WHERE au.email = ?"
-            ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+                 WHERE au.email = ?",
+                )
+                .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
 
-            let result: Result<(i32, String, String, String), _> = stmt.query_row(
-                params![login_data.email],
-                |row| Ok((
-                    row.get(0)?, 
-                    row.get(1)?, 
-                    row.get(2)?, 
-                    row.get(3)?
-                ))
-            );
+            let result: Result<(i32, String, String, String), _> = stmt
+                .query_row(params![login_data.email], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                });
 
             match result {
                 Ok((id, hash, name, _)) => (id, hash, name, "".to_string()),
-                Err(_) => return Ok(AuthResponse {
-                    success: false,
-                    token: None,
-                    user_type: None,
-                    user_id: None,
-                    error: Some("Invalid email or password".to_string()),
-                }),
+                Err(_) => {
+                    return Ok(AuthResponse {
+                        success: false,
+                        token: None,
+                        user_type: None,
+                        user_id: None,
+                        error: Some("Invalid email or password".to_string()),
+                    })
+                }
             }
         };
 
@@ -2096,8 +2111,12 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
 
         // Use a simple secret for now - in production this should be from environment
         let secret = "tatteau-jwt-secret-key-change-in-production";
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref()))
-            .map_err(|e| ServerFnError::new(format!("Token generation error: {}", e)))?;
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(secret.as_ref()),
+        )
+        .map_err(|e| ServerFnError::new(format!("Token generation error: {}", e)))?;
 
         Ok(AuthResponse {
             success: true,
@@ -2142,17 +2161,21 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
 
         // Check if email already exists in either table
         let email_exists = {
-            let mut stmt = conn.prepare("SELECT COUNT(*) FROM users WHERE email = ?")
+            let mut stmt = conn
+                .prepare("SELECT COUNT(*) FROM users WHERE email = ?")
                 .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
-            let count: i32 = stmt.query_row(params![signup_data.email], |row| row.get(0))
+            let count: i32 = stmt
+                .query_row(params![signup_data.email], |row| row.get(0))
                 .map_err(|e| ServerFnError::new(format!("Database query error: {}", e)))?;
-            
+
             if count > 0 {
                 true
             } else {
-                let mut stmt = conn.prepare("SELECT COUNT(*) FROM artist_users WHERE email = ?")
+                let mut stmt = conn
+                    .prepare("SELECT COUNT(*) FROM artist_users WHERE email = ?")
                     .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
-                let count: i32 = stmt.query_row(params![signup_data.email], |row| row.get(0))
+                let count: i32 = stmt
+                    .query_row(params![signup_data.email], |row| row.get(0))
                     .map_err(|e| ServerFnError::new(format!("Database query error: {}", e)))?;
                 count > 0
             }
@@ -2184,12 +2207,13 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
                     signup_data.phone,
                     password_hash
                 ],
-            ).map_err(|e| ServerFnError::new(format!("Failed to create user account: {}", e)))?;
-            
+            )
+            .map_err(|e| ServerFnError::new(format!("Failed to create user account: {}", e)))?;
+
             conn.last_insert_rowid() as i32
         } else {
             // For artists, we need to create both artist record and artist_users record
-            
+
             // First create artist record - using placeholder location_id for now
             // In production, this would be part of the artist onboarding flow
             conn.execute(
@@ -2201,17 +2225,21 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
                     signup_data.email,
                     "pending_onboarding"
                 ],
-            ).map_err(|e| ServerFnError::new(format!("Failed to create artist record: {}", e)))?;
-            
+            )
+            .map_err(|e| ServerFnError::new(format!("Failed to create artist record: {}", e)))?;
+
             let artist_id = conn.last_insert_rowid() as i32;
-            
+
             // Then create artist_users record
             conn.execute(
                 "INSERT INTO artist_users (artist_id, email, password_hash) 
                  VALUES (?, ?, ?)",
                 params![artist_id, signup_data.email, password_hash],
-            ).map_err(|e| ServerFnError::new(format!("Failed to create artist user account: {}", e)))?;
-            
+            )
+            .map_err(|e| {
+                ServerFnError::new(format!("Failed to create artist user account: {}", e))
+            })?;
+
             conn.last_insert_rowid() as i32
         };
 
@@ -2229,8 +2257,12 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
         };
 
         let secret = "tatteau-jwt-secret-key-change-in-production";
-        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_ref()))
-            .map_err(|e| ServerFnError::new(format!("Token generation error: {}", e)))?;
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(secret.as_ref()),
+        )
+        .map_err(|e| ServerFnError::new(format!("Token generation error: {}", e)))?;
 
         Ok(AuthResponse {
             success: true,
@@ -2295,13 +2327,18 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
                             email: row.get(3)?,
                             user_type: "client".to_string(),
                         })
-                    }).ok()
+                    })
+                    .ok()
                 } else {
-                    let mut stmt = conn.prepare(
-                        "SELECT au.id, a.name, '', au.email FROM artist_users au 
+                    let mut stmt = conn
+                        .prepare(
+                            "SELECT au.id, a.name, '', au.email FROM artist_users au 
                          JOIN artists a ON au.artist_id = a.id 
-                         WHERE au.id = ?"
-                    ).map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+                         WHERE au.id = ?",
+                        )
+                        .map_err(|e| {
+                            ServerFnError::new(format!("Database prepare error: {}", e))
+                        })?;
 
                     stmt.query_row(params![claims.user_id], |row| {
                         let name: String = row.get(1)?;
@@ -2319,7 +2356,8 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
                             email: row.get(3)?,
                             user_type: "artist".to_string(),
                         })
-                    }).ok()
+                    })
+                    .ok()
                 };
 
                 Ok(user_info)
@@ -2416,7 +2454,9 @@ pub async fn create_artist_subscription(
 }
 
 #[server]
-pub async fn get_artist_subscription(artist_id: i32) -> Result<Option<ArtistSubscription>, ServerFnError> {
+pub async fn get_artist_subscription(
+    artist_id: i32,
+) -> Result<Option<ArtistSubscription>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use rusqlite::Connection;
@@ -2487,7 +2527,9 @@ pub async fn check_artist_has_active_subscription(artist_id: i32) -> Result<bool
 // ================================
 
 #[server]
-pub async fn get_artist_questionnaire_form(artist_id: i32) -> Result<ClientQuestionnaireForm, ServerFnError> {
+pub async fn get_artist_questionnaire_form(
+    artist_id: i32,
+) -> Result<ClientQuestionnaireForm, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         match get_artist_questionnaire(artist_id) {
@@ -2517,7 +2559,9 @@ pub async fn get_default_questions() -> Result<Vec<QuestionnaireQuestion>, Serve
 }
 
 #[server]
-pub async fn get_artist_questionnaire_configuration(artist_id: i32) -> Result<Vec<ArtistQuestionnaire>, ServerFnError> {
+pub async fn get_artist_questionnaire_configuration(
+    artist_id: i32,
+) -> Result<Vec<ArtistQuestionnaire>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         match get_artist_questionnaire_config(artist_id) {
@@ -2533,7 +2577,7 @@ pub async fn get_artist_questionnaire_configuration(artist_id: i32) -> Result<Ve
 
 #[server]
 pub async fn get_artist_id_from_jwt_user_id(
-    jwt_user_id: i32
+    jwt_user_id: i32,
 ) -> Result<Option<i32>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -2551,7 +2595,7 @@ pub async fn get_artist_id_from_jwt_user_id(
 #[server]
 pub async fn update_artist_questionnaire_configuration(
     artist_id: i32,
-    config: Vec<ArtistQuestionnaire>
+    config: Vec<ArtistQuestionnaire>,
 ) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -2569,7 +2613,7 @@ pub async fn update_artist_questionnaire_configuration(
 #[server]
 pub async fn delete_artist_questionnaire_question(
     artist_id: i32,
-    question_id: i32
+    question_id: i32,
 ) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -2586,12 +2630,13 @@ pub async fn delete_artist_questionnaire_question(
 
 #[server]
 pub async fn submit_questionnaire_responses(
-    submission: ClientQuestionnaireSubmission
+    submission: ClientQuestionnaireSubmission,
 ) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         // Convert client responses to database format
-        let responses: Vec<BookingQuestionnaireResponse> = submission.responses
+        let responses: Vec<BookingQuestionnaireResponse> = submission
+            .responses
             .into_iter()
             .map(|r| BookingQuestionnaireResponse {
                 id: 0, // Will be auto-generated
@@ -2616,7 +2661,7 @@ pub async fn submit_questionnaire_responses(
 
 #[server]
 pub async fn get_booking_responses(
-    booking_request_id: i32
+    booking_request_id: i32,
 ) -> Result<Vec<BookingQuestionnaireResponse>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -2675,17 +2720,19 @@ pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError>
     {
         use rusqlite::Connection;
         use std::path::Path;
-        
+
         let db_path = Path::new("tatteau.db");
         let conn = Connection::open(db_path)
             .map_err(|e| ServerFnError::new(format!("Failed to open database: {}", e)))?;
-        
-        let artist_id: i32 = conn.query_row(
-            "SELECT artist_id FROM artist_users WHERE id = ?1",
-            [user_id],
-            |row| row.get(0)
-        ).map_err(|e| ServerFnError::new(format!("Failed to get artist_id: {}", e)))?;
-        
+
+        let artist_id: i32 = conn
+            .query_row(
+                "SELECT artist_id FROM artist_users WHERE id = ?1",
+                [user_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| ServerFnError::new(format!("Failed to get artist_id: {}", e)))?;
+
         Ok(artist_id)
     }
     #[cfg(not(feature = "ssr"))]
@@ -2718,7 +2765,10 @@ pub async fn log_server_error(
 
         match log_error(error_data) {
             Ok(id) => Ok(id),
-            Err(e) => Err(ServerFnError::new(format!("Failed to log server error: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to log server error: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -2742,7 +2792,10 @@ pub async fn get_error_logs(
 
         match result {
             Ok(errors) => Ok(errors),
-            Err(e) => Err(ServerFnError::new(format!("Failed to fetch error logs: {}", e))),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch error logs: {}",
+                e
+            ))),
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -2750,4 +2803,3 @@ pub async fn get_error_logs(
         Err(ServerFnError::new("Not available on client".to_string()))
     }
 }
-
