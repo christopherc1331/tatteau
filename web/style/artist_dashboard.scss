@@ -1231,6 +1231,29 @@
   }
 }
 
+// Message Styles
+.success-message {
+  color: #065f46;
+  background: #d1fae5;
+  border: 1px solid #a7f3d0;
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.error-message {
+  color: #dc2626;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
 // Button Styles
 .btn {
   display: inline-block;

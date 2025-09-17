@@ -171,7 +171,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                         "Add New Rule"
                     </Button>
                     <Button>
-                        <a href="/artist/dashboard/calendar" style="text-decoration: none; color: inherit;">
+                        <a href="/artist/dashboard/calendar" class="back-button">
                             "Back to Calendar"
                         </a>
                     </Button>

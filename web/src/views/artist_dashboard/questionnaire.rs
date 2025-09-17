@@ -405,7 +405,7 @@ fn InteractiveQuestionnaireBuilder(
                         </div>
                     }.into_any()
                 } else {
-                    view! { <div style="display: none;"></div> }.into_any()
+                    view! { <div class="artist-dashboard-questionnaire-hidden"></div> }.into_any()
                 }
             }}
         </div>

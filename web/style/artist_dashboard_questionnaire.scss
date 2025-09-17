@@ -1,0 +1,446 @@
+// Artist Dashboard Questionnaire Styles
+.artist-dashboard-questionnaire {
+  &-builder {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    background: #f8fafc;
+    min-height: 100vh;
+  }
+
+  &-header {
+    margin-bottom: 2rem;
+
+    h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin: 0 0 0.5rem 0;
+    }
+
+    p {
+      color: #6b7280;
+      font-size: 1.1rem;
+      margin: 0;
+    }
+  }
+
+  &-content {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+  }
+
+  &-form {
+    padding: 2rem;
+  }
+
+  &-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: #6b7280;
+    font-size: 1.1rem;
+  }
+
+  &-questions-list {
+    margin-bottom: 2rem;
+
+    h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin: 0 0 0.5rem 0;
+    }
+  }
+
+  &-questions-subtitle {
+    color: #6b7280;
+    font-size: 1rem;
+    margin: 0 0 2rem 0;
+  }
+
+  &-question-config-item {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border-color: #d1d5db;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &-question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  &-question-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
+  }
+
+  &-question-status-text {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+  }
+
+  &-delete-question-btn {
+    background: #dc2626;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #b91c1c;
+      transform: translateY(-1px);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &-question-info {
+    flex: 1;
+
+    h4 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1a202c;
+      margin: 0 0 0.5rem 0;
+      line-height: 1.4;
+    }
+  }
+
+  &-question-type {
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &-question-options {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  &-option-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      font-weight: 600;
+      color: #374151;
+      margin: 0;
+    }
+  }
+
+  &-options-display {
+    margin-top: 0.5rem;
+  }
+
+  &-options-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  &-option-tag {
+    background: #f3f4f6;
+    color: #374151;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    border: 1px solid #d1d5db;
+  }
+
+  &-save-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+
+    .thaw-button {
+      margin-bottom: 1rem;
+    }
+  }
+
+  &-error-message {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+  }
+
+  &-success-message {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+  }
+
+  &-status-text {
+    color: #6b7280;
+    font-size: 0.9rem;
+    margin: 0;
+    font-style: italic;
+  }
+
+  &-hidden {
+    display: none;
+  }
+
+  // Modal Styles
+  &-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  &-modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  &-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+
+    h3 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1a202c;
+    }
+  }
+
+  &-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: #f3f4f6;
+      color: #374151;
+    }
+  }
+
+  &-modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+
+    p {
+      margin: 0 0 1rem 0;
+      color: #374151;
+      line-height: 1.5;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      strong {
+        color: #dc2626;
+        font-weight: 700;
+      }
+    }
+  }
+
+  &-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+
+    .thaw-button {
+      margin: 0;
+    }
+  }
+}
+
+// Legacy class names for backward compatibility
+.questionnaire-builder {
+  @extend .artist-dashboard-questionnaire-builder;
+}
+
+.questionnaire-header {
+  @extend .artist-dashboard-questionnaire-header;
+}
+
+.questionnaire-content {
+  @extend .artist-dashboard-questionnaire-content;
+}
+
+.loading {
+  @extend .artist-dashboard-questionnaire-loading;
+}
+
+.questionnaire-form {
+  @extend .artist-dashboard-questionnaire-form;
+}
+
+.questions-list {
+  @extend .artist-dashboard-questionnaire-questions-list;
+}
+
+.questions-subtitle {
+  @extend .artist-dashboard-questionnaire-questions-subtitle;
+}
+
+.question-config-item {
+  @extend .artist-dashboard-questionnaire-question-config-item;
+}
+
+.question-header {
+  @extend .artist-dashboard-questionnaire-question-header;
+}
+
+.question-controls {
+  @extend .artist-dashboard-questionnaire-question-controls;
+}
+
+.question-status-text {
+  @extend .artist-dashboard-questionnaire-question-status-text;
+}
+
+.delete-question-btn {
+  @extend .artist-dashboard-questionnaire-delete-question-btn;
+}
+
+.question-info {
+  @extend .artist-dashboard-questionnaire-question-info;
+}
+
+.question-type {
+  @extend .artist-dashboard-questionnaire-question-type;
+}
+
+.question-options {
+  @extend .artist-dashboard-questionnaire-question-options;
+}
+
+.option-row {
+  @extend .artist-dashboard-questionnaire-option-row;
+}
+
+.options-display {
+  @extend .artist-dashboard-questionnaire-options-display;
+}
+
+.options-list {
+  @extend .artist-dashboard-questionnaire-options-list;
+}
+
+.option-tag {
+  @extend .artist-dashboard-questionnaire-option-tag;
+}
+
+.save-section {
+  @extend .artist-dashboard-questionnaire-save-section;
+}
+
+.error-message {
+  @extend .artist-dashboard-questionnaire-error-message;
+}
+
+.success-message {
+  @extend .artist-dashboard-questionnaire-success-message;
+}
+
+.status-text {
+  @extend .artist-dashboard-questionnaire-status-text;
+}
+
+.modal-overlay {
+  @extend .artist-dashboard-questionnaire-modal-overlay;
+}
+
+.modal-content {
+  @extend .artist-dashboard-questionnaire-modal-content;
+}
+
+.modal-header {
+  @extend .artist-dashboard-questionnaire-modal-header;
+}
+
+.modal-close {
+  @extend .artist-dashboard-questionnaire-modal-close;
+}
+
+.modal-body {
+  @extend .artist-dashboard-questionnaire-modal-body;
+}
+
+.modal-footer {
+  @extend .artist-dashboard-questionnaire-modal-footer;
+}
+

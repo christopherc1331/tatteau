@@ -209,13 +209,13 @@ pub fn ArtistSettings() -> impl IntoView {
                     {move || {
                         if let Some(Ok(_)) = save_hours_action.value().get() {
                             view! {
-                                <div class="success-message" style="color: green; margin-top: 0.5rem; font-size: 0.9rem;">
+                                <div class="success-message">
                                     "Business hours saved successfully!"
                                 </div>
                             }.into_any()
                         } else if let Some(Err(e)) = save_hours_action.value().get() {
                             view! {
-                                <div class="error-message" style="color: red; margin-top: 0.5rem; font-size: 0.9rem;">
+                                <div class="error-message">
                                     {format!("Error saving hours: {}", e)}
                                 </div>
                             }.into_any()
