@@ -1134,7 +1134,7 @@ pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionna
                    ) as rn
             FROM questionnaire_questions q
             JOIN artist_questionnaires aq ON q.id = aq.question_id
-            WHERE aq.artist_id = ?1
+            WHERE aq.artist_id = ?1 AND aq.is_enabled = 1
         )
         SELECT id, question_type, question_text, is_required, options, validation_rules
         FROM latest_configs
@@ -1274,7 +1274,7 @@ pub fn get_artist_questionnaire_config(artist_id: i32) -> SqliteResult<Vec<Artis
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare("
-        SELECT id, artist_id, question_id, is_required, display_order, custom_options
+        SELECT id, artist_id, question_id, is_required, display_order, custom_options, is_enabled
         FROM artist_questionnaires
         WHERE artist_id = ?1
         ORDER BY display_order
@@ -1288,6 +1288,7 @@ pub fn get_artist_questionnaire_config(artist_id: i32) -> SqliteResult<Vec<Artis
             is_required: row.get(3)?,
             display_order: row.get(4)?,
             custom_options: row.get(5)?,
+            is_enabled: row.get(6)?,
         })
     })?;
 
@@ -1313,15 +1314,16 @@ pub fn update_artist_questionnaire_config(
     // Insert new config
     for item in config {
         conn.execute(
-            "INSERT INTO artist_questionnaires 
-             (artist_id, question_id, is_required, display_order, custom_options)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO artist_questionnaires
+             (artist_id, question_id, is_required, display_order, custom_options, is_enabled)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 item.artist_id,
                 item.question_id,
                 item.is_required,
                 item.display_order,
-                item.custom_options
+                item.custom_options,
+                item.is_enabled
             ],
         )?;
     }

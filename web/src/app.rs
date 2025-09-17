@@ -61,27 +61,9 @@ pub fn App() -> impl IntoView {
         // injects a stylesheet into the document <head>
         // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/web.css"/>
-        
-        // booking details page styles
-        <Stylesheet id="booking-details" href="/style/booking_details.css"/>
-        
-        // booking modal styles  
-        <Stylesheet id="booking-modal" href="/style/booking_modal.css"/>
-        
-        // multi-step questionnaire styles
-        <Stylesheet id="multi-step-questionnaire" href="/style/multi_step_questionnaire.css"/>
-        
-        // authentication pages styles
-        <Stylesheet id="auth" href="/style/auth.css"/>
-        
-        // subscription tiers page styles
-        <Stylesheet id="subscription-tiers" href="/style/subscription_tiers.css"/>
-        
-        // questionnaire builder styles
-        <Stylesheet id="questionnaire" href="/style/questionnaire.css"/>
-        
-        // error boundary styles
-        <Stylesheet id="error-boundary" href="/style/error_boundary.css"/>
+
+        // Main SCSS file containing all component styles
+        <Stylesheet id="main-styles" href="/pkg/main.css"/>
 
         // sets the document title
         <Title text="tatteau"/>

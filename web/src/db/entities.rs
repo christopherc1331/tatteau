@@ -258,6 +258,7 @@ pub struct ArtistQuestionnaire {
     pub is_required: bool,
     pub display_order: i32,
     pub custom_options: Option<String>, // JSON override for default questions
+    pub is_enabled: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

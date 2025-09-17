@@ -141,11 +141,11 @@ pub fn MapRenderer(
     });
 
     view! {
-        <div style="position: relative; height: 100%; width: 100%; flex: 1;">
+        <div class="map-renderer-container">
             {move || if map_ready.get() {
                 view! {
                     <MapContainer
-                        style="height: 100%; width: 100%"
+                        class="map-renderer-map-container"
                         center=center.get()
                         zoom=12.0
                         set_view=true
@@ -176,7 +176,7 @@ pub fn MapRenderer(
                 }.into_any()
             } else {
                 view! {
-                    <div style="height: 100%; width: 100%; display: flex; align-items: center; justify-content: center;">
+                    <div class="map-renderer-loading-container">
                         <LoadingView message=Some("Initializing map...".to_string()) />
                     </div>
                 }.into_any()

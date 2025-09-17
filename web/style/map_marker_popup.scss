@@ -1,0 +1,35 @@
+// Map Marker Popup component styles
+.map-marker-popup {
+  &-container {
+    margin: 0.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &-address {
+    margin: 0;
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+
+  &-link {
+    background: #667eea;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    text-decoration: none;
+    text-align: center;
+    font-weight: 600;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: #5a67d8;
+    }
+
+    &:focus {
+      outline: 2px solid #667eea;
+      outline-offset: 2px;
+    }
+  }
+}

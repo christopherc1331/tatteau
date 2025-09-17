@@ -1,0 +1,22 @@
+// Map Renderer component styles
+.map-renderer {
+  &-container {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    flex: 1;
+  }
+
+  &-map-container {
+    height: 100%;
+    width: 100%;
+  }
+
+  &-loading-container {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

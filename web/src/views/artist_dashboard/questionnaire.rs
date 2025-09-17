@@ -158,8 +158,8 @@ fn InteractiveQuestionnaireBuilder(
                     let initial_config = current_config.get().into_iter()
                         .find(|c| c.question_id == question_id);
                     
-                    let is_enabled = RwSignal::new(initial_config.is_some());
-                    let is_required = RwSignal::new(initial_config.map(|c| c.is_required).unwrap_or(true));
+                    let is_enabled = RwSignal::new(initial_config.as_ref().map(|c| c.is_enabled).unwrap_or(false));
+                    let is_required = RwSignal::new(initial_config.as_ref().map(|c| c.is_required).unwrap_or(true));
                     
                     // Update handlers
                     let update_enabled = {
@@ -167,21 +167,20 @@ fn InteractiveQuestionnaireBuilder(
                         let set_has_changes = set_has_changes.clone();
                         move |enabled: bool| {
                             set_current_config.update(|config| {
-                                if enabled {
-                                    // Add question to config
-                                    if !config.iter().any(|c| c.question_id == question_id) {
-                                        config.push(ArtistQuestionnaire {
-                                            id: 0, // Will be set by database
-                                            artist_id,
-                                            question_id,
-                                            is_required: true,
-                                            display_order: (index + 1) as i32,
-                                            custom_options: None,
-                                        });
-                                    }
+                                if let Some(item) = config.iter_mut().find(|c| c.question_id == question_id) {
+                                    // Update existing config
+                                    item.is_enabled = enabled;
                                 } else {
-                                    // Remove question from config
-                                    config.retain(|c| c.question_id != question_id);
+                                    // Add new question to config with enabled state
+                                    config.push(ArtistQuestionnaire {
+                                        id: 0, // Will be set by database
+                                        artist_id,
+                                        question_id,
+                                        is_required: true,
+                                        display_order: (index + 1) as i32,
+                                        custom_options: None,
+                                        is_enabled: enabled,
+                                    });
                                 }
                             });
                             set_has_changes.set(true);
