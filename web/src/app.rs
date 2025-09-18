@@ -63,9 +63,6 @@ pub fn App() -> impl IntoView {
         // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/web.css"/>
 
-        // Main SCSS file containing all component styles
-        <Stylesheet id="main-styles" href="/pkg/main.css"/>
-
         // sets the document title
         <Title text="tatteau"/>
 

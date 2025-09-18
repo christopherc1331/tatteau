@@ -1,10 +1,11 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_query_map;
+use leptos_router::hooks::{use_query_map, use_navigate};
 use thaw::*;
 
 #[component]
 pub fn BookingConfirmation() -> impl IntoView {
     let query = use_query_map();
+    let navigate = use_navigate();
 
     // Extract booking ID from URL query parameters
     let booking_id = move || {
@@ -101,16 +102,22 @@ pub fn BookingConfirmation() -> impl IntoView {
                 <div class="booking-confirmation-actions">
                     <Button
                         appearance=ButtonAppearance::Secondary
-                        on_click=move |_| {
-                            let _ = leptos_router::hooks::use_navigate()("/explore", Default::default());
+                        on_click={
+                            let navigate = navigate.clone();
+                            move |_| {
+                                let _ = navigate("/explore", Default::default());
+                            }
                         }
                     >
                         "Browse More Artists"
                     </Button>
                     <Button
                         appearance=ButtonAppearance::Primary
-                        on_click=move |_| {
-                            let _ = leptos_router::hooks::use_navigate()("/", Default::default());
+                        on_click={
+                            let navigate = navigate.clone();
+                            move |_| {
+                                let _ = navigate("/", Default::default());
+                            }
                         }
                     >
                         "Return Home"
