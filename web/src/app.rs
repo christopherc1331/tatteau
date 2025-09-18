@@ -12,6 +12,7 @@ use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests,
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::auth::{LoginPage, SignupPage};
 use crate::views::booking::{ArtistBooking, ShopBooking};
+use crate::views::booking_confirmation::BookingConfirmation;
 use crate::views::home::HomePage;
 use crate::views::map::map_wrapper::DiscoveryMap;
 use crate::views::match_results::MatchResults;
@@ -100,6 +101,7 @@ pub fn App() -> impl IntoView {
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
                         <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
                         <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
+                        <Route path=(StaticSegment("booking"), StaticSegment("confirmation")) view=BookingConfirmation/>
                     </Routes>
                 </main>
             </Router>

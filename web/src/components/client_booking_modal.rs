@@ -6,6 +6,7 @@ use crate::server::{
 };
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_router::hooks::use_navigate;
 use std::collections::HashMap;
 use thaw::*;
 
@@ -25,7 +26,7 @@ pub fn ClientBookingModal(
     let questionnaire_responses = RwSignal::new(HashMap::<i32, String>::new());
 
     // UI state
-    let current_step = RwSignal::new(1); // 1: questionnaire, 2: appointment details, 3: confirmation
+    let current_step = RwSignal::new(1); // 1: questionnaire, 2: appointment details
     let questionnaire_completed = RwSignal::new(false);
     let is_submitting = RwSignal::new(false);
     let submission_error = RwSignal::new(None::<String>);
@@ -101,10 +102,11 @@ pub fn ClientBookingModal(
         }
     };
 
+    let navigate = use_navigate();
+
     // Handle submission result
     Effect::new(move |_| {
         if let Some(result) = submit_booking.value().get() {
-            is_submitting.set(false);
             match result {
                 Ok(id) => {
                     booking_id.set(Some(id));
@@ -131,10 +133,34 @@ pub fn ClientBookingModal(
                         }
                     }
 
-                    current_step.set(3); // Move to confirmation step
+                    // Get artist name from the resource for the confirmation page
+                    let artist_name = artist_resource.get()
+                        .and_then(|artist_opt| artist_opt)
+                        .and_then(|artist_data| artist_data.artist.name)
+                        .unwrap_or_else(|| "the artist".to_string());
+
+                    // Reset form state
+                    requested_date.set(String::new());
+                    requested_start_time.set(String::new());
+                    requested_end_time.set(String::new());
+                    additional_message.set(String::new());
+                    questionnaire_responses.set(HashMap::new());
+                    questionnaire_completed.set(false);
+                    current_step.set(1);
+                    submission_error.set(None);
+                    booking_id.set(None);
+
+                    // Navigate to confirmation page with booking ID and artist name
+                    let confirmation_url = format!("/booking/confirmation?booking_id={}&artist_name={}", id, urlencoding::encode(&artist_name));
+                    let _ = navigate(&confirmation_url, Default::default());
+
+                    // Close modal and stop submitting after navigation
+                    show.set(false);
+                    is_submitting.set(false);
                 }
                 Err(e) => {
                     submission_error.set(Some(format!("Failed to submit booking: {}", e)));
+                    is_submitting.set(false);
                 }
             }
         }
@@ -174,7 +200,6 @@ pub fn ClientBookingModal(
                     <h2>{move || match current_step.get() {
                         1 => "Artist Questionnaire".to_string(),
                         2 => "Schedule Appointment".to_string(),
-                        3 => "Booking Request Submitted!".to_string(),
                         _ => "Request Booking".to_string()
                     }}</h2>
                     <Button
@@ -361,38 +386,6 @@ pub fn ClientBookingModal(
                                         </Button>
                                     </div>
                                 </form>
-                            </div>
-                        }.into_any(),
-                        3 => view! {
-                            // Step 3: Confirmation
-                            <div class="confirmation-step">
-                                <div class="success-icon">
-                                    "✓"
-                                </div>
-                                <h3>"Booking Request Submitted Successfully!"</h3>
-                                <p class="confirmation-text">
-                                    "Your questionnaire responses and appointment request have been sent to the artist. You will receive a confirmation email shortly."
-                                </p>
-                                {move || {
-                                    if let Some(id) = booking_id.get() {
-                                        view! {
-                                            <div class="client-booking-modal-booking-details">
-                                                <p class="booking-id">{format!("Reference ID: #{}", id)}</p>
-                                                <p class="next-steps">"The artist will review your questionnaire and appointment request, then respond within 24-48 hours. You'll be notified via email with their response."</p>
-                                            </div>
-                                        }.into_any()
-                                    } else {
-                                        view! {}.into_any()
-                                    }
-                                }}
-                                <div class="confirmation-actions">
-                                    <Button
-                                        appearance=ButtonAppearance::Primary
-                                        on_click=move |_| close_modal()
-                                    >
-                                        "Done"
-                                    </Button>
-                                </div>
                             </div>
                         }.into_any(),
                         _ => view! {}.into_any()

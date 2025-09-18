@@ -1,0 +1,233 @@
+// Booking Confirmation Page Styles
+.booking-confirmation {
+  &-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-content {
+    max-width: 600px;
+    width: 100%;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+  }
+
+  &-header {
+    text-align: center;
+    padding: 3rem 2rem 2rem;
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: white;
+  }
+
+  &-success-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    color: #22c55e;
+    background: white;
+    border-radius: 50%;
+    width: 5rem;
+    height: 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+  }
+
+  &-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: white;
+  }
+
+  &-subtitle {
+    font-size: 1.1rem;
+    margin: 0;
+    opacity: 0.9;
+    color: white;
+  }
+
+  &-details {
+    padding: 2rem;
+  }
+
+  &-reference {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: #f1f5f9;
+    border-radius: 12px;
+    border: 2px dashed #cbd5e1;
+  }
+
+  &-reference-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 0.5rem 0;
+  }
+
+  &-reference-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #7c3aed;
+    margin: 0 0 0.5rem 0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  }
+
+  &-reference-note {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 0;
+  }
+
+  &-section-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 1rem 0;
+  }
+
+  &-next-steps {
+    margin-bottom: 2rem;
+  }
+
+  &-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  &-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  &-step-number {
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: #7c3aed;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+  }
+
+  &-step-content {
+    flex: 1;
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0 0 0.25rem 0;
+    }
+
+    p {
+      color: #64748b;
+      margin: 0;
+      line-height: 1.5;
+    }
+  }
+
+  &-contact {
+    margin-bottom: 2rem;
+  }
+
+  &-contact-info {
+    p {
+      color: #64748b;
+      margin: 0 0 1rem 0;
+    }
+  }
+
+  &-contact-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      color: #64748b;
+      margin-bottom: 0.5rem;
+      padding-left: 1.5rem;
+      position: relative;
+
+      &:before {
+        content: "•";
+        color: #7c3aed;
+        font-weight: bold;
+        position: absolute;
+        left: 0;
+      }
+    }
+  }
+
+  &-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e2e8f0;
+
+    button {
+      flex: 1;
+      max-width: 200px;
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .booking-confirmation {
+    &-container {
+      padding: 1rem;
+      align-items: flex-start;
+      padding-top: 2rem;
+    }
+
+    &-content {
+      max-width: 100%;
+    }
+
+    &-header {
+      padding: 2rem 1.5rem 1.5rem;
+    }
+
+    &-title {
+      font-size: 1.5rem;
+    }
+
+    &-subtitle {
+      font-size: 1rem;
+    }
+
+    &-details {
+      padding: 1.5rem;
+    }
+
+    &-reference-number {
+      font-size: 1.5rem;
+    }
+
+    &-actions {
+      flex-direction: column;
+
+      button {
+        max-width: none;
+      }
+    }
+  }
+}

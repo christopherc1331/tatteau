@@ -2,6 +2,7 @@ pub mod artist_dashboard;
 pub mod artist_highlight;
 pub mod auth;
 pub mod booking;
+pub mod booking_confirmation;
 pub mod home;
 pub mod instagram_demo;
 pub mod map;
