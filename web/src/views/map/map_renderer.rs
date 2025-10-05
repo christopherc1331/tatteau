@@ -22,9 +22,6 @@ pub fn MapRenderer(
     cities: Resource<Result<Vec<CityCoords>, ServerFnError>>,
     selected_styles: RwSignal<Vec<i32>>,
     map_bounds: RwSignal<MapBounds>,
-    price_min: RwSignal<f64>,
-    price_max: RwSignal<f64>,
-    distance_radius: RwSignal<f64>,
 ) -> impl IntoView {
     let selected_city_coords = RwSignal::new(default_location.clone());
 
