@@ -674,6 +674,81 @@ pub fn get_styles_with_counts_in_bounds(
 }
 
 #[cfg(feature = "ssr")]
+pub fn get_styles_by_location(
+    state: Option<String>,
+    city: Option<String>,
+) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    // Build query based on location filters
+    let query = match (&state, &city) {
+        (Some(_), Some(_)) => {
+            // Filter by both state and city
+            "SELECT
+                s.id,
+                s.name,
+                COUNT(DISTINCT ast.artist_id) as artist_count
+             FROM styles s
+             INNER JOIN artists_styles ast ON s.id = ast.style_id
+             INNER JOIN artists a ON ast.artist_id = a.id
+             INNER JOIN locations l ON a.location_id = l.id
+             WHERE l.state = ?1
+               AND l.city = ?2
+             GROUP BY s.id, s.name
+             HAVING artist_count > 0
+             ORDER BY artist_count DESC, s.name ASC"
+        }
+        (Some(_), None) => {
+            // Filter by state only
+            "SELECT
+                s.id,
+                s.name,
+                COUNT(DISTINCT ast.artist_id) as artist_count
+             FROM styles s
+             INNER JOIN artists_styles ast ON s.id = ast.style_id
+             INNER JOIN artists a ON ast.artist_id = a.id
+             INNER JOIN locations l ON a.location_id = l.id
+             WHERE l.state = ?1
+             GROUP BY s.id, s.name
+             HAVING artist_count > 0
+             ORDER BY artist_count DESC, s.name ASC"
+        }
+        _ => {
+            // No location filter - return all styles
+            "SELECT
+                s.id,
+                s.name,
+                COUNT(DISTINCT ast.artist_id) as artist_count
+             FROM styles s
+             LEFT JOIN artists_styles ast ON s.id = ast.style_id
+             GROUP BY s.id, s.name
+             ORDER BY artist_count DESC, s.name ASC"
+        }
+    };
+
+    let mut stmt = conn.prepare(query)?;
+
+    let map_row = |row: &rusqlite::Row| -> rusqlite::Result<crate::server::StyleWithCount> {
+        Ok(crate::server::StyleWithCount {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: None,
+            artist_count: row.get(2)?,
+            sample_images: None,
+        })
+    };
+
+    let styles_iter = match (&state, &city) {
+        (Some(s), Some(c)) => stmt.query_map([s.as_str(), c.as_str()], map_row)?,
+        (Some(s), None) => stmt.query_map([s.as_str()], map_row)?,
+        _ => stmt.query_map([], map_row)?,
+    };
+
+    styles_iter.collect()
+}
+
+#[cfg(feature = "ssr")]
 fn map_location_row(row: &rusqlite::Row) -> rusqlite::Result<(shared_types::LocationInfo, i32)> {
     use shared_types::LocationInfo;
     let location_id: i32 = row.get(0)?;

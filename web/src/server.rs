@@ -34,7 +34,8 @@ use crate::db::repository::{
     get_artist_questionnaire, get_artist_questionnaire_config, get_artist_styles,
     get_artists_by_location, get_booking_questionnaire_responses, get_cities_and_coords,
     get_city_coordinates, get_errors_by_type, get_location_by_id, get_recent_errors, get_states,
-    log_error, query_locations, save_questionnaire_responses, update_artist_questionnaire_config,
+    get_styles_by_location, log_error, query_locations, save_questionnaire_responses,
+    update_artist_questionnaire_config,
 };
 
 #[server]
@@ -236,6 +237,27 @@ pub async fn get_styles_in_bounds(bounds: MapBounds) -> Result<Vec<StyleWithCoun
             Ok(styles) => Ok(styles),
             Err(e) => Err(ServerFnError::new(format!(
                 "Failed to fetch styles in bounds: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn get_styles_by_location_filter(
+    state: Option<String>,
+    city: Option<String>,
+) -> Result<Vec<StyleWithCount>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        match get_styles_by_location(state, city) {
+            Ok(styles) => Ok(styles),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch styles by location: {}",
                 e
             ))),
         }
