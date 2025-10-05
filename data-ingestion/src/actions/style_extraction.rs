@@ -18,8 +18,8 @@ use async_openai::{
 };
 
 use crate::repository::{
-    get_artists_for_style_extraction, get_or_create_style_ids, insert_artist_image,
-    insert_artist_image_styles, mark_artist_styles_extracted, mark_artist_styles_extraction_failed, 
+    get_all_styles, get_artists_for_style_extraction, get_style_ids, insert_artist_image,
+    insert_artist_image_styles, mark_artist_styles_extracted, mark_artist_styles_extraction_failed,
     update_openai_api_costs, upsert_artist_styles, Artist,
 };
 
@@ -139,6 +139,12 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         return Ok(());
     }
 
+    let available_styles = get_all_styles(&conn)?;
+    if available_styles.is_empty() {
+        println!("❌ No styles found in database. Please populate the styles table first.");
+        return Ok(());
+    }
+
     println!("🎯 Instagram Style Extraction Started");
     println!("📊 Configuration:");
     println!("   • Artists to process: {}", artists.len());
@@ -146,6 +152,7 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
     println!("   • Confidence threshold: {}", confidence_threshold);
     println!("   • Vision batch size: {}", batch_size);
     println!("   • Max posts per artist: {}", max_posts);
+    println!("   • Available styles: {}", available_styles.len());
     println!("   • Using Apify Instagram scraper");
 
     let progress = Arc::new(ProgressBar::new(artists.len() as u64));
@@ -164,16 +171,18 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
     // Process artists in batches using JoinSet for concurrent execution
     let mut join_set = JoinSet::new();
     let semaphore = Arc::new(Semaphore::new(concurrent_artists));
+    let available_styles = Arc::new(available_styles);
 
     for artist in artists {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let progress_clone = progress.clone();
         let artist_name = artist.name.clone();
+        let styles_clone = available_styles.clone();
 
         join_set.spawn(async move {
             progress_clone.set_message(format!("Processing {}", artist_name));
             let result =
-                process_single_artist(artist, max_posts, batch_size, confidence_threshold).await;
+                process_single_artist(artist, max_posts, batch_size, confidence_threshold, &styles_clone).await;
             drop(permit);
             progress_clone.inc(1);
             result
@@ -223,6 +232,7 @@ async fn process_single_artist(
     max_posts: i32,
     batch_size: usize,
     confidence_threshold: f64,
+    available_styles: &[String],
 ) -> Result<(Artist, usize, usize, f64), Box<dyn std::error::Error + Send + Sync>> {
     let ig_username = match &artist.ig_username {
         Some(username) => username.clone(),
@@ -342,6 +352,7 @@ async fn process_single_artist(
         &processable_posts,
         batch_size,
         confidence_threshold,
+        available_styles,
     )
     .await
     {
@@ -367,23 +378,25 @@ async fn process_single_artist(
                             .collect();
 
                         if !style_names.is_empty() {
-                            let style_ids = get_or_create_style_ids(&conn, &style_names);
+                            let style_ids = get_style_ids(&conn, &style_names);
 
                             match style_ids {
                                 Ok(style_ids) => {
-                                    if let Err(e) = insert_artist_image_styles(
-                                        &conn,
-                                        artist_image_id,
-                                        &style_ids,
-                                    ) {
-                                        println!(
-                                            "Error saving styles for image {}: {}",
-                                            result.shortcode, e
-                                        );
-                                    }
+                                    if !style_ids.is_empty() {
+                                        if let Err(e) = insert_artist_image_styles(
+                                            &conn,
+                                            artist_image_id,
+                                            &style_ids,
+                                        ) {
+                                            println!(
+                                                "Error saving styles for image {}: {}",
+                                                result.shortcode, e
+                                            );
+                                        }
 
-                                    for (name, id) in style_names.iter().zip(style_ids.iter()) {
-                                        all_artist_styles.insert(name.clone(), *id);
+                                        for (name, id) in style_names.iter().zip(style_ids.iter()) {
+                                            all_artist_styles.insert(name.clone(), *id);
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -465,6 +478,7 @@ async fn process_artist_posts(
     posts: &[ProcessablePost],
     batch_size: usize,
     confidence_threshold: f64,
+    available_styles: &[String],
 ) -> Result<(Vec<StyleResult>, f64), Box<dyn std::error::Error>> {
     let client = Client::new();
     println!(
@@ -476,12 +490,15 @@ async fn process_artist_posts(
     let semaphore = Arc::new(Semaphore::new(3));
     let mut handles = Vec::new();
 
+    let styles_list = available_styles.join(", ");
+
     for (batch_idx, batch) in posts.chunks(batch_size).enumerate() {
         let client = Arc::new(client.clone());
         let semaphore = Arc::clone(&semaphore);
         let threshold = confidence_threshold;
         let batch_posts: Vec<ProcessablePost> = batch.to_vec();
         let total_batches = posts.len().div_ceil(batch_size);
+        let styles_list_clone = styles_list.clone();
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
@@ -496,7 +513,10 @@ async fn process_artist_posts(
                 ChatCompletionRequestUserMessageContentPart::Text(
                     ChatCompletionRequestMessageContentPartText {
                         text: format!(
-                            "Analyze these {} images. For each image, first determine if it shows a tattoo, then identify ALL artistic styles present if it is a tattoo.
+                            "Analyze these {} images. For each image, first determine if it shows a tattoo, then identify artistic styles present from the ALLOWED STYLES LIST ONLY.
+
+                            ALLOWED STYLES LIST (you MUST only use styles from this exact list):
+                            {}
 
                             Format your response as a JSON array with one object per image (in the EXACT order provided):
                             [
@@ -509,17 +529,18 @@ async fn process_artist_posts(
                             CRITICAL INSTRUCTIONS:
                             • FIRST: Determine if the image shows a tattoo (set \"is_tattoo\": true/false)
                             • If \"is_tattoo\": false, set \"styles\": [] and move to next image
-                            • If \"is_tattoo\": true, identify ANY and ALL tattoo styles you can see - do NOT limit yourself to common examples
-                            • Include rare, niche, or unique styles (e.g., trash polka, chicano, biomechanical, dotwork, fine line, etc.)
-                            • Use specific style names when possible (e.g., 'neo traditional' not just 'traditional')
-                            • Include cultural styles (e.g., japanese, polynesian, celtic, etc.)
-                            • Include technique-based styles (e.g., stippling, linework, shading styles)
-                            • The examples (blackwork, traditional, realism, watercolor, geometric) are just EXAMPLES - identify whatever styles you actually see
-                            • Include all styles you can identify, even with lower confidence scores
+                            • If \"is_tattoo\": true, identify ANY and ALL tattoo styles you can see from the ALLOWED STYLES LIST
+                            • ONLY use style names that appear in the ALLOWED STYLES LIST above
+                            • DO NOT create new style names or use styles not in the list
+                            • Match styles from the list as closely as possible to what you see
+                            • Use exact spelling and capitalization from the allowed list
+                            • If you see a style not in the list, use the closest matching style from the list
+                            • Include all matching styles you can identify, even with lower confidence scores
                             • Be comprehensive and thorough in your style identification for tattoo images
-                            
+
                             IMPORTANT: Return exactly {} objects in the array, one for each image in order.",
                             batch_posts.len(),
+                            styles_list_clone,
                             batch_posts.len()
                         ),
                     }

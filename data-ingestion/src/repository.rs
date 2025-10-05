@@ -226,24 +226,25 @@ pub fn get_artists_for_style_extraction(
         .expect("Artists to be fetched")
 }
 
-pub fn get_or_create_style_ids(
+pub fn get_all_styles(conn: &Connection) -> Result<Vec<String>, Error> {
+    let mut stmt = conn.prepare("SELECT name FROM styles ORDER BY name")?;
+    let styles = stmt.query_map([], |row| row.get(0))?;
+    styles.collect()
+}
+
+pub fn get_style_ids(
     conn: &Connection,
     style_names: &[String],
 ) -> Result<Vec<i64>, Error> {
     let mut style_ids = Vec::new();
 
     for style_name in style_names {
-        let mut stmt = conn.prepare("SELECT id FROM styles WHERE name = ?1")?;
+        let mut stmt = conn.prepare("SELECT id FROM styles WHERE LOWER(name) = LOWER(?1)")?;
         let existing_id: Result<i64, Error> =
             stmt.query_row(params![style_name], |row| Ok(row.get(0)?));
 
-        match existing_id {
-            Ok(id) => style_ids.push(id),
-            Err(_) => {
-                let mut insert_stmt = conn.prepare("INSERT INTO styles (name) VALUES (?1)")?;
-                insert_stmt.execute(params![style_name])?;
-                style_ids.push(conn.last_insert_rowid());
-            }
+        if let Ok(id) = existing_id {
+            style_ids.push(id);
         }
     }
 
