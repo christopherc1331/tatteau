@@ -1,0 +1,164 @@
+// Time Slot Picker Component Styles
+
+.time-slot-picker {
+  margin-top: 1rem;
+
+  .time-slot-picker-header {
+    margin-bottom: 1rem;
+
+    h4 {
+      margin: 0 0 0.5rem 0;
+      color: #111827;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .time-slot-picker-subtitle {
+      margin: 0;
+      color: #6b7280;
+      font-size: 0.875rem;
+    }
+  }
+
+  .time-slot-picker-content {
+    .time-slot-picker-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      color: #6b7280;
+
+      .loading-spinner {
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 2px solid #e5e7eb;
+        border-top: 2px solid #7c3aed;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 0.5rem;
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.875rem;
+      }
+    }
+
+    .time-slot-picker-empty {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+
+      p {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.875rem;
+
+        &:first-child {
+          font-weight: 500;
+          color: #374151;
+        }
+      }
+
+      .time-slot-picker-suggestion {
+        color: #9ca3af;
+        font-size: 0.8125rem;
+      }
+    }
+
+    .time-slot-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+
+      .time-slot-button {
+        padding: 0;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+        background: #ffffff;
+        transition: all 0.2s ease;
+        min-height: 60px;
+
+        &:hover {
+          border-color: #7c3aed;
+          background: #faf5ff;
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+        }
+
+        &.selected {
+          border-color: #7c3aed;
+          background: #7c3aed;
+          color: white;
+          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+
+          .time-slot-button-content {
+            .time-slot-time {
+              color: white;
+            }
+
+            .time-slot-label {
+              color: rgba(255, 255, 255, 0.9);
+            }
+          }
+        }
+
+        .time-slot-button-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 0.75rem;
+
+          .time-slot-time {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #111827;
+            margin-bottom: 0.25rem;
+          }
+
+          .time-slot-label {
+            font-size: 0.75rem;
+            color: #059669;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+          }
+        }
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+// Responsive adjustments
+@media (max-width: 640px) {
+  .time-slot-picker {
+    .time-slot-picker-content {
+      .time-slot-picker-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+
+        .time-slot-button {
+          min-height: 50px;
+
+          .time-slot-button-content {
+            padding: 0.5rem;
+
+            .time-slot-time {
+              font-size: 0.8125rem;
+            }
+
+            .time-slot-label {
+              font-size: 0.6875rem;
+            }
+          }
+        }
+      }
+    }
+  }
+}
