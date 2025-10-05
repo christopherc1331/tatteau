@@ -1,32 +1,57 @@
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use leptos_router::components::A;
 use leptos_router::hooks::use_query_map;
-use leptos::task::spawn_local;
 use thaw::*;
 
 use crate::{
-    components::{instagram_embed::{InstagramEmbed, InstagramEmbedSize}, loading::LoadingView, TattooGallery},
-    server::{get_tattoo_posts_by_style, get_matched_artists, MatchedArtist, TattooPost},
+    components::{
+        instagram_embed::{InstagramEmbed, InstagramEmbedSize},
+        loading::LoadingView,
+        TattooGallery,
+    },
+    server::{get_matched_artists, get_tattoo_posts_by_style, MatchedArtist, TattooPost},
 };
 
 #[component]
 pub fn MatchResults() -> impl IntoView {
     let query_map = use_query_map();
-    
+
     // Modal state
     let (show_modal, set_show_modal) = signal(false);
     let (selected_artist, set_selected_artist) = signal(None::<MatchedArtist>);
-    
-    // Fetch tattoo posts filtered by style
+
+    // Fetch tattoo posts filtered by style and location
     let tattoo_posts = Resource::new(
-        move || (query_map.get(), ),
-        move |(query, )| async move {
+        move || (query_map.get(),),
+        move |(query,)| async move {
             // Parse styles from query parameters
-            let styles = query.get("styles")
+            let styles = query
+                .get("styles")
                 .map(|s| s.split(',').map(|style| style.trim().to_string()).collect())
                 .unwrap_or_else(|| vec!["Traditional".to_string()]);
-            
-            get_tattoo_posts_by_style(styles, Some(50)).await
+
+            // Parse states from query parameters (comma-separated)
+            let states = query
+                .get("states")
+                .map(|s| {
+                    s.split(',')
+                        .map(|state| state.trim().to_string())
+                        .collect::<Vec<_>>()
+                })
+                .filter(|v: &Vec<String>| !v.is_empty());
+
+            // Parse cities from query parameters (comma-separated)
+            let cities = query
+                .get("cities")
+                .map(|s| {
+                    s.split(',')
+                        .map(|city| city.trim().to_string())
+                        .collect::<Vec<_>>()
+                })
+                .filter(|v: &Vec<String>| !v.is_empty());
+
+            get_tattoo_posts_by_style(styles, states, cities).await
         },
     );
 
@@ -70,8 +95,8 @@ pub fn MatchResults() -> impl IntoView {
                 </p>
             </div>
 
-            <Suspense fallback=move || view! { 
-                <LoadingView message=Some("Loading tattoo gallery...".to_string()) /> 
+            <Suspense fallback=move || view! {
+                <LoadingView message=Some("Loading tattoo gallery...".to_string()) />
             }>
                 {move || {
                     match tattoo_posts.get() {
@@ -88,7 +113,7 @@ pub fn MatchResults() -> impl IntoView {
                                 }.into_any()
                             } else {
                                 view! {
-                                    <TattooGallery 
+                                    <TattooGallery
                                         posts=posts
                                         on_artist_click=on_artist_click
                                     />
@@ -120,7 +145,7 @@ pub fn MatchResults() -> impl IntoView {
                     view! {
                         <div class="match-results-artist-modal-overlay" on:click=move |_| set_show_modal.set(false)>
                             <div class="match-results-artist-modal" on:click=move |e| e.stop_propagation()>
-                                <button 
+                                <button
                                     class="match-results-modal-close"
                                     on:click=move |_| set_show_modal.set(false)
                                 >
@@ -173,7 +198,7 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
                         <div class="label">"Match"</div>
                     </div>
                 </div>
-                
+
                 // Specialties
                 {if !artist.all_styles.is_empty() {
                     view! {
@@ -210,19 +235,19 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
                 <div class="match-results-modal-stats-grid">
                     <div class="stat-item">
                         <div class="stat-value">
-"⭐ " {format!("{:.1}", artist.avg_rating)}
+    "⭐ " {format!("{:.1}", artist.avg_rating)}
                         </div>
                         <div class="stat-label">"Rating"</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value">
-"🎨 " {artist.image_count}
+    "🎨 " {artist.image_count}
                         </div>
                         <div class="stat-label">"Works"</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value">
-"⏱️ " {artist.years_experience.map(|y| if y == 0 { "New".to_string() } else { y.to_string() }).unwrap_or_else(|| "?".to_string())}
+    "⏱️ " {artist.years_experience.map(|y| if y == 0 { "New".to_string() } else { y.to_string() }).unwrap_or_else(|| "?".to_string())}
                         </div>
                         <div class="stat-label">"Years"</div>
                     </div>
@@ -251,7 +276,7 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
                         <span class="reason-title">"Why we matched you"</span>
                     </div>
                     <div class="reason-text">
-                        "This artist specializes in " <strong>{artist.primary_style.clone()}</strong> 
+                        "This artist specializes in " <strong>{artist.primary_style.clone()}</strong>
                         " and " {
                             match artist.years_experience {
                                 Some(0) => "is new to the platform".to_string(),
@@ -266,11 +291,11 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
             // Action buttons
             <div class="match-results-modal-actions">
                 <div class="actions-grid">
-                    <A href=format!("/artist/{}", artist.id) 
+                    <A href=format!("/artist/{}", artist.id)
                        attr:class="action-button match-results-view-profile-btn">
                         "👤 View Profile"
                     </A>
-                    <A href=format!("/book/artist/{}", artist.id) 
+                    <A href=format!("/book/artist/{}", artist.id)
                        attr:class="action-button match-results-book-now-btn">
                         "📅 Book Now"
                     </A>
@@ -279,3 +304,4 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
         </div>
     }
 }
+

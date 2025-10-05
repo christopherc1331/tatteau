@@ -310,10 +310,13 @@ pub async fn get_locations_with_details(
         use crate::db::repository::query_locations_with_details;
         match query_locations_with_details(state, city, bounds, style_filter) {
             Ok(locations) => Ok(locations),
-            Err(e) => Err(ServerFnError::new(format!(
-                "Failed to fetch locations: {}",
-                e
-            ))),
+            Err(e) => {
+                println!("{}", e.to_string());
+                Err(ServerFnError::new(format!(
+                    "Failed to fetch locations: {}",
+                    e
+                )))
+            }
         }
     }
     #[cfg(not(feature = "ssr"))]
@@ -756,27 +759,61 @@ pub struct TattooPost {
 #[server]
 pub async fn get_tattoo_posts_by_style(
     style_names: Vec<String>,
-    limit: Option<i64>,
+    states: Option<Vec<String>>,
+    cities: Option<Vec<String>>,
 ) -> Result<Vec<TattooPost>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        use rusqlite::{params, Connection};
+        use rusqlite::{params_from_iter, Connection};
         use std::path::Path;
 
         let db_path = Path::new("tatteau.db");
         let conn = Connection::open(db_path)
             .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
 
-        let limit_value = limit.unwrap_or(100);
+        // Build WHERE clause based on filters
+        let mut where_clauses = Vec::new();
+        let mut query_params: Vec<String> = Vec::new();
 
-        // Simple approach: just use the first style for now to get it working
-        let target_style = style_names
-            .first()
-            .unwrap_or(&"japanese".to_string())
-            .to_lowercase();
+        // Add style filter - support multiple styles with IN clause
+        if !style_names.is_empty() {
+            let style_placeholders = style_names
+                .iter()
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(",");
+            where_clauses.push(format!("LOWER(s.name) IN ({})", style_placeholders));
+            query_params.extend(style_names.iter().map(|s| s.to_lowercase()));
+        }
 
-        let query = "
-            SELECT DISTINCT 
+        // Add state filter if provided
+        if let Some(state_list) = &states {
+            if !state_list.is_empty() {
+                let state_placeholders =
+                    state_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                where_clauses.push(format!("l.state IN ({})", state_placeholders));
+                query_params.extend(state_list.iter().cloned());
+            }
+        }
+
+        // Add city filter if provided
+        if let Some(city_list) = &cities {
+            if !city_list.is_empty() {
+                let city_placeholders = city_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                where_clauses.push(format!("l.city IN ({})", city_placeholders));
+                query_params.extend(city_list.iter().cloned());
+            }
+        }
+
+        let where_clause = if !where_clauses.is_empty() {
+            format!("WHERE {}", where_clauses.join(" AND "))
+        } else {
+            String::new()
+        };
+
+        let query = format!(
+            "
+            SELECT DISTINCT
                 ai.id,
                 ai.short_code,
                 ai.artist_id,
@@ -784,19 +821,21 @@ pub async fn get_tattoo_posts_by_style(
                 a.instagram_handle as artist_instagram
             FROM artists_images ai
             JOIN artists a ON ai.artist_id = a.id
+            JOIN locations l ON a.location_id = l.id
             JOIN artists_images_styles ais ON ai.id = ais.artists_images_id
             JOIN styles s ON ais.style_id = s.id
-            WHERE LOWER(s.name) = ?
+            {}
             ORDER BY ai.id DESC
-            LIMIT ?
-        ";
+        ",
+            where_clause
+        );
 
         let mut stmt = conn
-            .prepare(query)
+            .prepare(&query)
             .map_err(|e| ServerFnError::new(format!("Failed to prepare statement: {}", e)))?;
 
         let post_iter = stmt
-            .query_map(params![target_style, limit_value], |row| {
+            .query_map(params_from_iter(query_params.iter()), |row| {
                 let image_id: i64 = row.get(0)?;
                 let short_code: String = row.get(1)?;
                 let artist_id: i64 = row.get(2)?;
@@ -851,7 +890,10 @@ pub async fn get_tattoo_posts_by_style(
                         styles,
                     });
                 }
-                Err(e) => return Err(ServerFnError::new(format!("Row error: {}", e))),
+                Err(e) => {
+                    println!("{}", e.to_string());
+                    return Err(ServerFnError::new(format!("Row error: {}", e)));
+                }
             }
         }
 
@@ -2864,10 +2906,10 @@ pub async fn get_available_dates(
 
             let business_hours_iter = business_hours_stmt.query_map([artist_id], |row| {
                 Ok((
-                    row.get::<_, i32>(0)?, // day_of_week
+                    row.get::<_, i32>(0)?,            // day_of_week
                     row.get::<_, Option<String>>(1)?, // start_time
                     row.get::<_, Option<String>>(2)?, // end_time
-                    row.get::<_, bool>(3)?, // is_closed
+                    row.get::<_, bool>(3)?,           // is_closed
                 ))
             })?;
 
@@ -2891,7 +2933,7 @@ pub async fn get_available_dates(
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?, // specific_date
-                        row.get::<_, bool>(1)?   // is_available
+                        row.get::<_, bool>(1)?,   // is_available
                     ))
                 },
             )?;
@@ -2948,8 +2990,14 @@ pub async fn get_available_dates(
                     // Check business hours for this day of week
                     let day_of_week = current_date.weekday().num_days_from_sunday() as i32;
 
-                    if let Some((start_time, end_time, is_closed)) = business_hours.get(&day_of_week) {
-                        if !is_closed && start_time.is_some() && end_time.is_some() && !booked_dates.contains(&date_str) {
+                    if let Some((start_time, end_time, is_closed)) =
+                        business_hours.get(&day_of_week)
+                    {
+                        if !is_closed
+                            && start_time.is_some()
+                            && end_time.is_some()
+                            && !booked_dates.contains(&date_str)
+                        {
                             available_dates.push(date_str);
                         }
                     }
@@ -3020,15 +3068,13 @@ pub async fn get_available_time_slots(
                    AND status IN ('pending', 'approved')",
             )?;
 
-            let bookings_iter = bookings_stmt.query_map(
-                rusqlite::params![artist_id, &date],
-                |row| {
+            let bookings_iter =
+                bookings_stmt.query_map(rusqlite::params![artist_id, &date], |row| {
                     Ok((
-                        row.get::<_, String>(0)?, // start_time
+                        row.get::<_, String>(0)?,         // start_time
                         row.get::<_, Option<String>>(1)?, // end_time
                     ))
-                },
-            )?;
+                })?;
 
             let mut booked_slots = Vec::new();
             for booking_result in bookings_iter {
@@ -3040,8 +3086,18 @@ pub async fn get_available_time_slots(
             let mut time_slots = Vec::new();
 
             // Parse start and end times
-            let start_hour = start_time_str.split(':').next().unwrap_or("9").parse::<u32>().unwrap_or(9);
-            let end_hour = end_time_str.split(':').next().unwrap_or("17").parse::<u32>().unwrap_or(17);
+            let start_hour = start_time_str
+                .split(':')
+                .next()
+                .unwrap_or("9")
+                .parse::<u32>()
+                .unwrap_or(9);
+            let end_hour = end_time_str
+                .split(':')
+                .next()
+                .unwrap_or("17")
+                .parse::<u32>()
+                .unwrap_or(17);
 
             for hour in start_hour..end_hour {
                 let slot_start = format!("{:02}:00", hour);

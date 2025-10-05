@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 use thaw::*;
 use std::collections::HashSet;
+use wasm_bindgen::JsCast;
 use crate::server::{get_styles_by_location_filter, get_states_list, get_cities, StyleWithCount};
 use crate::db::entities::CityCoords;
 
@@ -9,9 +10,9 @@ use crate::db::entities::CityCoords;
 pub fn GetMatchedQuiz() -> impl IntoView {
     let navigate = use_navigate();
 
-    // Location filters
-    let selected_state = RwSignal::new(Option::<String>::None);
-    let selected_city = RwSignal::new(Option::<String>::None);
+    // Location filters - now support multiple selections
+    let selected_states = RwSignal::new(HashSet::<String>::new());
+    let selected_cities = RwSignal::new(HashSet::<String>::new());
 
     // Style selections
     let selected_styles = RwSignal::new(HashSet::<i32>::new());
@@ -21,19 +22,31 @@ pub fn GetMatchedQuiz() -> impl IntoView {
         get_states_list().await.unwrap_or_default()
     });
 
+    // Fetch cities for all selected states
     let cities_resource = Resource::new(
-        move || selected_state.get(),
-        |state| async move {
-            match state {
+        move || selected_states.get(),
+        |states| async move {
+            if states.is_empty() {
+                return vec![];
+            }
+            // For now, fetch cities for the first selected state
+            // TODO: Could enhance to fetch cities for all selected states
+            let first_state = states.iter().next().cloned();
+            match first_state {
                 Some(s) => get_cities(s).await.unwrap_or_default(),
                 None => vec![],
             }
         },
     );
 
+    // Filter styles based on all selected states/cities
     let styles_resource = Resource::new(
-        move || (selected_state.get(), selected_city.get()),
-        |(state, city)| async move {
+        move || (selected_states.get(), selected_cities.get()),
+        |(states, cities)| async move {
+            // Use first state/city for filtering
+            // TODO: Could enhance to support multiple
+            let state = states.iter().next().cloned();
+            let city = cities.iter().next().cloned();
             get_styles_by_location_filter(state, city).await.unwrap_or_default()
         },
     );
@@ -48,32 +61,24 @@ pub fn GetMatchedQuiz() -> impl IntoView {
             })
             .collect();
 
-        let location = selected_state.get().unwrap_or_else(|| "".to_string());
+        let states: Vec<String> = selected_states.get().into_iter().collect();
+        let cities: Vec<String> = selected_cities.get().into_iter().collect();
 
-        // Navigate with query parameters to pass data to match results
+        // Build query parameters
         let styles_param = styles_vec.join(",");
-        let navigate_url = if !location.is_empty() {
-            if let Some(city) = selected_city.get() {
-                format!(
-                    "/match/results?styles={}&location={}&city={}",
-                    urlencoding::encode(&styles_param),
-                    urlencoding::encode(&location),
-                    urlencoding::encode(&city)
-                )
-            } else {
-                format!(
-                    "/match/results?styles={}&location={}",
-                    urlencoding::encode(&styles_param),
-                    urlencoding::encode(&location)
-                )
-            }
-        } else {
-            format!(
-                "/match/results?styles={}",
-                urlencoding::encode(&styles_param)
-            )
-        };
+        let mut query_parts = vec![format!("styles={}", urlencoding::encode(&styles_param))];
 
+        if !states.is_empty() {
+            let states_param = states.join(",");
+            query_parts.push(format!("states={}", urlencoding::encode(&states_param)));
+        }
+
+        if !cities.is_empty() {
+            let cities_param = cities.join(",");
+            query_parts.push(format!("cities={}", urlencoding::encode(&cities_param)));
+        }
+
+        let navigate_url = format!("/match/results?{}", query_parts.join("&"));
         navigate(&navigate_url, Default::default());
     };
 
@@ -90,28 +95,39 @@ pub fn GetMatchedQuiz() -> impl IntoView {
 
                         <div class="quiz-location-filters">
                             <div class="quiz-question quiz-location-field">
-                                <label>"State"</label>
+                                <label>"State (Hold Ctrl/Cmd to select multiple)"</label>
                                 <Suspense fallback=move || view! { <div>"Loading states..."</div> }>
                                     {move || {
                                         states_resource.get().map(|states| {
                                             view! {
                                                 <select
                                                     class="quiz-form-input"
+                                                    multiple=true
+                                                    size="5"
                                                     on:change=move |ev| {
-                                                        let value = event_target_value(&ev);
-                                                        if value.is_empty() {
-                                                            selected_state.set(None);
-                                                        } else {
-                                                            selected_state.set(Some(value));
+                                                        let select_element = event_target::<web_sys::HtmlSelectElement>(&ev);
+                                                        let options = select_element.selected_options();
+                                                        let mut new_selected = HashSet::new();
+
+                                                        for i in 0..options.length() {
+                                                            if let Some(option) = options.item(i) {
+                                                                if let Some(html_option) = option.dyn_ref::<web_sys::HtmlOptionElement>() {
+                                                                    let value = html_option.value();
+                                                                    if !value.is_empty() {
+                                                                        new_selected.insert(value);
+                                                                    }
+                                                                }
+                                                            }
                                                         }
-                                                        selected_city.set(None);
+
+                                                        selected_states.set(new_selected);
+                                                        selected_cities.set(HashSet::new());
                                                     }
                                                 >
-                                                    <option value="">"All States"</option>
                                                     {states.into_iter().map(|state| {
                                                         let state_val = state.clone();
                                                         view! {
-                                                            <option value={state_val}>{state}</option>
+                                                            <option value={state_val.clone()}>{state}</option>
                                                         }
                                                     }).collect_view()}
                                                 </select>
@@ -122,35 +138,52 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                             </div>
 
                             <div class="quiz-question quiz-location-field">
-                                <label>"City"</label>
+                                <label>"City (Hold Ctrl/Cmd to select multiple)"</label>
                                 <Suspense fallback=move || view! { <div>"Loading cities..."</div> }>
                                     {move || {
                                         let cities = cities_resource.get().unwrap_or_default();
-                                        let has_state = selected_state.get().is_some();
+                                        let has_states = !selected_states.get().is_empty();
 
                                         view! {
                                             <select
                                                 class="quiz-form-input"
-                                                disabled=!has_state
+                                                multiple=true
+                                                size="5"
+                                                disabled=!has_states
                                                 on:change=move |ev| {
-                                                    let value = event_target_value(&ev);
-                                                    if value.is_empty() {
-                                                        selected_city.set(None);
-                                                    } else {
-                                                        selected_city.set(Some(value));
+                                                    let select_element = event_target::<web_sys::HtmlSelectElement>(&ev);
+                                                    let options = select_element.selected_options();
+                                                    let mut new_selected = HashSet::new();
+
+                                                    for i in 0..options.length() {
+                                                        if let Some(option) = options.item(i) {
+                                                            if let Some(html_option) = option.dyn_ref::<web_sys::HtmlOptionElement>() {
+                                                                let value = html_option.value();
+                                                                if !value.is_empty() {
+                                                                    new_selected.insert(value);
+                                                                }
+                                                            }
+                                                        }
                                                     }
+
+                                                    selected_cities.set(new_selected);
                                                 }
                                             >
-                                                <option value="">
-                                                    {if has_state { "All Cities" } else { "Select state first" }}
-                                                </option>
-                                                {cities.into_iter().map(|city| {
-                                                    let city_name = city.city.clone();
-                                                    let city_val = city_name.clone();
+                                                {if !has_states {
                                                     view! {
-                                                        <option value={city_val}>{city_name}</option>
-                                                    }
-                                                }).collect_view()}
+                                                        <option disabled=true>"Select state first"</option>
+                                                    }.into_any()
+                                                } else {
+                                                    view! {
+                                                        {cities.into_iter().map(|city| {
+                                                            let city_name = city.city.clone();
+                                                            let city_val = city_name.clone();
+                                                            view! {
+                                                                <option value={city_val}>{city_name}</option>
+                                                            }
+                                                        }).collect_view()}
+                                                    }.into_any()
+                                                }}
                                             </select>
                                         }
                                     }}
