@@ -13,7 +13,7 @@ use crate::db::search_repository::SearchResult;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
-use chrono::{NaiveDateTime, Utc};
+use chrono::{Datelike, NaiveDateTime, Utc};
 
 #[derive(Deserialize)]
 struct InstagramOEmbedResponse {
@@ -2801,5 +2801,257 @@ pub async fn get_error_logs(
     #[cfg(not(feature = "ssr"))]
     {
         Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+// Booking Availability Server Functions
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct TimeSlot {
+    pub start_time: String,
+    pub end_time: String,
+    pub is_available: bool,
+}
+
+#[server]
+pub async fn get_available_dates(
+    artist_id: i32,
+    start_date: String,
+    end_date: String,
+) -> Result<Vec<String>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_available_dates(
+            artist_id: i32,
+            start_date: String,
+            end_date: String,
+        ) -> SqliteResult<Vec<String>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+
+            // Get business hours for this artist
+            let mut business_hours_stmt = conn.prepare(
+                "SELECT day_of_week, start_time, end_time, is_closed
+                 FROM business_hours
+                 WHERE artist_id = ?1
+                 ORDER BY day_of_week",
+            )?;
+
+            let business_hours_iter = business_hours_stmt.query_map([artist_id], |row| {
+                Ok((
+                    row.get::<_, i32>(0)?, // day_of_week
+                    row.get::<_, Option<String>>(1)?, // start_time
+                    row.get::<_, Option<String>>(2)?, // end_time
+                    row.get::<_, bool>(3)?, // is_closed
+                ))
+            })?;
+
+            let mut business_hours = std::collections::HashMap::new();
+            for hour_result in business_hours_iter {
+                let (day, start, end, closed) = hour_result?;
+                business_hours.insert(day, (start, end, closed));
+            }
+
+            // Get specific availability overrides
+            let mut availability_stmt = conn.prepare(
+                "SELECT specific_date, is_available
+                 FROM artist_availability
+                 WHERE artist_id = ?1
+                   AND specific_date IS NOT NULL
+                   AND specific_date BETWEEN ?2 AND ?3",
+            )?;
+
+            let availability_iter = availability_stmt.query_map(
+                rusqlite::params![artist_id, &start_date, &end_date],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?, // specific_date
+                        row.get::<_, bool>(1)?   // is_available
+                    ))
+                },
+            )?;
+
+            let mut availability_overrides = std::collections::HashMap::new();
+            for avail_result in availability_iter {
+                let (date, available) = avail_result?;
+                availability_overrides.insert(date, available);
+            }
+
+            // Get existing bookings in date range
+            let mut bookings_stmt = conn.prepare(
+                "SELECT requested_date
+                 FROM booking_requests
+                 WHERE artist_id = ?1
+                   AND requested_date BETWEEN ?2 AND ?3
+                   AND status IN ('pending', 'approved')",
+            )?;
+
+            let bookings_iter = bookings_stmt.query_map(
+                rusqlite::params![artist_id, &start_date, &end_date],
+                |row| row.get::<_, String>(0),
+            )?;
+
+            let mut booked_dates = std::collections::HashSet::new();
+            for booking_result in bookings_iter {
+                booked_dates.insert(booking_result?);
+            }
+
+            // Generate available dates
+            let mut available_dates = Vec::new();
+            let start = chrono::NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            let end = chrono::NaiveDate::parse_from_str(&end_date, "%Y-%m-%d")
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            let today = Utc::now().naive_utc().date();
+
+            let mut current_date = start;
+            while current_date <= end {
+                let date_str = current_date.format("%Y-%m-%d").to_string();
+
+                // Skip past dates
+                if current_date < today {
+                    current_date += chrono::Duration::days(1);
+                    continue;
+                }
+
+                // Check for specific availability override
+                if let Some(&is_available) = availability_overrides.get(&date_str) {
+                    if is_available && !booked_dates.contains(&date_str) {
+                        available_dates.push(date_str);
+                    }
+                } else {
+                    // Check business hours for this day of week
+                    let day_of_week = current_date.weekday().num_days_from_sunday() as i32;
+
+                    if let Some((start_time, end_time, is_closed)) = business_hours.get(&day_of_week) {
+                        if !is_closed && start_time.is_some() && end_time.is_some() && !booked_dates.contains(&date_str) {
+                            available_dates.push(date_str);
+                        }
+                    }
+                }
+
+                current_date += chrono::Duration::days(1);
+            }
+
+            Ok(available_dates)
+        }
+
+        match query_available_dates(artist_id, start_date, end_date) {
+            Ok(dates) => Ok(dates),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get available dates: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
+pub async fn get_available_time_slots(
+    artist_id: i32,
+    date: String,
+) -> Result<Vec<TimeSlot>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{Connection, Result as SqliteResult};
+        use std::path::Path;
+
+        fn query_time_slots(artist_id: i32, date: String) -> SqliteResult<Vec<TimeSlot>> {
+            let db_path = Path::new("tatteau.db");
+            let conn = Connection::open(db_path)?;
+
+            // Parse the date to get day of week
+            let parsed_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            let day_of_week = parsed_date.weekday().num_days_from_sunday() as i32;
+
+            // Get business hours for this day
+            let business_hours: Option<(String, String)> = conn
+                .query_row(
+                    "SELECT start_time, end_time
+                     FROM business_hours
+                     WHERE artist_id = ?1 AND day_of_week = ?2 AND is_closed = 0",
+                    rusqlite::params![artist_id, day_of_week],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .ok();
+
+            if business_hours.is_none() {
+                return Ok(vec![]);
+            }
+
+            let (start_time_str, end_time_str) = business_hours.unwrap();
+
+            // Check for existing bookings on this date
+            let mut bookings_stmt = conn.prepare(
+                "SELECT requested_start_time, requested_end_time
+                 FROM booking_requests
+                 WHERE artist_id = ?1
+                   AND requested_date = ?2
+                   AND status IN ('pending', 'approved')",
+            )?;
+
+            let bookings_iter = bookings_stmt.query_map(
+                rusqlite::params![artist_id, &date],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?, // start_time
+                        row.get::<_, Option<String>>(1)?, // end_time
+                    ))
+                },
+            )?;
+
+            let mut booked_slots = Vec::new();
+            for booking_result in bookings_iter {
+                let (start, end) = booking_result?;
+                booked_slots.push((start, end));
+            }
+
+            // Generate time slots (hourly slots from business hours)
+            let mut time_slots = Vec::new();
+
+            // Parse start and end times
+            let start_hour = start_time_str.split(':').next().unwrap_or("9").parse::<u32>().unwrap_or(9);
+            let end_hour = end_time_str.split(':').next().unwrap_or("17").parse::<u32>().unwrap_or(17);
+
+            for hour in start_hour..end_hour {
+                let slot_start = format!("{:02}:00", hour);
+                let slot_end = format!("{:02}:00", hour + 1);
+
+                // Check if this slot is booked
+                let is_booked = booked_slots.iter().any(|(booked_start, booked_end)| {
+                    let booked_end_time = booked_end.as_ref().unwrap_or(booked_start);
+                    // Simple overlap check
+                    !(slot_end <= *booked_start || slot_start >= *booked_end_time)
+                });
+
+                time_slots.push(TimeSlot {
+                    start_time: slot_start,
+                    end_time: slot_end,
+                    is_available: !is_booked,
+                });
+            }
+
+            Ok(time_slots)
+        }
+
+        match query_time_slots(artist_id, date) {
+            Ok(slots) => Ok(slots),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to get time slots: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
     }
 }

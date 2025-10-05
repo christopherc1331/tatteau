@@ -1,8 +1,8 @@
-use crate::components::MultiStepQuestionnaire;
+use crate::components::{AvailableDatePicker, MultiStepQuestionnaire, TimeSlotPicker};
 use crate::db::entities::{ClientQuestionnaireSubmission, QuestionnaireResponse};
 use crate::server::{
     fetch_artist_data, get_artist_questionnaire_form, submit_booking_request,
-    submit_questionnaire_responses, NewBookingRequest,
+    submit_questionnaire_responses, NewBookingRequest, TimeSlot,
 };
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -18,8 +18,7 @@ pub fn ClientBookingModal(
 ) -> impl IntoView {
     // Appointment form state (only time/date info - no contact details for authenticated users)
     let requested_date = RwSignal::new(String::new());
-    let requested_start_time = RwSignal::new(String::new());
-    let requested_end_time = RwSignal::new(String::new());
+    let selected_time_slot = RwSignal::new(None::<TimeSlot>);
     let additional_message = RwSignal::new(String::new());
 
     // Questionnaire state
@@ -74,6 +73,13 @@ pub fn ClientBookingModal(
             is_submitting.set(true);
             submission_error.set(None);
 
+            let slot = selected_time_slot.get();
+            let (start_time, end_time) = if let Some(time_slot) = slot {
+                (time_slot.start_time.clone(), Some(time_slot.end_time.clone()))
+            } else {
+                (String::new(), None)
+            };
+
             // For authenticated users, use placeholder values for required fields
             // Real user data should come from authentication context
             let request = NewBookingRequest {
@@ -85,12 +91,8 @@ pub fn ClientBookingModal(
                 placement: None,          // Collected via questionnaire
                 size_inches: None,        // Collected via questionnaire
                 requested_date: requested_date.get(),
-                requested_start_time: requested_start_time.get(),
-                requested_end_time: if requested_end_time.get().trim().is_empty() {
-                    None
-                } else {
-                    Some(requested_end_time.get())
-                },
+                requested_start_time: start_time,
+                requested_end_time: end_time,
                 message_from_client: if additional_message.get().trim().is_empty() {
                     None
                 } else {
@@ -141,8 +143,7 @@ pub fn ClientBookingModal(
 
                     // Reset form state
                     requested_date.set(String::new());
-                    requested_start_time.set(String::new());
-                    requested_end_time.set(String::new());
+                    selected_time_slot.set(None);
                     additional_message.set(String::new());
                     questionnaire_responses.set(HashMap::new());
                     questionnaire_completed.set(false);
@@ -167,7 +168,7 @@ pub fn ClientBookingModal(
     });
 
     let is_appointment_form_valid = move || {
-        !requested_date.get().trim().is_empty() && !requested_start_time.get().trim().is_empty()
+        !requested_date.get().trim().is_empty() && selected_time_slot.get().is_some()
     };
 
     // Create computed signal for button disabled state
@@ -177,8 +178,7 @@ pub fn ClientBookingModal(
 
     let reset_form = move || {
         requested_date.set(String::new());
-        requested_start_time.set(String::new());
-        requested_end_time.set(String::new());
+        selected_time_slot.set(None);
         additional_message.set(String::new());
         questionnaire_responses.set(HashMap::new());
         questionnaire_completed.set(false);
@@ -308,53 +308,37 @@ pub fn ClientBookingModal(
                                     }}
                                 </Suspense>
 
-                                <form class="appointment-form-content" on:submit=move |ev| {
-                                    ev.prevent_default();
-                                    if is_appointment_form_valid() && questionnaire_completed.get() {
-                                        handle_submit();
-                                    }
-                                }>
+                                <div class="appointment-form-content">
                                     <div class="form-section">
-                                        <h4>"Appointment Preference"</h4>
-                                        <p class="auth-note">"Since you're logged in, we'll use your account information for this booking."</p>
-                                        <div class="form-row">
-                                            <div class="form-group">
-                                                <label for="requested-date">"Preferred Date *"</label>
-                                                <Input
-                                                    id="requested-date"
-                                                    input_type=InputType::Date
-                                                    value=requested_date
-                                                />
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="requested-start-time">"Preferred Start Time *"</label>
-                                                <Input
-                                                    id="requested-start-time"
-                                                    input_type=InputType::Time
-                                                    value=requested_start_time
-                                                />
-                                            </div>
-                                            <div class="form-group">
-                                                <label for="requested-end-time">"End Time (optional)"</label>
-                                                <Input
-                                                    id="requested-end-time"
-                                                    input_type=InputType::Time
-                                                    value=requested_end_time
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
+                                        <h4>"Select a Date & Time"</h4>
+                                        <p class="auth-note">"Choose your preferred appointment slot from the artist's available times"</p>
 
-                                    <div class="form-section">
-                                        <h4>"Additional Message (Optional)"</h4>
-                                        <div class="form-group">
-                                            <label for="additional-message">"Message to Artist"</label>
-                                            <Textarea
-                                                id="additional-message"
-                                                placeholder="Any additional details or questions..."
-                                                value=additional_message
-                                            />
-                                        </div>
+                                        <AvailableDatePicker
+                                            artist_id=artist_id
+                                            selected_date=requested_date
+                                            on_date_selected=move |date| {
+                                                requested_date.set(date);
+                                                // Reset time slot when date changes
+                                                selected_time_slot.set(None);
+                                            }
+                                        />
+
+                                        {move || {
+                                            if !requested_date.get().trim().is_empty() {
+                                                view! {
+                                                    <TimeSlotPicker
+                                                        artist_id=artist_id
+                                                        selected_date=requested_date
+                                                        selected_time_slot=selected_time_slot
+                                                        on_slot_selected=move |slot| {
+                                                            selected_time_slot.set(Some(slot));
+                                                        }
+                                                    />
+                                                }.into_any()
+                                            } else {
+                                                view! {}.into_any()
+                                            }
+                                        }}
                                     </div>
 
                                     {move || {
@@ -377,15 +361,19 @@ pub fn ClientBookingModal(
                                             "Back to Questionnaire"
                                         </Button>
                                         <Button
-                                            button_type=ButtonType::Submit
                                             appearance=ButtonAppearance::Primary
                                             disabled=Signal::from(is_submit_disabled)
                                             loading=is_submitting
+                                            on_click=move |_| {
+                                                if is_appointment_form_valid() && questionnaire_completed.get() {
+                                                    handle_submit();
+                                                }
+                                            }
                                         >
-                                            {move || if is_submitting.get() { "Submitting..." } else { "Submit Booking Request" }}
+                                            {move || if is_submitting.get() { "Submitting..." } else { "Book Consultation" }}
                                         </Button>
                                     </div>
-                                </form>
+                                </div>
                             </div>
                         }.into_any(),
                         _ => view! {}.into_any()

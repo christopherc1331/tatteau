@@ -1,4 +1,5 @@
 pub mod artist_masonry_gallery;
+pub mod available_date_picker;
 pub mod client_booking_modal;
 pub mod multi_step_questionnaire;
 pub mod error;
@@ -13,12 +14,14 @@ pub mod masonry_gallery;
 pub mod shop_masonry_gallery;
 pub mod tattoo_gallery;
 pub mod time_picker;
+pub mod time_slot_picker;
 pub mod time_block;
 pub mod event_item;
 pub mod auth_guard;
 
 // Re-export commonly used types
 pub use artist_masonry_gallery::ArtistMasonryGallery;
+pub use available_date_picker::AvailableDatePicker;
 pub use client_booking_modal::ClientBookingModal;
 pub use multi_step_questionnaire::MultiStepQuestionnaire;
 pub use error_boundary::{ErrorBoundary, log_component_error};
@@ -30,6 +33,7 @@ pub use masonry_gallery::MasonryGallery;
 pub use shop_masonry_gallery::ShopMasonryGallery;
 pub use tattoo_gallery::TattooGallery;
 pub use time_picker::TimePicker;
+pub use time_slot_picker::TimeSlotPicker;
 pub use time_block::{TimeBlock, TimeBlockData};
 pub use event_item::{EventItem, EventItemData};
 pub use auth_guard::ArtistAuthGuard;
