@@ -10,13 +10,14 @@ use crate::db::entities::CityCoords;
 pub fn GetMatchedQuiz() -> impl IntoView {
     let navigate = use_navigate();
 
-    // Location filters - now support multiple selections using VecModel
-    let selected_states = RwSignal::new(Vec::<String>::new());
+    // Location filters - state is single-select, cities are multi-select
+    let selected_state = RwSignal::new(Option::<String>::None);
     let selected_cities = RwSignal::new(Vec::<String>::new());
 
-    // Search filters for states and cities
+    // Search filters for states, cities, and styles
     let state_search = RwSignal::new(String::new());
     let city_search = RwSignal::new(String::new());
+    let style_search = RwSignal::new(String::new());
 
     // Style selections
     let selected_styles = RwSignal::new(HashSet::<i32>::new());
@@ -26,38 +27,26 @@ pub fn GetMatchedQuiz() -> impl IntoView {
         get_states_list().await.unwrap_or_default()
     });
 
-    // Fetch cities for all selected states
+    // Fetch cities for selected state
     let cities_resource = Resource::new(
-        move || selected_states.get(),
-        |states| async move {
-            if states.is_empty() {
-                return vec![];
+        move || selected_state.get(),
+        |state| async move {
+            if let Some(state) = state {
+                get_cities(state).await.unwrap_or_default()
+            } else {
+                vec![]
             }
-
-            // Fetch cities for ALL selected states
-            let mut all_cities = Vec::new();
-            for state in states {
-                if let Ok(cities) = get_cities(state).await {
-                    all_cities.extend(cities);
-                }
-            }
-
-            // Remove duplicates based on city name
-            all_cities.sort_by(|a, b| a.city.cmp(&b.city));
-            all_cities.dedup_by(|a, b| a.city == b.city);
-
-            all_cities
         },
     );
 
-    // Filter styles based on selected states/cities
+    // Filter styles based on selected state/cities
     let styles_resource = Resource::new(
-        move || (selected_states.get(), selected_cities.get()),
-        |(states, cities)| async move {
-            // Use first state/city for filtering
-            let state = states.first().cloned();
-            let city = cities.first().cloned();
-            get_styles_by_location_filter(state, city).await.unwrap_or_default()
+        move || (selected_state.get(), selected_cities.get()),
+        |(state, cities)| async move {
+            // Pass selected state and cities
+            let states_opt = state.map(|s| vec![s]);
+            let cities_opt = if cities.is_empty() { None } else { Some(cities) };
+            get_styles_by_location_filter(states_opt, cities_opt).await.unwrap_or_default()
         },
     );
 
@@ -71,16 +60,15 @@ pub fn GetMatchedQuiz() -> impl IntoView {
             })
             .collect();
 
-        let states: Vec<String> = selected_states.get();
+        let state_opt = selected_state.get();
         let cities: Vec<String> = selected_cities.get();
 
         // Build query parameters
         let styles_param = styles_vec.join(",");
         let mut query_parts = vec![format!("styles={}", urlencoding::encode(&styles_param))];
 
-        if !states.is_empty() {
-            let states_param = states.join(",");
-            query_parts.push(format!("states={}", urlencoding::encode(&states_param)));
+        if let Some(state) = state_opt {
+            query_parts.push(format!("states={}", urlencoding::encode(&state)));
         }
 
         if !cities.is_empty() {
@@ -108,79 +96,34 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                 <Suspense fallback=move || view! { <div>"Loading states..."</div> }>
                                     {move || {
                                         states_resource.get().map(|states| {
-                                            // Create effect to clear cities when states change
+                                            // Create effect to clear cities when state changes
                                             Effect::new(move |_| {
-                                                let _ = selected_states.get();
+                                                let _ = selected_state.get();
                                                 selected_cities.set(vec![]);
                                             });
 
-                                            // Filter states based on search
-                                            let filtered_states = Signal::derive(move || {
-                                                let search = state_search.get().to_lowercase();
-                                                if search.is_empty() {
-                                                    states.clone()
-                                                } else {
-                                                    states.iter()
-                                                        .filter(|s| s.to_lowercase().contains(&search))
-                                                        .cloned()
-                                                        .collect()
-                                                }
-                                            });
-
                                             view! {
-                                                <div class="quiz-multi-select-wrapper">
-                                                    <Label>"State (Select one or more)"</Label>
-                                                    <input
-                                                        type="text"
-                                                        class="quiz-search-input"
-                                                        placeholder="Search states..."
-                                                        prop:value=move || state_search.get()
-                                                        on:input=move |ev| {
-                                                            state_search.set(event_target_value(&ev));
+                                                <div class="quiz-location-select-wrapper">
+                                                    <Label>"State (Select one)"</Label>
+                                                    <select
+                                                        class="quiz-location-select"
+                                                        on:change=move |ev| {
+                                                            let value = event_target_value(&ev);
+                                                            if value.is_empty() {
+                                                                selected_state.set(None);
+                                                            } else {
+                                                                selected_state.set(Some(value));
+                                                            }
                                                         }
-                                                    />
-                                                    <div class="quiz-chip-grid">
-                                                        {move || filtered_states.get().into_iter().map(|state| {
+                                                    >
+                                                        <option value="">"Select a state..."</option>
+                                                        {states.into_iter().map(|state| {
                                                             let state_val = state.clone();
-                                                            let state_val_signal = state_val.clone();
-                                                            let state_val_click = state_val.clone();
-
-                                                            let is_selected = Signal::derive(move || {
-                                                                selected_states.get().contains(&state_val_signal)
-                                                            });
-
                                                             view! {
-                                                                <button
-                                                                    type="button"
-                                                                    class="quiz-location-chip"
-                                                                    class:quiz-location-chip-selected=is_selected
-                                                                    on:click=move |_| {
-                                                                        let mut current = selected_states.get();
-                                                                        if current.contains(&state_val_click) {
-                                                                            current.retain(|s| s != &state_val_click);
-                                                                        } else {
-                                                                            current.push(state_val_click.clone());
-                                                                        }
-                                                                        selected_states.set(current);
-                                                                    }
-                                                                >
-                                                                    {state}
-                                                                </button>
+                                                                <option value=state_val>{state}</option>
                                                             }
                                                         }).collect_view()}
-                                                    </div>
-                                                    {move || {
-                                                        let count = selected_states.get().len();
-                                                        if count > 0 {
-                                                            view! {
-                                                                <p class="quiz-selection-count">
-                                                                    {format!("{} state{} selected", count, if count == 1 { "" } else { "s" })}
-                                                                </p>
-                                                            }.into_any()
-                                                        } else {
-                                                            view! {}.into_any()
-                                                        }
-                                                    }}
+                                                    </select>
                                                 </div>
                                             }
                                         })
@@ -192,7 +135,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                 <Suspense fallback=move || view! { <div>"Loading cities..."</div> }>
                                     {move || {
                                         let cities = cities_resource.get().unwrap_or_default();
-                                        let has_states = !selected_states.get().is_empty();
+                                        let has_state = selected_state.get().is_some();
                                         let cities_clone = cities.clone();
 
                                         // Filter cities based on search
@@ -211,7 +154,7 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                         view! {
                                             <div class="quiz-multi-select-wrapper">
                                                 <Label>"City (Select one or more)"</Label>
-                                                {if !has_states {
+                                                {if !has_state {
                                                     view! {
                                                         <p class="quiz-location-hint">"Select a state first"</p>
                                                     }.into_any()
@@ -296,13 +239,37 @@ pub fn GetMatchedQuiz() -> impl IntoView {
                                             </div>
                                         }.into_any()
                                     } else {
+                                        let styles_clone = styles.clone();
+
+                                        // Filter styles based on search
+                                        let filtered_styles = Signal::derive(move || {
+                                            let search = style_search.get().to_lowercase();
+                                            if search.is_empty() {
+                                                styles_clone.clone()
+                                            } else {
+                                                styles_clone.iter()
+                                                    .filter(|s| s.name.to_lowercase().contains(&search))
+                                                    .cloned()
+                                                    .collect()
+                                            }
+                                        });
+
                                         let styles_count = styles.len();
                                         view! {
                                             <div class="quiz-styles-info">
                                                 {format!("{} styles available", styles_count)}
                                             </div>
+                                            <input
+                                                type="text"
+                                                class="quiz-search-input"
+                                                placeholder="Search styles..."
+                                                prop:value=move || style_search.get()
+                                                on:input=move |ev| {
+                                                    style_search.set(event_target_value(&ev));
+                                                }
+                                            />
                                             <div class="quiz-style-grid">
-                                                {styles.into_iter().map(|style| {
+                                                {move || filtered_styles.get().into_iter().map(|style| {
                                                     let style_id = style.id;
                                                     let style_name = style.name.clone();
                                                     let artist_count = style.artist_count;

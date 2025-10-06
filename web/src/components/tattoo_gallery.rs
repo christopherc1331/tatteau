@@ -19,6 +19,9 @@ pub fn TattooGallery(
     let (current_page, set_current_page) = signal(0usize);
     let posts_per_page = 10;
 
+    // Store posts for later use in click handler
+    let posts_for_modal = StoredValue::new(posts.clone());
+
     // Convert TattooPost to PostWithArtist format for InstagramPostsGrid
     let all_instagram_posts: Vec<PostWithArtist> = posts
         .into_iter()
@@ -102,28 +105,31 @@ pub fn TattooGallery(
                                 let href_value = anchor.href();
                                 if let Some(id_str) = href_value.split("/artist/").nth(1) {
                                     if let Ok(artist_id) = id_str.parse::<i64>() {
-                                        // Find the artist data from our posts
+                                        // Find the tattoo post for this artist
                                         let callback = callback_for_click.get_value();
 
-                                        // Create a realistic artist for the modal
-                                        let matched_artist = MatchedArtist {
-                                            id: artist_id,
-                                            name: "Marcus Thompson".to_string(),
-                                            location_name: "Ink & Art Studio".to_string(),
-                                            city: "San Francisco".to_string(),
-                                            state: "CA".to_string(),
-                                            primary_style: "Traditional".to_string(),
-                                            all_styles: vec!["Traditional".to_string(), "Neo-Traditional".to_string(), "American Traditional".to_string()],
-                                            image_count: 25,
-                                            portfolio_images: vec![],
-                                            avatar_url: None,
-                                            avg_rating: 4.8,
-                                            match_score: 95,
-                                            years_experience: Some(8),
-                                            min_price: Some(200.0),
-                                            max_price: Some(500.0),
-                                        };
-                                        callback.run(matched_artist);
+                                        // Create matched artist from available post data
+                                        let posts = posts_for_modal.get_value();
+                                        if let Some(post) = posts.iter().find(|p| p.artist_id == artist_id) {
+                                            let matched_artist = MatchedArtist {
+                                                id: post.artist_id,
+                                                name: post.artist_name.clone(),
+                                                location_name: String::new(), // Not available in TattooPost
+                                                city: String::new(),  // Not available in TattooPost
+                                                state: String::new(), // Not available in TattooPost
+                                                primary_style: post.styles.first().cloned().unwrap_or_default(),
+                                                all_styles: post.styles.clone(),
+                                                image_count: 0, // Not available
+                                                portfolio_images: vec![],
+                                                avatar_url: None,
+                                                avg_rating: 0.0,
+                                                match_score: 0,
+                                                years_experience: None,
+                                                min_price: None,
+                                                max_price: None,
+                                            };
+                                            callback.run(matched_artist);
+                                        }
                                     }
                                 }
                             }
@@ -175,6 +181,14 @@ pub fn TattooGallery(
                             on:click=move |_| {
                                 if !prev_btn_disabled.get() {
                                     set_current_page.set(current_page.get() - 1);
+                                    // Scroll to top smoothly
+                                    if let Some(window) = web_sys::window() {
+                                        let _ = window.scroll_with_scroll_to_options(
+                                            web_sys::ScrollToOptions::new()
+                                                .top(0.0)
+                                                .behavior(web_sys::ScrollBehavior::Smooth)
+                                        );
+                                    }
                                 }
                             }
                         >
@@ -191,6 +205,14 @@ pub fn TattooGallery(
                             on:click=move |_| {
                                 if !next_btn_disabled.get() {
                                     set_current_page.set(current_page.get() + 1);
+                                    // Scroll to top smoothly
+                                    if let Some(window) = web_sys::window() {
+                                        let _ = window.scroll_with_scroll_to_options(
+                                            web_sys::ScrollToOptions::new()
+                                                .top(0.0)
+                                                .behavior(web_sys::ScrollBehavior::Smooth)
+                                        );
+                                    }
                                 }
                             }
                         >

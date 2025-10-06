@@ -35,6 +35,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     let sidebar_collapsed = RwSignal::new(false);
     let map_center = RwSignal::new(default_location.clone());
     let map_bounds = RwSignal::new(MapBounds::default());
+    let style_search = RwSignal::new(String::new());
 
     // Fetch location stats (use LocalResource to avoid hydration issues)
     let location_stats = Resource::new(
@@ -154,9 +155,33 @@ pub fn DiscoveryMap() -> impl IntoView {
                                                 <div class="no-styles">"No styles available"</div>
                                             }.into_any()
                                         } else {
+                                            let styles_clone = styles.clone();
+
+                                            // Filter styles based on search
+                                            let filtered_styles = Signal::derive(move || {
+                                                let search = style_search.get().to_lowercase();
+                                                if search.is_empty() {
+                                                    styles_clone.clone()
+                                                } else {
+                                                    styles_clone.iter()
+                                                        .filter(|s| s.name.to_lowercase().contains(&search))
+                                                        .cloned()
+                                                        .collect()
+                                                }
+                                            });
+
                                             view! {
+                                                <input
+                                                    type="text"
+                                                    class="explore-style-search-input"
+                                                    placeholder="Search styles..."
+                                                    prop:value=move || style_search.get()
+                                                    on:input=move |ev| {
+                                                        style_search.set(event_target_value(&ev));
+                                                    }
+                                                />
                                                 <div class="explore-filter-chip-grid">
-                                                    {styles.into_iter().map(|style| {
+                                                    {move || filtered_styles.get().into_iter().map(|style| {
                                                         let style_id = style.id;
                                                         let style_name = style.name.clone();
                                                         let artist_count = style.artist_count;

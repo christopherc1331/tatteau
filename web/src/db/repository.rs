@@ -675,59 +675,68 @@ pub fn get_styles_with_counts_in_bounds(
 
 #[cfg(feature = "ssr")]
 pub fn get_styles_by_location(
-    state: Option<String>,
-    city: Option<String>,
+    states: Option<Vec<String>>,
+    cities: Option<Vec<String>>,
 ) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
+    use rusqlite::params_from_iter;
+
     let db_path = Path::new("tatteau.db");
     let conn = Connection::open(db_path)?;
 
     // Build query based on location filters
-    let query = match (&state, &city) {
-        (Some(_), Some(_)) => {
-            // Filter by both state and city
-            "SELECT
-                s.id,
-                s.name,
-                COUNT(DISTINCT ast.artist_id) as artist_count
-             FROM styles s
-             INNER JOIN artists_styles ast ON s.id = ast.style_id
-             INNER JOIN artists a ON ast.artist_id = a.id
-             INNER JOIN locations l ON a.location_id = l.id
-             WHERE l.state = ?1
-               AND l.city = ?2
-             GROUP BY s.id, s.name
-             HAVING artist_count > 0
-             ORDER BY artist_count DESC, s.name ASC"
+    // Query artists_images_styles to show only styles that have actual tagged images
+    let mut where_clauses = Vec::new();
+    let mut query_params: Vec<String> = Vec::new();
+
+    // Add state filter if provided
+    if let Some(state_list) = &states {
+        if !state_list.is_empty() {
+            let state_placeholders = state_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            where_clauses.push(format!("l.state IN ({})", state_placeholders));
+            query_params.extend(state_list.iter().cloned());
         }
-        (Some(_), None) => {
-            // Filter by state only
-            "SELECT
-                s.id,
-                s.name,
-                COUNT(DISTINCT ast.artist_id) as artist_count
-             FROM styles s
-             INNER JOIN artists_styles ast ON s.id = ast.style_id
-             INNER JOIN artists a ON ast.artist_id = a.id
-             INNER JOIN locations l ON a.location_id = l.id
-             WHERE l.state = ?1
-             GROUP BY s.id, s.name
-             HAVING artist_count > 0
-             ORDER BY artist_count DESC, s.name ASC"
+    }
+
+    // Add city filter if provided
+    if let Some(city_list) = &cities {
+        if !city_list.is_empty() {
+            let city_placeholders = city_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            where_clauses.push(format!("l.city IN ({})", city_placeholders));
+            query_params.extend(city_list.iter().cloned());
         }
-        _ => {
-            // No location filter - return all styles
-            "SELECT
-                s.id,
-                s.name,
-                COUNT(DISTINCT ast.artist_id) as artist_count
-             FROM styles s
-             LEFT JOIN artists_styles ast ON s.id = ast.style_id
-             GROUP BY s.id, s.name
-             ORDER BY artist_count DESC, s.name ASC"
-        }
+    }
+
+    let where_clause = if !where_clauses.is_empty() {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    } else {
+        String::new()
     };
 
-    let mut stmt = conn.prepare(query)?;
+    let join_type = if where_clauses.is_empty() { "LEFT" } else { "INNER" };
+
+    let query = format!(
+        "SELECT
+            s.id,
+            s.name,
+            COUNT(DISTINCT ai.id) as image_count
+         FROM styles s
+         {} JOIN artists_images_styles ais ON s.id = ais.style_id
+         {} JOIN artists_images ai ON ais.artists_images_id = ai.id
+         {} JOIN artists a ON ai.artist_id = a.id
+         {} JOIN locations l ON a.location_id = l.id
+         {}
+         GROUP BY s.id, s.name
+         {}
+         ORDER BY s.name ASC",
+        join_type,
+        join_type,
+        join_type,
+        join_type,
+        where_clause,
+        if where_clauses.is_empty() { "" } else { "HAVING image_count > 0" }
+    );
+
+    let mut stmt = conn.prepare(&query)?;
 
     let map_row = |row: &rusqlite::Row| -> rusqlite::Result<crate::server::StyleWithCount> {
         Ok(crate::server::StyleWithCount {
@@ -739,10 +748,10 @@ pub fn get_styles_by_location(
         })
     };
 
-    let styles_iter = match (&state, &city) {
-        (Some(s), Some(c)) => stmt.query_map([s.as_str(), c.as_str()], map_row)?,
-        (Some(s), None) => stmt.query_map([s.as_str()], map_row)?,
-        _ => stmt.query_map([], map_row)?,
+    let styles_iter = if query_params.is_empty() {
+        stmt.query_map([], map_row)?
+    } else {
+        stmt.query_map(params_from_iter(query_params.iter()), map_row)?
     };
 
     styles_iter.collect()

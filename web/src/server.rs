@@ -249,12 +249,12 @@ pub async fn get_styles_in_bounds(bounds: MapBounds) -> Result<Vec<StyleWithCoun
 
 #[server]
 pub async fn get_styles_by_location_filter(
-    state: Option<String>,
-    city: Option<String>,
+    states: Option<Vec<String>>,
+    cities: Option<Vec<String>>,
 ) -> Result<Vec<StyleWithCount>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
-        match get_styles_by_location(state, city) {
+        match get_styles_by_location(states, cities) {
             Ok(styles) => Ok(styles),
             Err(e) => Err(ServerFnError::new(format!(
                 "Failed to fetch styles by location: {}",
