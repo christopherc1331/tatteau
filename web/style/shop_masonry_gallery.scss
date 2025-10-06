@@ -111,6 +111,49 @@
     font-size: 0.6rem;
     font-weight: 500;
   }
+
+  // Pagination controls
+  &__pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    padding: 1rem;
+  }
+
+  &__pagination-button {
+    padding: 0.5rem 1rem;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover:not(:disabled) {
+      background: #5a67d8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    &:disabled {
+      background: #d1d5db;
+      color: #9ca3af;
+      cursor: not-allowed;
+    }
+  }
+
+  &__pagination-info {
+    font-size: 0.95rem;
+    color: #4a5568;
+    font-weight: 500;
+  }
 }
 
 // Instagram media sizing from embedded styles

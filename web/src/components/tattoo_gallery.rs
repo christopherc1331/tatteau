@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
         instagram_posts_grid::{InstagramPostsGrid, PostWithArtist}
     },
     db::entities::{Artist, ArtistImage, Style},
-    server::{MatchedArtist, TattooPost},
+    server::{get_artist_styles_by_id, MatchedArtist, TattooPost},
 };
 
 #[component]
@@ -107,28 +108,65 @@ pub fn TattooGallery(
                                     if let Ok(artist_id) = id_str.parse::<i64>() {
                                         // Find the tattoo post for this artist
                                         let callback = callback_for_click.get_value();
-
-                                        // Create matched artist from available post data
                                         let posts = posts_for_modal.get_value();
+
                                         if let Some(post) = posts.iter().find(|p| p.artist_id == artist_id) {
-                                            let matched_artist = MatchedArtist {
-                                                id: post.artist_id,
-                                                name: post.artist_name.clone(),
-                                                location_name: String::new(), // Not available in TattooPost
-                                                city: String::new(),  // Not available in TattooPost
-                                                state: String::new(), // Not available in TattooPost
-                                                primary_style: post.styles.first().cloned().unwrap_or_default(),
-                                                all_styles: post.styles.clone(),
-                                                image_count: 0, // Not available
-                                                portfolio_images: vec![],
-                                                avatar_url: None,
-                                                avg_rating: 0.0,
-                                                match_score: 0,
-                                                years_experience: None,
-                                                min_price: None,
-                                                max_price: None,
-                                            };
-                                            callback.run(matched_artist);
+                                            let post_clone = post.clone();
+
+                                            // Fetch all artist styles from artists_styles table
+                                            spawn_local(async move {
+                                                match get_artist_styles_by_id(artist_id).await {
+                                                    Ok(artist_styles) => {
+                                                        let all_styles = if artist_styles.is_empty() {
+                                                            // Fallback to image styles if no artist styles found
+                                                            post_clone.styles.clone()
+                                                        } else {
+                                                            artist_styles
+                                                        };
+
+                                                        let matched_artist = MatchedArtist {
+                                                            id: post_clone.artist_id,
+                                                            name: post_clone.artist_name.clone(),
+                                                            location_name: String::new(), // Not available in TattooPost
+                                                            city: String::new(),  // Not available in TattooPost
+                                                            state: String::new(), // Not available in TattooPost
+                                                            primary_style: all_styles.first().cloned().unwrap_or_default(),
+                                                            all_styles,
+                                                            image_count: 0, // Not available
+                                                            portfolio_images: vec![],
+                                                            avatar_url: None,
+                                                            avg_rating: 0.0,
+                                                            match_score: 0,
+                                                            years_experience: None,
+                                                            min_price: None,
+                                                            max_price: None,
+                                                        };
+                                                        callback.run(matched_artist);
+                                                    }
+                                                    Err(e) => {
+                                                        leptos::logging::error!("Failed to fetch artist styles: {}", e);
+                                                        // Fallback to image styles on error
+                                                        let matched_artist = MatchedArtist {
+                                                            id: post_clone.artist_id,
+                                                            name: post_clone.artist_name.clone(),
+                                                            location_name: String::new(),
+                                                            city: String::new(),
+                                                            state: String::new(),
+                                                            primary_style: post_clone.styles.first().cloned().unwrap_or_default(),
+                                                            all_styles: post_clone.styles.clone(),
+                                                            image_count: 0,
+                                                            portfolio_images: vec![],
+                                                            avatar_url: None,
+                                                            avg_rating: 0.0,
+                                                            match_score: 0,
+                                                            years_experience: None,
+                                                            min_price: None,
+                                                            max_price: None,
+                                                        };
+                                                        callback.run(matched_artist);
+                                                    }
+                                                }
+                                            });
                                         }
                                     }
                                 }

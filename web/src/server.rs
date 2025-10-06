@@ -2806,6 +2806,40 @@ pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError>
 }
 
 #[server]
+pub async fn get_artist_styles_by_id(artist_id: i64) -> Result<Vec<String>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use rusqlite::{params, Connection};
+        use std::path::Path;
+
+        let db_path = Path::new("tatteau.db");
+        let conn = Connection::open(db_path)
+            .map_err(|e| ServerFnError::new(format!("Database connection error: {}", e)))?;
+
+        let query = "
+            SELECT s.name
+            FROM styles s
+            JOIN artists_styles ast ON s.id = ast.style_id
+            WHERE ast.artist_id = ?
+            ORDER BY s.name ASC
+        ";
+
+        let mut stmt = conn.prepare(query)
+            .map_err(|e| ServerFnError::new(format!("Failed to prepare statement: {}", e)))?;
+
+        let styles_iter = stmt.query_map([artist_id], |row| row.get::<_, String>(0))
+            .map_err(|e| ServerFnError::new(format!("Failed to query styles: {}", e)))?;
+
+        let styles: Result<Vec<String>, _> = styles_iter.collect();
+        styles.map_err(|e| ServerFnError::new(format!("Failed to collect styles: {}", e)))
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[server]
 pub async fn log_server_error(
     error_message: String,
     error_stack: Option<String>,
