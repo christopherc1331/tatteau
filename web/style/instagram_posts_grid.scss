@@ -45,14 +45,49 @@
   }
 
   &-artist-link {
-    background: rgba(0, 0, 0, 0.8);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(0, 0, 0, 0.85);
     color: white;
-    padding: 0.125rem 0.375rem;
-    border-radius: 10px;
-    font-size: 0.6rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.65rem;
     font-weight: 600;
     text-decoration: none;
     margin-right: 0.25rem;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+    &:hover {
+      background: #7c3aed;
+      border-color: #7c3aed;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(124, 58, 237, 0.4);
+
+      .instagram-posts-grid-view-profile-hint {
+        opacity: 1;
+        max-width: 100px;
+      }
+    }
+  }
+
+  &-artist-icon {
+    font-size: 0.75rem;
+  }
+
+  &-artist-name {
+    white-space: nowrap;
+  }
+
+  &-view-profile-hint {
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.6rem;
   }
 
   &-style-tag {

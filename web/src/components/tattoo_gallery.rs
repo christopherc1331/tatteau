@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_router::hooks::{use_query_map, use_navigate};
 use wasm_bindgen::JsCast;
 
 use crate::{
@@ -16,8 +17,16 @@ pub fn TattooGallery(
     posts: Vec<TattooPost>,
     on_artist_click: Callback<MatchedArtist>,
 ) -> impl IntoView {
-    // Pagination state
-    let (current_page, set_current_page) = signal(0usize);
+    let navigate = use_navigate();
+    let query_map = use_query_map();
+
+    // Initialize page from query params or default to 0
+    let initial_page = query_map.get_untracked()
+        .get("page")
+        .and_then(|p| p.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    let (current_page, set_current_page) = signal(initial_page);
     let posts_per_page = 10;
 
     // Store posts for later use in click handler
@@ -216,16 +225,42 @@ pub fn TattooGallery(
                         <button
                             class="tattoo-gallery-pagination-button"
                             disabled=move || prev_btn_disabled.get()
-                            on:click=move |_| {
-                                if !prev_btn_disabled.get() {
-                                    set_current_page.set(current_page.get() - 1);
-                                    // Scroll to top smoothly
-                                    if let Some(window) = web_sys::window() {
-                                        let _ = window.scroll_with_scroll_to_options(
-                                            web_sys::ScrollToOptions::new()
-                                                .top(0.0)
-                                                .behavior(web_sys::ScrollBehavior::Smooth)
-                                        );
+                            on:click={
+                                let navigate = navigate.clone();
+                                move |_| {
+                                    if !prev_btn_disabled.get() {
+                                        let new_page = current_page.get() - 1;
+                                        set_current_page.set(new_page);
+
+                                        // Update URL with new page number
+                                        let current_query = query_map.get();
+                                        let mut params = vec![];
+
+                                        // Preserve existing query params
+                                        if let Some(styles) = current_query.get("styles") {
+                                            params.push(format!("styles={}", urlencoding::encode(&styles)));
+                                        }
+                                        if let Some(states) = current_query.get("states") {
+                                            params.push(format!("states={}", urlencoding::encode(&states)));
+                                        }
+                                        if let Some(cities) = current_query.get("cities") {
+                                            params.push(format!("cities={}", urlencoding::encode(&cities)));
+                                        }
+
+                                        // Add new page param
+                                        params.push(format!("page={}", new_page));
+
+                                        let new_url = format!("?{}", params.join("&"));
+                                        navigate(&new_url, Default::default());
+
+                                        // Scroll to top smoothly
+                                        if let Some(window) = web_sys::window() {
+                                            let _ = window.scroll_with_scroll_to_options(
+                                                web_sys::ScrollToOptions::new()
+                                                    .top(0.0)
+                                                    .behavior(web_sys::ScrollBehavior::Smooth)
+                                            );
+                                        }
                                     }
                                 }
                             }
@@ -242,7 +277,30 @@ pub fn TattooGallery(
                             disabled=move || next_btn_disabled.get()
                             on:click=move |_| {
                                 if !next_btn_disabled.get() {
-                                    set_current_page.set(current_page.get() + 1);
+                                    let new_page = current_page.get() + 1;
+                                    set_current_page.set(new_page);
+
+                                    // Update URL with new page number
+                                    let current_query = query_map.get();
+                                    let mut params = vec![];
+
+                                    // Preserve existing query params
+                                    if let Some(styles) = current_query.get("styles") {
+                                        params.push(format!("styles={}", urlencoding::encode(&styles)));
+                                    }
+                                    if let Some(states) = current_query.get("states") {
+                                        params.push(format!("states={}", urlencoding::encode(&states)));
+                                    }
+                                    if let Some(cities) = current_query.get("cities") {
+                                        params.push(format!("cities={}", urlencoding::encode(&cities)));
+                                    }
+
+                                    // Add new page param
+                                    params.push(format!("page={}", new_page));
+
+                                    let new_url = format!("?{}", params.join("&"));
+                                    navigate(&new_url, Default::default());
+
                                     // Scroll to top smoothly
                                     if let Some(window) = web_sys::window() {
                                         let _ = window.scroll_with_scroll_to_options(

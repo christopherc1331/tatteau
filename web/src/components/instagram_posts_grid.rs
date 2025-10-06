@@ -29,10 +29,14 @@ pub fn InstagramPostsGrid(
                                         <div class="instagram-posts-grid-meta-wrapper">
                                             {post.artist.as_ref().map(|artist| {
                                                 let artist_name = artist.name.clone().unwrap_or_else(|| "Unknown Artist".to_string());
+                                                let artist_name_for_title = artist_name.clone();
                                                 view! {
                                                     <a href={format!("/artist/{}", artist.id)}
-                                                       class="instagram-posts-grid-artist-link">
-                                                        {format!("👤 {}", artist_name)}
+                                                       class="instagram-posts-grid-artist-link"
+                                                       title={format!("View {}'s profile and portfolio", artist_name_for_title)}>
+                                                        <span class="instagram-posts-grid-artist-icon">"👤"</span>
+                                                        <span class="instagram-posts-grid-artist-name">{artist_name}</span>
+                                                        <span class="instagram-posts-grid-view-profile-hint">"→ View Profile"</span>
                                                     </a>
                                                 }
                                             })}

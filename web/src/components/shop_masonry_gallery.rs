@@ -15,8 +15,6 @@ pub fn ShopMasonryGallery(
     all_styles: Vec<Style>,
 ) -> impl IntoView {
     let (selected_style, set_selected_style) = signal::<Option<i32>>(None);
-
-    // Pagination state
     let (current_page, set_current_page) = signal(0usize);
     let posts_per_page = 10;
 
@@ -143,54 +141,48 @@ pub fn ShopMasonryGallery(
             // Pagination controls
             {move || {
                 let total = total_pages.get();
-                (total > 1).then(|| {
-                    view! {
-                        <div class="shop-masonry-gallery__pagination">
-                            <button
-                                class="shop-masonry-gallery__pagination-button"
-                                disabled=move || prev_btn_disabled.get()
-                                on:click=move |_| {
-                                    if !prev_btn_disabled.get() {
-                                        set_current_page.set(current_page.get() - 1);
-                                        // Scroll to top smoothly
-                                        if let Some(window) = web_sys::window() {
-                                            let _ = window.scroll_with_scroll_to_options(
-                                                web_sys::ScrollToOptions::new()
-                                                    .top(0.0)
-                                                    .behavior(web_sys::ScrollBehavior::Smooth)
-                                            );
+                (total > 1).then(|| view! {
+                    <div class="shop-masonry-gallery__pagination">
+                        <button
+                            class="shop-masonry-gallery__pagination-button"
+                            disabled=move || prev_btn_disabled.get()
+                            on:click=move |_| {
+                                if !prev_btn_disabled.get() {
+                                    set_current_page.set(current_page.get() - 1);
+                                    // Scroll to Shop Portfolio section smoothly
+                                    if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+                                        if let Some(element) = document.query_selector(".shop-portfolio-title").ok().flatten() {
+                                            element.scroll_into_view();
                                         }
                                     }
                                 }
-                            >
-                                "← Previous"
-                            </button>
+                            }
+                        >
+                            "← Previous"
+                        </button>
 
-                            <span class="shop-masonry-gallery__pagination-info">
-                                {move || format!("Page {} of {}", current_page.get() + 1, total)}
-                            </span>
+                        <span class="shop-masonry-gallery__pagination-info">
+                            {move || format!("Page {} of {}", current_page.get() + 1, total)}
+                        </span>
 
-                            <button
-                                class="shop-masonry-gallery__pagination-button"
-                                disabled=move || next_btn_disabled.get()
-                                on:click=move |_| {
-                                    if !next_btn_disabled.get() {
-                                        set_current_page.set(current_page.get() + 1);
-                                        // Scroll to top smoothly
-                                        if let Some(window) = web_sys::window() {
-                                            let _ = window.scroll_with_scroll_to_options(
-                                                web_sys::ScrollToOptions::new()
-                                                    .top(0.0)
-                                                    .behavior(web_sys::ScrollBehavior::Smooth)
-                                            );
+                        <button
+                            class="shop-masonry-gallery__pagination-button"
+                            disabled=move || next_btn_disabled.get()
+                            on:click=move |_| {
+                                if !next_btn_disabled.get() {
+                                    set_current_page.set(current_page.get() + 1);
+                                    // Scroll to Shop Portfolio section smoothly
+                                    if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+                                        if let Some(element) = document.query_selector(".shop-portfolio-title").ok().flatten() {
+                                            element.scroll_into_view();
                                         }
                                     }
                                 }
-                            >
-                                "Next →"
-                            </button>
-                        </div>
-                    }
+                            }
+                        >
+                            "Next →"
+                        </button>
+                    </div>
                 })
             }}
         </div>
