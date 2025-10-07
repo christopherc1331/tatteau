@@ -5,8 +5,8 @@ use crate::{
     components::{loading::LoadingView, location_search::LocationSearch},
     db::entities::CityCoords,
     server::{
-        get_available_styles, get_styles_in_bounds, get_cities, get_location_stats, search_by_postal_code, LocationStats,
-        StyleWithCount,
+        get_available_styles, get_cities, get_location_stats, get_styles_in_bounds,
+        search_by_postal_code, LocationStats, StyleWithCount,
     },
     views::map::{
         drop_down_cities::DropDownCities, drop_down_states::DropDownStates,
@@ -32,6 +32,7 @@ pub fn DiscoveryMap() -> impl IntoView {
 
     // New state for enhanced features
     let selected_styles = RwSignal::new(Vec::<i32>::new());
+    // Initialize sidebar as visible (not collapsed)
     let sidebar_collapsed = RwSignal::new(false);
     let map_center = RwSignal::new(default_location.clone());
     let map_bounds = RwSignal::new(MapBounds::default());
@@ -46,7 +47,7 @@ pub fn DiscoveryMap() -> impl IntoView {
     // Fetch available styles based on current map bounds
     let available_styles = Resource::new(
         move || map_bounds.get(),
-        move |bounds| async move { 
+        move |bounds| async move {
             if bounds.north_east.lat != 0.0 || bounds.south_west.lat != 0.0 {
                 // Use bounds-based query when bounds are available
                 get_styles_in_bounds(bounds).await.unwrap_or_default()
@@ -68,18 +69,29 @@ pub fn DiscoveryMap() -> impl IntoView {
         sidebar_collapsed.update(|c| *c = !*c);
     };
 
+    let close_sidebar_on_backdrop = move |_ev: web_sys::MouseEvent| {
+        sidebar_collapsed.set(true);
+    };
+
     let clear_filters = move |_ev: web_sys::MouseEvent| {
         selected_styles.set(Vec::new());
     };
 
     view! {
+        // Mobile backdrop overlay
+        <div
+            class="sidebar-backdrop show"
+            class:show=move || !sidebar_collapsed.get()
+            on:click=close_sidebar_on_backdrop
+        ></div>
+
         <div class="explore-container">
             // Header
             <div class="explore-header">
                 <div class="header-content">
                     <h1>"Discover Tattoo Artists"</h1>
 
-                    <LocationSearch 
+                    <LocationSearch
                         city=city
                         state=state
                         on_location_selected=handle_location_selected
@@ -124,12 +136,18 @@ pub fn DiscoveryMap() -> impl IntoView {
 
             // Main content
             <div class="explore-content">
+                // Floating filters toggle button
+                <button class="floating-filters-toggle" on:click=toggle_sidebar title="Toggle Filters">
+                    <span class="toggle-icon">
+                        {move || if sidebar_collapsed.get() { "☰" } else { "✕" }}
+                    </span>
+                    <span class="toggle-label">
+                        {move || if sidebar_collapsed.get() { "Filters" } else { "Hide" }}
+                    </span>
+                </button>
+
                 // Sidebar
                 <div class="explore-sidebar" class:collapsed=sidebar_collapsed>
-                    <button class="sidebar-toggle" on:click=toggle_sidebar>
-                        {move || if sidebar_collapsed.get() { "→" } else { "←" }}
-                    </button>
-
                     <div class="sidebar-header">
                         <h2>"Filters"</h2>
                     </div>
@@ -258,4 +276,3 @@ pub fn DiscoveryMap() -> impl IntoView {
         </div>
     }
 }
-

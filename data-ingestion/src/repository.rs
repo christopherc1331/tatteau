@@ -232,10 +232,7 @@ pub fn get_all_styles(conn: &Connection) -> Result<Vec<String>, Error> {
     styles.collect()
 }
 
-pub fn get_style_ids(
-    conn: &Connection,
-    style_names: &[String],
-) -> Result<Vec<i64>, Error> {
+pub fn get_style_ids(conn: &Connection, style_names: &[String]) -> Result<Vec<i64>, Error> {
     let mut style_ids = Vec::new();
 
     for style_name in style_names {
@@ -279,7 +276,10 @@ pub fn mark_artist_styles_extracted(conn: &Connection, artist_id: i64) -> Result
     Ok(())
 }
 
-pub fn mark_artist_styles_extraction_failed(conn: &Connection, artist_id: i64) -> Result<(), Error> {
+pub fn mark_artist_styles_extraction_failed(
+    conn: &Connection,
+    artist_id: i64,
+) -> Result<(), Error> {
     let mut stmt = conn.prepare("UPDATE artists SET styles_extracted = -1 WHERE id = ?1")?;
     stmt.execute(params![artist_id])?;
     Ok(())
