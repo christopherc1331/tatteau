@@ -253,7 +253,6 @@ pub fn Shop() -> impl IntoView {
                                                         view! {
                                                             <button
                                                                 on:click=move |_| {
-                                                                    selected_styles.set(Vec::new());
                                                                     let nav_options = leptos_router::NavigateOptions {
                                                                         scroll: false,
                                                                         ..Default::default()
@@ -276,25 +275,29 @@ pub fn Shop() -> impl IntoView {
                                                         view! {
                                                             <button
                                                                 on:click=move |_| {
-                                                                    selected_styles.update(|styles| {
-                                                                        if styles.contains(&style_id) {
-                                                                            styles.retain(|&id| id != style_id);
-                                                                        } else {
-                                                                            styles.push(style_id);
-                                                                        }
-                                                                    });
-                                                                    let styles_str = selected_styles.get()
-                                                                        .iter()
-                                                                        .map(|id| id.to_string())
-                                                                        .collect::<Vec<_>>()
-                                                                        .join(",");
+                                                                    // Calculate new styles based on current URL state
+                                                                    let current_styles = selected_styles.get();
+                                                                    let new_styles: Vec<i32> = if current_styles.contains(&style_id) {
+                                                                        current_styles.into_iter().filter(|&id| id != style_id).collect()
+                                                                    } else {
+                                                                        let mut styles = current_styles;
+                                                                        styles.push(style_id);
+                                                                        styles
+                                                                    };
+
                                                                     let nav_options = leptos_router::NavigateOptions {
                                                                         scroll: false,
                                                                         ..Default::default()
                                                                     };
-                                                                    if styles_str.is_empty() {
+
+                                                                    if new_styles.is_empty() {
                                                                         navigate_style(&format!("/shop/{}", shop_id.get()), nav_options);
                                                                     } else {
+                                                                        let styles_str = new_styles
+                                                                            .iter()
+                                                                            .map(|id| id.to_string())
+                                                                            .collect::<Vec<_>>()
+                                                                            .join(",");
                                                                         navigate_style(&format!("/shop/{}?styles={}", shop_id.get(), styles_str), nav_options);
                                                                     }
                                                                 }
