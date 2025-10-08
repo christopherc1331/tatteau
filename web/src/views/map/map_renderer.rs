@@ -155,13 +155,21 @@ pub fn MapRenderer(
                         
                         {move ||
                             match locations.get() {
-                                Some(Ok(locations)) => view! {
-                                        {locations.into_iter().map(|enhanced_loc| {
+                                Some(Ok(locations)) => {
+                                    let current_styles = selected_styles.get();
+                                    let styles_opt = if current_styles.is_empty() {
+                                        None
+                                    } else {
+                                        Some(current_styles)
+                                    };
+                                    view! {
+                                        {locations.into_iter().map(move |enhanced_loc| {
                                             view! {
-                                                <EnhancedMapMarker location=enhanced_loc />
+                                                <EnhancedMapMarker location=enhanced_loc selected_styles=styles_opt.clone() />
                                             }
                                         }).collect_view()}
-                                }.into_any(),
+                                    }.into_any()
+                                },
                                 Some(Err(err)) => {
                                     leptos::logging::log!("Error occurred while fetching locations: {}", err);
                                     view! { <></> }.into_any()

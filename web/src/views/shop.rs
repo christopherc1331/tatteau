@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
+use leptos_router::hooks::{use_params_map, use_query_map};
 
 use crate::{
     components::{
@@ -7,18 +7,53 @@ use crate::{
         shop_masonry_gallery::{ShopInstagramPost, ShopMasonryGallery},
     },
     db::entities::{Artist, Style},
-    server::fetch_shop_data,
+    server::{fetch_shop_data, fetch_shop_images_paginated},
 };
 
 #[component]
 pub fn Shop() -> impl IntoView {
     let params = use_params_map();
+    let query = use_query_map();
+    let navigate = leptos_router::hooks::use_navigate();
+
     let shop_id = Memo::new(move |_| {
         params
             .read()
             .get("id")
             .and_then(|id| id.parse::<i32>().ok())
             .unwrap_or(0)
+    });
+
+    // Parse style IDs and page from query params
+    let selected_styles = RwSignal::new(Vec::<i32>::new());
+    let current_page = RwSignal::new(0);
+    let per_page = 10;
+
+    // Update selected styles and page from query params
+    Effect::new(move |_| {
+        let query_map = query.read();
+
+        // Parse styles
+        if let Some(styles_str) = query_map.get("styles") {
+            let style_ids: Vec<i32> = styles_str
+                .split(',')
+                .filter_map(|s| s.trim().parse::<i32>().ok())
+                .collect();
+            selected_styles.set(style_ids);
+        } else {
+            selected_styles.set(Vec::new());
+        }
+
+        // Parse page
+        if let Some(page_str) = query_map.get("page") {
+            if let Ok(page) = page_str.parse::<i32>() {
+                current_page.set(page.max(0));
+            } else {
+                current_page.set(0);
+            }
+        } else {
+            current_page.set(0);
+        }
     });
 
     let shop_data = Resource::new(
@@ -32,13 +67,35 @@ pub fn Shop() -> impl IntoView {
         },
     );
 
+    // Paginated images resource
+    let paginated_images = Resource::new(
+        move || (shop_id.get(), selected_styles.get(), current_page.get()),
+        move |(id, styles, page)| async move {
+            if id > 0 {
+                let style_filter = if styles.is_empty() {
+                    None
+                } else {
+                    Some(styles)
+                };
+                fetch_shop_images_paginated(id, style_filter, page, per_page)
+                    .await
+                    .ok()
+            } else {
+                None
+            }
+        },
+    );
+
     view! {
         <div class="shop-container">
             <Suspense fallback=move || view! {
                 <LoadingView message=Some("Loading shop information...".to_string()) />
             }>
-                {move || {
-                    shop_data.get().map(|data| {
+                {
+                    let navigate_clone = navigate.clone();
+                    move || {
+                        let navigate = navigate_clone.clone();
+                        shop_data.get().map(|data| {
                         data.map(|shop_data| {
                             let shop_name = shop_data.location.name.unwrap_or_else(|| "Unknown Shop".to_string());
                             let city = shop_data.location.city.unwrap_or_else(|| "Unknown".to_string());
@@ -182,14 +239,190 @@ pub fn Shop() -> impl IntoView {
                                         })}
                                         </div>
 
-                                        {(!shop_posts.is_empty()).then(|| {
-                                            view! {
-                                                <div class="shop-info-card">
-                                                    <h2 class="shop-portfolio-title">"Shop Portfolio"</h2>
-                                                    <ShopMasonryGallery shop_posts=shop_posts all_styles=all_styles_for_filter />
+                                        // Portfolio section with server-side filtering
+                                        <div class="shop-info-card">
+                                            <h2 class="shop-portfolio-title">"Shop Portfolio"</h2>
+
+                                            // Style filter chips
+                                            <div class="shop-masonry-gallery__filter-container">
+                                                <div class="shop-masonry-gallery__filter-wrapper">
+                                                    <span class="shop-masonry-gallery__filter-label">"Filter by style:"</span>
+
+                                                    {
+                                                        let navigate_all = navigate.clone();
+                                                        view! {
+                                                            <button
+                                                                on:click=move |_| {
+                                                                    selected_styles.set(Vec::new());
+                                                                    let nav_options = leptos_router::NavigateOptions {
+                                                                        scroll: false,
+                                                                        ..Default::default()
+                                                                    };
+                                                                    navigate_all(&format!("/shop/{}", shop_id.get()), nav_options);
+                                                                }
+                                                                class="shop-masonry-gallery__filter-button"
+                                                                class:shop-masonry-gallery__filter-button--active=move || selected_styles.get().is_empty()
+                                                                class:shop-masonry-gallery__filter-button--inactive=move || !selected_styles.get().is_empty()
+                                                            >
+                                                                "All"
+                                                            </button>
+                                                        }
+                                                    }
+
+                                                    {all_styles_for_filter.clone().into_iter().map(|style| {
+                                                        let style_id = style.id;
+                                                        let style_name = style.name.clone();
+                                                        let navigate_style = navigate.clone();
+                                                        view! {
+                                                            <button
+                                                                on:click=move |_| {
+                                                                    selected_styles.update(|styles| {
+                                                                        if styles.contains(&style_id) {
+                                                                            styles.retain(|&id| id != style_id);
+                                                                        } else {
+                                                                            styles.push(style_id);
+                                                                        }
+                                                                    });
+                                                                    let styles_str = selected_styles.get()
+                                                                        .iter()
+                                                                        .map(|id| id.to_string())
+                                                                        .collect::<Vec<_>>()
+                                                                        .join(",");
+                                                                    let nav_options = leptos_router::NavigateOptions {
+                                                                        scroll: false,
+                                                                        ..Default::default()
+                                                                    };
+                                                                    if styles_str.is_empty() {
+                                                                        navigate_style(&format!("/shop/{}", shop_id.get()), nav_options);
+                                                                    } else {
+                                                                        navigate_style(&format!("/shop/{}?styles={}", shop_id.get(), styles_str), nav_options);
+                                                                    }
+                                                                }
+                                                                class="shop-masonry-gallery__filter-button"
+                                                                class:shop-masonry-gallery__filter-button--active=move || selected_styles.get().contains(&style_id)
+                                                                class:shop-masonry-gallery__filter-button--inactive=move || !selected_styles.get().contains(&style_id)
+                                                            >
+                                                                {style_name}
+                                                            </button>
+                                                        }
+                                                    }).collect_view()}
                                                 </div>
-                                            }
-                                        })}
+                                            </div>
+
+                                            // Paginated gallery
+                                            <Suspense fallback=|| view! { <div>"Loading images..."</div> }>
+                                                {move || {
+                                                    paginated_images.get().map(|result| {
+                                                        result.map(|(images, total_count)| {
+                                                            let total_pages = (total_count as f32 / per_page as f32).ceil() as i32;
+
+                                                            let shop_posts: Vec<ShopInstagramPost> = images
+                                                                .into_iter()
+                                                                .map(|(image, styles, artist)| ShopInstagramPost {
+                                                                    image,
+                                                                    styles,
+                                                                    artist,
+                                                                })
+                                                                .collect();
+
+                                                            view! {
+                                                                <>
+                                                                    {(!shop_posts.is_empty()).then(|| {
+                                                                        view! {
+                                                                            <ShopMasonryGallery
+                                                                                shop_posts=shop_posts
+                                                                                all_styles=vec![]
+                                                                            />
+                                                                        }
+                                                                    })}
+
+                                                                    {(total_pages > 1).then(|| {
+                                                                        let total = total_pages;
+                                                                        let navigate_prev = navigate.clone();
+                                                                        let navigate_next = navigate.clone();
+                                                                        view! {
+                                                                            <div class="shop-masonry-gallery__pagination">
+                                                                                <button
+                                                                                    class="shop-masonry-gallery__pagination-button"
+                                                                                    disabled={move || current_page.get() == 0}
+                                                                                    on:click=move |_| {
+                                                                                        if current_page.get() > 0 {
+                                                                                            let new_page = current_page.get() - 1;
+                                                                                            let styles_str = selected_styles.get()
+                                                                                                .iter()
+                                                                                                .map(|id| id.to_string())
+                                                                                                .collect::<Vec<_>>()
+                                                                                                .join(",");
+                                                                                            let mut url = format!("/shop/{}", shop_id.get());
+                                                                                            let mut params = vec![];
+                                                                                            if !styles_str.is_empty() {
+                                                                                                params.push(format!("styles={}", styles_str));
+                                                                                            }
+                                                                                            if new_page > 0 {
+                                                                                                params.push(format!("page={}", new_page));
+                                                                                            }
+                                                                                            if !params.is_empty() {
+                                                                                                url = format!("{}?{}", url, params.join("&"));
+                                                                                            }
+                                                                                            let nav_options = leptos_router::NavigateOptions {
+                                                                                                scroll: false,
+                                                                                                ..Default::default()
+                                                                                            };
+                                                                                            navigate_prev(&url, nav_options);
+                                                                                        }
+                                                                                    }
+                                                                                >
+                                                                                    "← Previous"
+                                                                                </button>
+
+                                                                                <span class="shop-masonry-gallery__pagination-info">
+                                                                                    {move || format!("Page {} of {}", current_page.get() + 1, total)}
+                                                                                </span>
+
+                                                                                <button
+                                                                                    class="shop-masonry-gallery__pagination-button"
+                                                                                    disabled={move || current_page.get() >= total - 1}
+                                                                                    on:click=move |_| {
+                                                                                        if current_page.get() < total - 1 {
+                                                                                            let new_page = current_page.get() + 1;
+                                                                                            let styles_str = selected_styles.get()
+                                                                                                .iter()
+                                                                                                .map(|id| id.to_string())
+                                                                                                .collect::<Vec<_>>()
+                                                                                                .join(",");
+                                                                                            let mut url = format!("/shop/{}", shop_id.get());
+                                                                                            let mut params = vec![];
+                                                                                            if !styles_str.is_empty() {
+                                                                                                params.push(format!("styles={}", styles_str));
+                                                                                            }
+                                                                                            params.push(format!("page={}", new_page));
+                                                                                            if !params.is_empty() {
+                                                                                                url = format!("{}?{}", url, params.join("&"));
+                                                                                            }
+                                                                                            let nav_options = leptos_router::NavigateOptions {
+                                                                                                scroll: false,
+                                                                                                ..Default::default()
+                                                                                            };
+                                                                                            navigate_next(&url, nav_options);
+                                                                                        }
+                                                                                    }
+                                                                                >
+                                                                                    "Next →"
+                                                                                </button>
+                                                                            </div>
+                                                                        }
+                                                                    })}
+                                                                </>
+                                                            }.into_any()
+                                                        }).unwrap_or_else(|| {
+                                                            view! {
+                                                                <div>"No images found."</div>
+                                                            }.into_any()
+                                                        })
+                                                    })
+                                                }}
+                                            </Suspense>
+                                        </div>
                                     </div>
                                 </div>
                             }.into_any()
@@ -218,7 +451,8 @@ pub fn Shop() -> impl IntoView {
                             }.into_any()
                         })
                     })
-                }}
+                    }
+                }
             </Suspense>
         </div>
     }

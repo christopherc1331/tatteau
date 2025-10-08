@@ -179,6 +179,54 @@ pub async fn fetch_shop_data(location_id: i32) -> Result<ShopData, ServerFnError
     })
 }
 
+#[server]
+pub async fn fetch_shop_images_paginated(
+    location_id: i32,
+    style_ids: Option<Vec<i32>>,
+    page: i32,
+    per_page: i32,
+) -> Result<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::repository::get_shop_images_paginated;
+        match get_shop_images_paginated(location_id, style_ids, page, per_page) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch paginated shop images: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok((Vec::new(), 0))
+    }
+}
+
+#[server]
+pub async fn fetch_artist_images_paginated(
+    artist_id: i32,
+    style_ids: Option<Vec<i32>>,
+    page: i32,
+    per_page: i32,
+) -> Result<(Vec<(ArtistImage, Vec<Style>)>, i32), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::repository::get_artist_images_paginated;
+        match get_artist_images_paginated(artist_id, style_ids, page, per_page) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to fetch paginated artist images: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok((Vec::new(), 0))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct LocationStats {
     pub shop_count: i32,

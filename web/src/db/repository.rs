@@ -1616,3 +1616,224 @@ pub fn get_errors_by_type(error_type: String, limit: i32) -> SqliteResult<Vec<Er
 
     error_rows.collect()
 }
+
+// Paginated and filtered image queries for shop pages
+#[cfg(feature = "ssr")]
+pub fn get_shop_images_paginated(
+    location_id: i32,
+    style_ids: Option<Vec<i32>>,
+    page: i32,
+    per_page: i32,
+) -> SqliteResult<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32)> {
+    use rusqlite::params;
+
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    // Build the WHERE clause for style filtering
+    let style_filter = if let Some(ref ids) = style_ids {
+        if !ids.is_empty() {
+            let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            format!("AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id IN ({}))", placeholders)
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    // Get total count
+    let count_query = format!(
+        "SELECT COUNT(DISTINCT ai.id)
+         FROM artists_images ai
+         JOIN artists a ON ai.artist_id = a.id
+         JOIN locations l ON a.location_id = l.id
+         WHERE a.location_id = ?1
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND a.name IS NOT NULL
+         AND a.name != ''
+         {}",
+        style_filter
+    );
+
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(location_id)];
+    if let Some(ref ids) = style_ids {
+        for id in ids {
+            params_vec.push(Box::new(*id));
+        }
+    }
+
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+
+    let total_count: i32 = conn.query_row(&count_query, params_refs.as_slice(), |row| row.get(0))?;
+
+    // Get paginated images
+    let offset = page * per_page;
+    let query = format!(
+        "SELECT ai.id, ai.short_code, ai.artist_id, a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+         FROM artists_images ai
+         JOIN artists a ON ai.artist_id = a.id
+         JOIN locations l ON a.location_id = l.id
+         WHERE a.location_id = ?1
+         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND a.name IS NOT NULL
+         AND a.name != ''
+         {}
+         ORDER BY ai.id DESC
+         LIMIT ?{} OFFSET ?{}",
+        style_filter,
+        params_vec.len() + 1,
+        params_vec.len() + 2
+    );
+
+    params_vec.push(Box::new(per_page));
+    params_vec.push(Box::new(offset));
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+
+    let mut stmt = conn.prepare(&query)?;
+    let images = stmt.query_map(params_refs.as_slice(), |row| {
+        let image = ArtistImage {
+            id: row.get(0)?,
+            short_code: row.get(1)?,
+            artist_id: row.get(2)?,
+        };
+
+        let artist = Artist {
+            id: row.get(3)?,
+            name: row.get(4)?,
+            location_id: row.get(5)?,
+            social_links: row.get(6)?,
+            email: row.get(7)?,
+            phone: row.get(8)?,
+            years_experience: row.get(9)?,
+            styles_extracted: row.get(10)?,
+        };
+
+        Ok((image, artist))
+    })?;
+
+    let mut result: Vec<(ArtistImage, Vec<Style>, Artist)> = vec![];
+    for image_result in images {
+        let (image, artist) = image_result?;
+        let img_id = image.id;
+
+        // Get styles for this image
+        let mut styles_stmt = conn.prepare(
+            "SELECT s.id, s.name
+             FROM styles s
+             JOIN artists_images_styles ais ON s.id = ais.style_id
+             WHERE ais.artists_images_id = ?1",
+        )?;
+
+        let styles = styles_stmt.query_map(params![img_id], |row| {
+            Ok(Style {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        })?;
+
+        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
+        result.push((image, styles_vec?, artist));
+    }
+
+    Ok((result, total_count))
+}
+
+// Paginated and filtered image queries for artist pages
+#[cfg(feature = "ssr")]
+pub fn get_artist_images_paginated(
+    artist_id: i32,
+    style_ids: Option<Vec<i32>>,
+    page: i32,
+    per_page: i32,
+) -> SqliteResult<(Vec<(ArtistImage, Vec<Style>)>, i32)> {
+    use rusqlite::params;
+
+    let db_path = Path::new("tatteau.db");
+    let conn = Connection::open(db_path)?;
+
+    // Build the WHERE clause for style filtering
+    let style_filter = if let Some(ref ids) = style_ids {
+        if !ids.is_empty() {
+            let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            format!("AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id IN ({}))", placeholders)
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    // Get total count
+    let count_query = format!(
+        "SELECT COUNT(DISTINCT ai.id)
+         FROM artists_images ai
+         WHERE ai.artist_id = ?1
+         {}",
+        style_filter
+    );
+
+    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(artist_id)];
+    if let Some(ref ids) = style_ids {
+        for id in ids {
+            params_vec.push(Box::new(*id));
+        }
+    }
+
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+
+    let total_count: i32 = conn.query_row(&count_query, params_refs.as_slice(), |row| row.get(0))?;
+
+    // Get paginated images
+    let offset = page * per_page;
+    let query = format!(
+        "SELECT id, short_code, artist_id
+         FROM artists_images
+         WHERE artist_id = ?1
+         {}
+         ORDER BY id DESC
+         LIMIT ?{} OFFSET ?{}",
+        style_filter,
+        params_vec.len() + 1,
+        params_vec.len() + 2
+    );
+
+    params_vec.push(Box::new(per_page));
+    params_vec.push(Box::new(offset));
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+
+    let mut stmt = conn.prepare(&query)?;
+    let images = stmt.query_map(params_refs.as_slice(), |row| {
+        Ok(ArtistImage {
+            id: row.get(0)?,
+            short_code: row.get(1)?,
+            artist_id: row.get(2)?,
+        })
+    })?;
+
+    let mut result: Vec<(ArtistImage, Vec<Style>)> = vec![];
+    for image_result in images {
+        let image = image_result?;
+        let img_id = image.id;
+
+        // Get styles for this image
+        let mut styles_stmt = conn.prepare(
+            "SELECT s.id, s.name
+             FROM styles s
+             JOIN artists_images_styles ais ON s.id = ais.style_id
+             WHERE ais.artists_images_id = ?1",
+        )?;
+
+        let styles = styles_stmt.query_map(params![img_id], |row| {
+            Ok(Style {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        })?;
+
+        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
+        result.push((image, styles_vec?));
+    }
+
+    Ok((result, total_count))
+}

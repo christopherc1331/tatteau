@@ -3,7 +3,10 @@ use leptos::prelude::*;
 use leptos_leaflet::prelude::*;
 
 #[component]
-pub fn EnhancedMapMarker(location: EnhancedLocationInfo) -> impl IntoView {
+pub fn EnhancedMapMarker(
+    location: EnhancedLocationInfo,
+    #[prop(default = None)] selected_styles: Option<Vec<i32>>,
+) -> impl IntoView {
     let fill_color = if location.location.has_artists.unwrap_or(false) == false {
         "%236b7280"
     } else if location.image_count == 0 {
@@ -58,14 +61,17 @@ pub fn EnhancedMapMarker(location: EnhancedLocationInfo) -> impl IntoView {
             icon_anchor=Some(icon_anchor)
         >
             <Popup>
-                <EnhancedMapPopup location=location />
+                <EnhancedMapPopup location=location selected_styles=selected_styles />
             </Popup>
         </Marker>
     }
 }
 
 #[component]
-pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
+pub fn EnhancedMapPopup(
+    location: EnhancedLocationInfo,
+    #[prop(default = None)] selected_styles: Option<Vec<i32>>,
+) -> impl IntoView {
     let location_id = location.location.id;
     
     // Create a stable signal for the location ID to prevent Resource recreation
@@ -188,10 +194,25 @@ pub fn EnhancedMapPopup(location: EnhancedLocationInfo) -> impl IntoView {
             } else {
                 view! {}.into_any()
             }}
-            
-            <a 
+
+            <a
                 class="popup-cta"
-                href=format!("/shop/{}", location.location.id)
+                href={
+                    let base_url = format!("/shop/{}", location.location.id);
+                    if let Some(styles) = selected_styles.as_ref() {
+                        if !styles.is_empty() {
+                            let styles_str = styles.iter()
+                                .map(|id| id.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",");
+                            format!("{}?styles={}", base_url, styles_str)
+                        } else {
+                            base_url
+                        }
+                    } else {
+                        base_url
+                    }
+                }
             >
                 {if location.image_count > 0 {
                     "View Portfolio & Artists"
