@@ -1787,11 +1787,11 @@ pub fn get_artist_images_paginated(
     // Get paginated images
     let offset = page * per_page;
     let query = format!(
-        "SELECT id, short_code, artist_id
-         FROM artists_images
-         WHERE artist_id = ?1
+        "SELECT ai.id, ai.short_code, ai.artist_id
+         FROM artists_images ai
+         WHERE ai.artist_id = ?1
          {}
-         ORDER BY id DESC
+         ORDER BY ai.id DESC
          LIMIT ?{} OFFSET ?{}",
         style_filter,
         params_vec.len() + 1,

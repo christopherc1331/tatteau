@@ -280,7 +280,9 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                             let navigate = navigate.clone();
                                                             move |_| {
                                                                 selected_styles.set(Vec::new());
-                                                                navigate(&format!("/artist/{}", artist_id.get()), Default::default());
+                                                                let mut options = leptos_router::NavigateOptions::default();
+                                                                options.scroll = false;
+                                                                navigate(&format!("/artist/{}", artist_id.get()), options);
                                                             }
                                                         }
                                                         class="shop-masonry-gallery__filter-button"
@@ -309,10 +311,12 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                                         .map(|id| id.to_string())
                                                                         .collect::<Vec<_>>()
                                                                         .join(",");
+                                                                    let mut options = leptos_router::NavigateOptions::default();
+                                                                    options.scroll = false;
                                                                     if styles_str.is_empty() {
-                                                                        navigate(&format!("/artist/{}", artist_id.get()), Default::default());
+                                                                        navigate(&format!("/artist/{}", artist_id.get()), options);
                                                                     } else {
-                                                                        navigate(&format!("/artist/{}?styles={}", artist_id.get(), styles_str), Default::default());
+                                                                        navigate(&format!("/artist/{}?styles={}", artist_id.get(), styles_str), options);
                                                                     }
                                                                 }
                                                                 class="shop-masonry-gallery__filter-button"
@@ -380,7 +384,9 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                                                             if !params.is_empty() {
                                                                                                 url = format!("{}?{}", url, params.join("&"));
                                                                                             }
-                                                                                            navigate_prev(&url, Default::default());
+                                                                                            let mut options = leptos_router::NavigateOptions::default();
+                                                                                            options.scroll = false;
+                                                                                            navigate_prev(&url, options);
                                                                                         }
                                                                                     }
                                                                                 >
@@ -411,7 +417,9 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                                                             if !params.is_empty() {
                                                                                                 url = format!("{}?{}", url, params.join("&"));
                                                                                             }
-                                                                                            navigate_next(&url, Default::default());
+                                                                                            let mut options = leptos_router::NavigateOptions::default();
+                                                                                            options.scroll = false;
+                                                                                            navigate_next(&url, options);
                                                                                         }
                                                                                     }
                                                                                 >

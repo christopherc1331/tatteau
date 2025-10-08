@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
 use crate::components::instagram_embed::InstagramEmbed;
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -14,6 +15,23 @@ pub fn ShopMasonryGallery(
     shop_posts: Vec<ShopInstagramPost>,
     all_styles: Vec<Style>,
 ) -> impl IntoView {
+    // Process all Instagram embeds after component mounts
+    Effect::new(move |_| {
+        // Wait for all embeds to render, then process them all at once
+        set_timeout(
+            move || {
+                let _ = web_sys::js_sys::eval(
+                    r#"
+                    if (window.instgrm && window.instgrm.Embeds) {
+                        window.instgrm.Embeds.process();
+                    }
+                    "#
+                );
+            },
+            std::time::Duration::from_millis(500),
+        );
+    });
+
     view! {
         <div class="shop-masonry-gallery__container">
             <div class="shop-masonry-gallery__masonry">

@@ -61,15 +61,11 @@ pub fn InstagramEmbed(
         let js_code = format!(
             r#"
             (function(elem) {{
-                console.log('[Instagram] Processing element');
-
                 processInstagramEmbed(elem);
-                
+
                 function processInstagramEmbed(element) {{
-                    // Check if already fully processed
-                    if (element.hasAttribute('data-instagram-processed')) {{
-                        return;
-                    }}
+                    // Remove any existing processed attribute to force re-processing
+                    element.removeAttribute('data-instagram-processed');
 
                     // Check if iframe already exists (Instagram processed it quickly)
                     const existingIframe = element.querySelector('iframe[src*="instagram.com"]') ||
@@ -89,20 +85,21 @@ pub fn InstagramEmbed(
                         element.removeAttribute('data-instagram-processing');
                         hideLoadingSpinner(element);
                     }}
-                    
+
                     // Ensure Instagram script is loaded only once
                     if (!window.instgrm) {{
                         // Check if script is already being loaded
-                        if (document.querySelector('script[src*="instagram.com/embed.js"]')) {{
+                        const existingScript = document.querySelector('script[src*="instagram.com/embed.js"]');
+                        if (existingScript) {{
                             // Script loading in progress, wait for it
                             const checkInterval = setInterval(() => {{
                                 if (window.instgrm && window.instgrm.Embeds) {{
                                     clearInterval(checkInterval);
-                                    window.instgrm.Embeds.process(element);
+                                    window.instgrm.Embeds.process();
                                     finalizeProcessing();
                                 }}
                             }}, 200);
-                            
+
                             // Timeout after 5 seconds
                             setTimeout(() => {{
                                 clearInterval(checkInterval);
@@ -115,7 +112,7 @@ pub fn InstagramEmbed(
                             script.async = true;
                             script.onload = () => {{
                                 if (window.instgrm && window.instgrm.Embeds) {{
-                                    window.instgrm.Embeds.process(element);
+                                    window.instgrm.Embeds.process();
                                 }}
                                 finalizeProcessing();
                             }};
@@ -123,27 +120,25 @@ pub fn InstagramEmbed(
                             document.head.appendChild(script);
                         }}
                     }} else if (window.instgrm && window.instgrm.Embeds) {{
-                        window.instgrm.Embeds.process(element);
-                        finalizeProcessing();
+                        // Don't call process() here - let the gallery component handle it
+                        // This prevents multiple rapid process() calls
+                        hideLoadingSpinner(element);
                     }} else {{
-                        finalizeProcessing();
+                        hideLoadingSpinner(element);
                     }}
                 }}
-                
+
                 function hideLoadingSpinner(element) {{
-                    console.log('[Instagram] hideLoadingSpinner called');
                     // Watch for iframe to appear with Instagram's rendered class
                     const checkForIframe = () => {{
                         // Look for iframe with the instagram-media-rendered class OR any iframe after timeout
                         const iframe = element.querySelector('iframe.instagram-media-rendered') ||
                                      element.querySelector('iframe');
                         if (iframe) {{
-                            console.log('[Instagram] Iframe found, hiding spinner in 500ms');
                             // Hide spinner after short delay
                             setTimeout(() => {{
                                 const loadingDiv = element.querySelector('[data-instagram-loading]');
                                 if (loadingDiv) {{
-                                    console.log('[Instagram] Hiding loading spinner');
                                     loadingDiv.style.display = 'none';
                                 }}
                             }}, 500);
@@ -154,10 +149,8 @@ pub fn InstagramEmbed(
 
                     // Try immediately
                     if (!checkForIframe()) {{
-                        console.log('[Instagram] No iframe found, setting up observer');
                         // Use MutationObserver to watch for iframe insertion and attribute changes
                         const observer = new MutationObserver((mutations) => {{
-                            console.log('[Instagram] Mutation detected');
                             if (checkForIframe()) {{
                                 observer.disconnect();
                             }}
@@ -172,7 +165,6 @@ pub fn InstagramEmbed(
 
                         // Fallback: force hide after 3 seconds
                         setTimeout(() => {{
-                            console.log('[Instagram] Fallback timeout reached, forcing hide');
                             observer.disconnect();
                             const loadingDiv = element.querySelector('[data-instagram-loading]');
                             if (loadingDiv) {{
