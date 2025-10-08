@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos::html::Div;
 use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -40,44 +41,49 @@ pub fn InstagramEmbed(
     short_code: String,
     #[prop(optional, default=InstagramEmbedSize::default())] size: InstagramEmbedSize,
 ) -> impl IntoView {
-    let embed_id = format!("instagram-embed-{}", short_code);
-    let embed_id_for_effect = embed_id.clone();
+    // Use a unique ID for each component instance to ensure Effects run on every render
+    // Use a simple counter-based approach that works in both SSR and client
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let unique_id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let embed_id = format!("instagram-embed-{}-{}", short_code, unique_id);
     let embed_id_for_view = embed_id.clone();
+    let embed_id_for_effect = embed_id.clone();
     let short_code_for_html = short_code.clone();
 
-    // Instagram embed initialization with optimized processing to prevent duplicate requests
+    // Use NodeRef to access the DOM element once it's rendered
+    let container_ref = NodeRef::<Div>::new();
+
+    // Instagram embed initialization - Effect runs when container_ref is populated
     Effect::new(move |_| {
+        // This will re-run until container_ref.get() returns Some
+        if let Some(container) = container_ref.get() {
         let js_code = format!(
             r#"
-            (function() {{
-                const embedId = '{}';
-                
-                const elem = document.getElementById(embedId);
-                if (!elem) {{
-                    // Retry only once after a short delay
-                    setTimeout(function() {{
-                        const retryElem = document.getElementById(embedId);
-                        if (retryElem && window.instgrm && window.instgrm.Embeds) {{
-                            processInstagramEmbed(retryElem);
-                        }}
-                    }}, 100);
-                    return;
-                }}
-                
+            (function(elem) {{
+                console.log('[Instagram] Processing element');
+
                 processInstagramEmbed(elem);
                 
                 function processInstagramEmbed(element) {{
-                    // Enhanced check to prevent duplicate processing
-                    if (element.hasAttribute('data-instagram-processed') || 
-                        element.querySelector('iframe[src*="instagram.com"]') ||
-                        element.querySelector('.instagram-media iframe')) {{
+                    // Check if already fully processed
+                    if (element.hasAttribute('data-instagram-processed')) {{
+                        return;
+                    }}
+
+                    // Check if iframe already exists (Instagram processed it quickly)
+                    const existingIframe = element.querySelector('iframe[src*="instagram.com"]') ||
+                                          element.querySelector('.instagram-media iframe');
+                    if (existingIframe) {{
+                        // Iframe exists, but wait for it to load before hiding spinner
+                        element.setAttribute('data-instagram-processed', 'true');
                         hideLoadingSpinner(element);
                         return;
                     }}
-                    
+
                     // Mark as processing to prevent duplicate calls
                     element.setAttribute('data-instagram-processing', 'true');
-                    
+
                     function finalizeProcessing() {{
                         element.setAttribute('data-instagram-processed', 'true');
                         element.removeAttribute('data-instagram-processing');
@@ -125,26 +131,71 @@ pub fn InstagramEmbed(
                 }}
                 
                 function hideLoadingSpinner(element) {{
-                    setTimeout(() => {{
-                        const loadingDiv = element.querySelector('[data-instagram-loading]');
-                        if (loadingDiv) {{
-                            loadingDiv.style.display = 'none';
+                    console.log('[Instagram] hideLoadingSpinner called');
+                    // Watch for iframe to appear with Instagram's rendered class
+                    const checkForIframe = () => {{
+                        // Look for iframe with the instagram-media-rendered class OR any iframe after timeout
+                        const iframe = element.querySelector('iframe.instagram-media-rendered') ||
+                                     element.querySelector('iframe');
+                        if (iframe) {{
+                            console.log('[Instagram] Iframe found, hiding spinner in 500ms');
+                            // Hide spinner after short delay
+                            setTimeout(() => {{
+                                const loadingDiv = element.querySelector('[data-instagram-loading]');
+                                if (loadingDiv) {{
+                                    console.log('[Instagram] Hiding loading spinner');
+                                    loadingDiv.style.display = 'none';
+                                }}
+                            }}, 500);
+                            return true;
                         }}
-                    }}, 1500);
+                        return false;
+                    }};
+
+                    // Try immediately
+                    if (!checkForIframe()) {{
+                        console.log('[Instagram] No iframe found, setting up observer');
+                        // Use MutationObserver to watch for iframe insertion and attribute changes
+                        const observer = new MutationObserver((mutations) => {{
+                            console.log('[Instagram] Mutation detected');
+                            if (checkForIframe()) {{
+                                observer.disconnect();
+                            }}
+                        }});
+
+                        observer.observe(element, {{
+                            childList: true,
+                            subtree: true,
+                            attributes: true,
+                            attributeFilter: ['class']
+                        }});
+
+                        // Fallback: force hide after 3 seconds
+                        setTimeout(() => {{
+                            console.log('[Instagram] Fallback timeout reached, forcing hide');
+                            observer.disconnect();
+                            const loadingDiv = element.querySelector('[data-instagram-loading]');
+                            if (loadingDiv) {{
+                                loadingDiv.style.display = 'none';
+                            }}
+                        }}, 3000);
+                    }}
                 }}
-            }})();
-        "#,
-            embed_id_for_effect
+            }})(arguments[0]);
+        "#
         );
 
-        let _ = web_sys::js_sys::eval(&js_code);
+        // Execute the JavaScript with the container element as argument
+        let func = web_sys::js_sys::Function::new_with_args("elem", &js_code);
+        let _ = func.call1(&wasm_bindgen::JsValue::NULL, &container);
+        }
     });
 
     let container_class = size.container_class();
     let media_class = size.media_class();
 
     view! {
-        <div id={embed_id_for_view} class={container_class}>
+        <div id={embed_id_for_view} class={container_class} node_ref=container_ref>
             <div
                 class={media_class}
                 inner_html={format!(
@@ -153,7 +204,7 @@ pub fn InstagramEmbed(
                 )}
             ></div>
 
-            <div data-instagram-loading="true" class="instagram-embed-loading-overlay">
+            <div data-instagram-loading="true" class="instagram-embed-loading-overlay" style="display: block;">
                 <div class="instagram-embed-loading-content">
                     <div class="instagram-embed-loading-spinner"></div>
                     <div class="instagram-embed-loading-text">
