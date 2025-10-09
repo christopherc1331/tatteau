@@ -1,0 +1,10 @@
+# Railway ignore file - exclude files from deployment
+target/
+.git/
+.github/
+*.md
+.env
+.vscode/
+.idea/
+node_modules/
+dist/
