@@ -75,13 +75,13 @@ pub fn App() -> impl IntoView {
                     <Routes fallback=|| view! { <NotFoundPage /> }.into_view()>
                         // Public routes
                         <Route path=StaticSegment("") view=HomePage/>
-                        // <Route path=StaticSegment("login") view=LoginPage/>
-                        // <Route path=StaticSegment("signup") view=SignupPage/>
+                        <Route path=StaticSegment("login") view=LoginPage/>
+                        <Route path=StaticSegment("signup") view=SignupPage/>
                         // <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
                         // <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
                         // <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>
-                        // <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
+                        <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
                         // <Route path=StaticSegment("styles") view=StylesPage/>
                         // <Route path=StaticSegment("gallery") view=GalleryPage/>
 
