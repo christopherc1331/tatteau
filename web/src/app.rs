@@ -7,7 +7,7 @@ use leptos_router::{
 use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
-use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard, ErrorBoundary};
+use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard, ErrorBoundary, Navbar};
 use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails, QuestionnaireBuilder};
 use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::auth::{LoginPage, SignupPage};
@@ -70,35 +70,36 @@ pub fn App() -> impl IntoView {
         <ConfigProvider>
             <ErrorBoundary>
                 <Router>
+                    <Navbar />
                     <main>
                     <Routes fallback=|| view! { <NotFoundPage /> }.into_view()>
                         // Public routes
                         <Route path=StaticSegment("") view=HomePage/>
-                        <Route path=StaticSegment("login") view=LoginPage/>
-                        <Route path=StaticSegment("signup") view=SignupPage/>
-                        <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
-                        <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
-                        <Route path=StaticSegment("explore") view=ExplorePage/>
+                        // <Route path=StaticSegment("login") view=LoginPage/>
+                        // <Route path=StaticSegment("signup") view=SignupPage/>
+                        // <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
+                        // <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
+                        // <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>
-                        <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
-                        <Route path=StaticSegment("styles") view=StylesPage/>
-                        <Route path=StaticSegment("gallery") view=GalleryPage/>
-                        
+                        // <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
+                        // <Route path=StaticSegment("styles") view=StylesPage/>
+                        // <Route path=StaticSegment("gallery") view=GalleryPage/>
+
                         // Protected artist dashboard routes (authentication required) - MUST come before artist profile routes
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard")) view=ProtectedArtistHome/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ProtectedArtistCalendar/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ProtectedArtistRequests/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ProtectedArtistSettings/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ProtectedArtistRecurring/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("questionnaire")) view=ProtectedQuestionnaireBuilder/>
-                        <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=ProtectedBookingDetailsPage/>
-                        
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard")) view=ProtectedArtistHome/>
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("calendar")) view=ProtectedArtistCalendar/>
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("requests")) view=ProtectedArtistRequests/>
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("settings")) view=ProtectedArtistSettings/>
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("recurring")) view=ProtectedArtistRecurring/>
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("questionnaire")) view=ProtectedQuestionnaireBuilder/>
+                        // <Route path=(StaticSegment("artist"), StaticSegment("dashboard"), StaticSegment("booking"), ParamSegment("id")) view=ProtectedBookingDetailsPage/>
+
                         // Public artist profile pages (no authentication required)
                         <Route path=(StaticSegment("artist"), ParamSegment("id")) view=ArtistHighlight/>
                         <Route path=(StaticSegment("shop"), ParamSegment("id")) view=Shop/>
-                        <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
-                        <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
-                        <Route path=(StaticSegment("booking"), StaticSegment("confirmation")) view=BookingConfirmation/>
+                        // <Route path=(StaticSegment("book"), StaticSegment("artist"), ParamSegment("id")) view=ArtistBooking/>
+                        // <Route path=(StaticSegment("book"), StaticSegment("shop"), ParamSegment("id")) view=ShopBooking/>
+                        // <Route path=(StaticSegment("booking"), StaticSegment("confirmation")) view=BookingConfirmation/>
                     </Routes>
                 </main>
             </Router>

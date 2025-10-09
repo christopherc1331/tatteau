@@ -1,0 +1,104 @@
+// Navbar component styles
+
+.navbar {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  &__container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__brand {
+    display: flex;
+    align-items: center;
+  }
+
+  &__logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #7c3aed;
+    text-decoration: none;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: #6d28d9;
+    }
+  }
+
+  &__links {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  &__link {
+    color: #4b5563;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    transition: color 0.2s ease;
+    padding: 0.5rem 0;
+
+    &:hover {
+      color: #7c3aed;
+    }
+
+    &--cta {
+      background: #7c3aed;
+      color: white;
+      padding: 0.5rem 1.25rem;
+      border-radius: 6px;
+
+      &:hover {
+        background: #6d28d9;
+        color: white;
+      }
+    }
+  }
+
+  // Mobile responsive
+  @media (max-width: 768px) {
+    &__container {
+      padding: 1rem;
+    }
+
+    &__links {
+      gap: 1rem;
+    }
+
+    &__link {
+      font-size: 0.875rem;
+
+      &--cta {
+        padding: 0.4rem 1rem;
+      }
+    }
+  }
+
+  @media (max-width: 480px) {
+    &__logo {
+      font-size: 1.25rem;
+    }
+
+    &__links {
+      gap: 0.75rem;
+    }
+
+    &__link {
+      font-size: 0.8rem;
+
+      &--cta {
+        padding: 0.35rem 0.75rem;
+      }
+    }
+  }
+}
