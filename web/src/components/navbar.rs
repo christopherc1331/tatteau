@@ -63,7 +63,6 @@ pub fn Navbar() -> impl IntoView {
                                 <button
                                     class="navbar__link navbar__link--cta"
                                     on:click=handle_logout
-                                    style="background: none; border: none; cursor: pointer;"
                                 >
                                     "Log Out"
                                 </button>

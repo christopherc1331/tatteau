@@ -1,0 +1,15 @@
+# cargo-leptos Version Compatibility
+
+## Local Development
+- cargo-leptos version: 0.2.32
+- wasm-bindgen version: 0.2.100
+- Command: `cargo leptos watch`
+
+## Fly.io Deployment
+- cargo-leptos version: 0.2.45 (latest, installed via Dockerfile)
+- wasm-bindgen version: 0.2.104
+- The Dockerfile installs the latest cargo-leptos which supports wasm-bindgen 0.2.104
+
+## Important
+Do NOT commit wasm-bindgen version changes to git. Keep it at 0.2.100 for local development.
+The Fly.io build will automatically use the correct version during deployment.

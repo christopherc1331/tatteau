@@ -77,9 +77,9 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("login") view=LoginPage/>
                         <Route path=StaticSegment("signup") view=SignupPage/>
+                        <Route path=StaticSegment("explore") view=ExplorePage/>
                         // <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
                         // <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
-                        // <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>
                         <Route path=(StaticSegment("match"), StaticSegment("results")) view=MatchResults/>
                         // <Route path=StaticSegment("styles") view=StylesPage/>
