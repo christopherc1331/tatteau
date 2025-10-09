@@ -1,0 +1,38 @@
+# Fly.io configuration for Tatteau
+# Change "tatteau-app" to your desired app name
+app = "tatteau-app"
+primary_region = "ord" # Chicago - change to your preferred region
+
+# Build configuration
+[build]
+
+# Environment variables
+[env]
+  LEPTOS_OUTPUT_NAME = "web"
+  LEPTOS_SITE_ROOT = "site"
+  LEPTOS_SITE_PKG_DIR = "pkg"
+  LEPTOS_SITE_ADDR = "0.0.0.0:8080"
+  RUST_LOG = "info"
+
+# HTTP service configuration
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+# VM resources (free tier: 256MB RAM, shared CPU)
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+# Persistent volume for SQLite database
+# IMPORTANT: Run this command before first deployment:
+#   flyctl volumes create tatteau_data --size 1
+# Then deploy with: ./deploy.sh deploy
+[mounts]
+  source = "tatteau_data"
+  destination = "/app/data"

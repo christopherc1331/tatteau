@@ -34,8 +34,7 @@ node_modules/
 *.temp
 
 # Build artifacts that will be recreated
-Cargo.lock
-*/Cargo.lock
+# Note: Cargo.lock should be included for reproducible builds
 
 # Test files
 test_*

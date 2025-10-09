@@ -89,9 +89,105 @@ cargo leptos watch
 
 This will start the development server with hot reloading at `http://localhost:3000`.
 
-## Docker Deployment
+## Deployment
 
-### Quick Start
+### Fly.io Deployment (Recommended for Production)
+
+Tatteau is configured for deployment on Fly.io with SQLite database persistence.
+
+#### Prerequisites
+1. [Fly.io account](https://fly.io/app/sign-up) (free tier available)
+2. Fly.io CLI installed:
+   ```bash
+   curl -L https://fly.io/install.sh | sh
+   ```
+
+#### Option 1: Deploy from GitHub (Easiest)
+
+1. Go to [Fly.io Launch](https://fly.io/launch)
+2. Click "Launch from GitHub"
+3. Sign in with GitHub and select the `tatteau` repository
+4. Fly.io will auto-detect the Dockerfile and deploy
+5. **Important:** Create the database volume when prompted:
+   ```bash
+   flyctl volumes create tatteau_data --size 1
+   ```
+
+#### Option 2: Deploy from Command Line
+
+```bash
+# Login to Fly.io
+flyctl auth login
+
+# Initialize and deploy
+./deploy.sh init     # Creates the app
+flyctl volumes create tatteau_data --size 1  # Creates database volume
+./deploy.sh deploy   # Deploys the app
+
+# (Optional) Restore local database to production
+./deploy.sh db-restore tatteau.db
+```
+
+#### Database Management
+
+**Backup production database:**
+```bash
+./deploy.sh db-backup  # Downloads to tatteau-backup-YYYYMMDD-HHMMSS.db
+```
+
+**Sync production DB for local querying:**
+```bash
+./sync-db.sh  # Creates tatteau-live.db for DataGrip/DB Browser
+```
+
+**Restore database to production:**
+```bash
+./deploy.sh db-restore <backup-file.db>
+```
+
+**Query production database remotely:**
+```bash
+# SSH into container with SQLite
+flyctl ssh console -C "sqlite3 /app/data/tatteau.db"
+
+# Run specific query
+flyctl ssh console -C "sqlite3 /app/data/tatteau.db 'SELECT COUNT(*) FROM artists;'"
+```
+
+#### Continuous Deployment
+
+The repository includes GitHub Actions for automatic deployment:
+- Pushes to `main` branch automatically deploy to Fly.io
+- Add `[skip ci]` to commit message to skip deployment
+
+**Setup CI/CD:**
+1. Get your Fly.io API token:
+   ```bash
+   flyctl auth token
+   ```
+2. Add to GitHub repository secrets as `FLY_API_TOKEN`:
+   - Go to Settings → Secrets and variables → Actions
+   - New repository secret: `FLY_API_TOKEN`
+
+#### Monitoring
+
+```bash
+# View logs
+./deploy.sh logs
+
+# Check app status
+./deploy.sh status
+
+# SSH into container
+./deploy.sh ssh
+
+# Open app in browser
+flyctl open
+```
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment documentation.
+
+### Docker Deployment (Local/Self-Hosted)
 
 Deploy the application using the provided script:
 

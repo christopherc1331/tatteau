@@ -1,21 +1,19 @@
 #!/bin/bash
-
-# Tatteau Web Application Deployment Script
+# Tatteau - Fly.io Deployment Script
 
 set -e
 
 # Colors for output
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+RED='\033[0;31m'
+NC='\033[0m'
 
-# Function to print colored output
-print_status() {
+print_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
 }
 
-print_warning() {
+print_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
@@ -23,100 +21,127 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    print_error "Docker is not installed. Please install Docker first."
+# Check if flyctl is installed
+if ! command -v flyctl &> /dev/null; then
+    print_error "flyctl is not installed. Installing..."
+    curl -L https://fly.io/install.sh | sh
+    print_info "Please restart your terminal or run: export FLYCTL_INSTALL=\"\$HOME/.fly\""
+    print_info "Then add to PATH: export PATH=\"\$FLYCTL_INSTALL/bin:\$PATH\""
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
-    print_error "Docker Compose is not installed. Please install Docker Compose first."
+# Check if user is logged in
+if ! flyctl auth whoami &> /dev/null; then
+    print_warn "You are not logged into Fly.io"
+    print_info "Please run: flyctl auth login"
     exit 1
 fi
 
-# Parse command line arguments
-ENVIRONMENT="development"
-BUILD_FRESH=false
+# Parse arguments
+ACTION=${1:-deploy}
 
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --env)
-            ENVIRONMENT="$2"
-            shift 2
-            ;;
-        --fresh-build)
-            BUILD_FRESH=true
-            shift
-            ;;
-        --help)
-            echo "Usage: $0 [--env development|production] [--fresh-build] [--help]"
-            echo ""
-            echo "Options:"
-            echo "  --env            Set environment (development or production)"
-            echo "  --fresh-build    Force rebuild without cache"
-            echo "  --help          Show this help message"
-            exit 0
-            ;;
-        *)
-            print_error "Unknown option: $1"
-            echo "Use --help for usage information"
+case $ACTION in
+    init)
+        print_info "Initializing Fly.io app..."
+        print_info "This will create a new app and configure it"
+
+        # Launch the app (this will read fly.toml)
+        flyctl launch --no-deploy
+
+        print_info "App initialized! Now create a volume for the database:"
+        print_info "  flyctl volumes create tatteau_data --size 1"
+        print_info ""
+        print_info "Then uncomment the [mounts] section in fly.toml"
+        print_info "Finally, deploy with: ./deploy.sh deploy"
+        ;;
+
+    deploy)
+        print_info "Deploying Tatteau to Fly.io..."
+
+        # Deploy the app
+        flyctl deploy
+
+        print_info "Deployment complete!"
+        print_info "View your app: flyctl open"
+        print_info "View logs: flyctl logs"
+        print_info "Check status: flyctl status"
+        ;;
+
+    logs)
+        print_info "Streaming logs from Fly.io..."
+        flyctl logs
+        ;;
+
+    status)
+        print_info "Checking app status..."
+        flyctl status
+        ;;
+
+    ssh)
+        print_info "Opening SSH connection to app..."
+        flyctl ssh console
+        ;;
+
+    scale)
+        INSTANCES=${2:-1}
+        print_info "Scaling to $INSTANCES instance(s)..."
+        flyctl scale count $INSTANCES
+        ;;
+
+    db-backup)
+        print_info "Creating database backup..."
+        BACKUP_FILE="tatteau-backup-$(date +%Y%m%d-%H%M%S).db"
+        flyctl ssh console -C "cat /app/data/tatteau.db" > $BACKUP_FILE
+        print_info "Backup saved to: $BACKUP_FILE"
+        ;;
+
+    db-restore)
+        if [ -z "$2" ]; then
+            print_error "Please provide backup file: ./deploy.sh db-restore <backup-file>"
             exit 1
-            ;;
-    esac
-done
+        fi
+        print_warn "This will overwrite the database. Are you sure? (yes/no)"
+        read -r confirm
+        if [ "$confirm" = "yes" ]; then
+            print_info "Restoring database from $2..."
+            cat $2 | flyctl ssh console -C "cat > /app/data/tatteau.db"
+            print_info "Database restored! Restarting app..."
+            flyctl apps restart
+        else
+            print_info "Restore cancelled"
+        fi
+        ;;
 
-print_status "Deploying Tatteau Web Application..."
-print_status "Environment: $ENVIRONMENT"
+    destroy)
+        print_warn "This will destroy the entire app. Are you sure? (yes/no)"
+        read -r confirm
+        if [ "$confirm" = "yes" ]; then
+            flyctl apps destroy
+        else
+            print_info "Destroy cancelled"
+        fi
+        ;;
 
-# Check if database exists
-if [ ! -f "tatteau.db" ]; then
-    print_warning "Database file 'tatteau.db' not found. The application may not work properly."
-    print_warning "Make sure to create and populate the database before running the application."
-fi
-
-# Build and start services
-if [ "$BUILD_FRESH" = true ]; then
-    print_status "Building application with fresh cache..."
-    docker-compose build --no-cache
-else
-    print_status "Building application..."
-    docker-compose build
-fi
-
-# Stop any running containers
-print_status "Stopping existing containers..."
-docker-compose down
-
-# Start services based on environment
-if [ "$ENVIRONMENT" = "production" ]; then
-    print_status "Starting production services (with nginx)..."
-    docker-compose --profile production up -d
-else
-    print_status "Starting development services..."
-    docker-compose up -d tatteau-web
-fi
-
-# Wait for services to be healthy
-print_status "Waiting for services to be ready..."
-sleep 10
-
-# Check if the application is running
-if curl -f http://localhost:3000/ > /dev/null 2>&1; then
-    print_status "✅ Application is running successfully!"
-    echo ""
-    print_status "Access the application at:"
-    if [ "$ENVIRONMENT" = "production" ]; then
-        echo "  🌐 http://localhost (via nginx)"
-        echo "  🔧 http://localhost:3000 (direct)"
-    else
-        echo "  🌐 http://localhost:3000"
-    fi
-    echo ""
-    print_status "To view logs: docker-compose logs -f"
-    print_status "To stop: docker-compose down"
-else
-    print_error "❌ Application failed to start or is not responding"
-    print_status "Check logs with: docker-compose logs tatteau-web"
-    exit 1
-fi
+    *)
+        echo "Tatteau Fly.io Deployment Tool"
+        echo ""
+        echo "Usage: $0 <command>"
+        echo ""
+        echo "Commands:"
+        echo "  init        Initialize new Fly.io app"
+        echo "  deploy      Deploy app to Fly.io"
+        echo "  logs        Stream application logs"
+        echo "  status      Check app status"
+        echo "  ssh         Open SSH console to app"
+        echo "  scale <n>   Scale to N instances"
+        echo "  db-backup   Backup SQLite database"
+        echo "  db-restore  Restore SQLite database"
+        echo "  destroy     Destroy the Fly.io app"
+        echo ""
+        echo "Examples:"
+        echo "  $0 init           # First time setup"
+        echo "  $0 deploy         # Deploy changes"
+        echo "  $0 scale 2        # Scale to 2 instances"
+        echo "  $0 db-backup      # Backup database"
+        ;;
+esac

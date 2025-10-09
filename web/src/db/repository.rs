@@ -10,13 +10,21 @@ use rusqlite::{Connection, Result as SqliteResult};
 use serde_json;
 use shared_types::{LocationInfo, MapBounds};
 #[cfg(feature = "ssr")]
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Get the database path from environment variable or use default
+#[cfg(feature = "ssr")]
+fn get_db_path() -> PathBuf {
+    std::env::var("DATABASE_PATH")
+        .unwrap_or_else(|_| "tatteau.db".to_string())
+        .into()
+}
 
 #[cfg(feature = "ssr")]
 pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
 
     // Open a connection to the database
     let conn = Connection::open(db_path)?;
@@ -58,7 +66,7 @@ pub fn query_locations(
     bounds: MapBounds,
 ) -> SqliteResult<Vec<LocationInfo>> {
     use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
 
     // Open a connection to the database
     let conn = Connection::open(db_path)?;
@@ -142,7 +150,7 @@ pub fn get_states() -> SqliteResult<Vec<LocationState>> {
 
     use rusqlite::MappedRows;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     let mut stmt = conn.prepare(
         "
@@ -216,7 +224,7 @@ pub fn get_states() -> SqliteResult<Vec<LocationState>> {
 pub fn get_city_coordinates(city_name: String) -> SqliteResult<CityCoords> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
 
     // Open a connection to the database
     let conn = Connection::open(db_path)?;
@@ -260,7 +268,7 @@ pub fn get_city_coordinates(city_name: String) -> SqliteResult<CityCoords> {
 pub fn get_artist_by_id(artist_id: i32) -> SqliteResult<Artist> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -287,7 +295,7 @@ pub fn get_artist_by_id(artist_id: i32) -> SqliteResult<Artist> {
 pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -314,7 +322,7 @@ pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
 pub fn get_artist_styles(artist_id: i32) -> SqliteResult<Vec<Style>> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -340,7 +348,7 @@ pub fn get_artist_images_with_styles(
 ) -> SqliteResult<Vec<(ArtistImage, Vec<Style>)>> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // First get all images for the artist
@@ -390,7 +398,7 @@ pub fn get_artist_images_with_styles(
 pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -417,7 +425,7 @@ pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
 pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Updated query to join with locations and ensure we're getting artists for actual shops, not persons
@@ -451,7 +459,7 @@ pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
 pub fn get_all_styles_by_location(location_id: i32) -> SqliteResult<Vec<Style>> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -483,7 +491,7 @@ pub fn get_all_images_with_styles_by_location(
 ) -> SqliteResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // First get all images for artists at this location, filtering out person locations
@@ -557,7 +565,7 @@ pub fn save_quiz_session(
     vibe_preference: String,
 ) -> SqliteResult<i64> {
     use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     conn.execute(
@@ -575,7 +583,7 @@ pub fn get_location_stats_for_city(
     state: String,
 ) -> SqliteResult<crate::server::LocationStats> {
     use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -602,7 +610,7 @@ pub fn get_location_stats_for_city(
 
 #[cfg(feature = "ssr")]
 pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWithCount>> {
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -633,7 +641,7 @@ pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWith
 pub fn get_styles_with_counts_in_bounds(
     bounds: shared_types::MapBounds,
 ) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare(
@@ -680,7 +688,7 @@ pub fn get_styles_by_location(
 ) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
     use rusqlite::params_from_iter;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Build query based on location filters
@@ -790,7 +798,7 @@ pub fn query_locations_with_details(
     style_filter: Option<Vec<i32>>,
 ) -> SqliteResult<Vec<crate::server::EnhancedLocationInfo>> {
     use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Build the query based on whether we have style filters
@@ -915,7 +923,7 @@ pub fn query_matched_artists(
     price_range: Option<(f64, f64)>,
 ) -> SqliteResult<Vec<crate::server::MatchedArtist>> {
     use rusqlite::params;
-    let db_path = std::path::Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Start with a simple query to get artists, then we'll add filtering later
@@ -1054,7 +1062,7 @@ fn calculate_match_score(
 #[cfg(feature = "ssr")]
 pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords> {
     use rusqlite::params;
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // First check if the postal code exists
@@ -1090,7 +1098,7 @@ pub fn get_location_with_artist_details(
 ) -> SqliteResult<crate::server::LocationDetailInfo> {
     use crate::server::{ArtistThumbnail, LocationDetailInfo};
     use rusqlite::params;
-    let db_path = std::path::Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = rusqlite::Connection::open(db_path)?;
 
     // Get location info
@@ -1200,7 +1208,7 @@ pub fn get_location_with_artist_details(
 pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionnaireForm> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Fix: Only get the latest/most specific configuration per question_id
@@ -1279,7 +1287,7 @@ pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionna
 pub fn check_artist_availability(artist_id: i32, requested_date: &str, requested_time: &str) -> SqliteResult<bool> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     // Check for existing bookings at the requested time
@@ -1324,7 +1332,7 @@ pub fn check_artist_availability(artist_id: i32, requested_date: &str, requested
 pub fn get_all_default_questions() -> SqliteResult<Vec<QuestionnaireQuestion>> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare("
@@ -1354,7 +1362,7 @@ pub fn get_all_default_questions() -> SqliteResult<Vec<QuestionnaireQuestion>> {
 pub fn get_artist_questionnaire_config(artist_id: i32) -> SqliteResult<Vec<ArtistQuestionnaire>> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare("
@@ -1386,7 +1394,7 @@ pub fn update_artist_questionnaire_config(
 ) -> SqliteResult<()> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     // Remove existing config
@@ -1419,7 +1427,7 @@ pub fn update_artist_questionnaire_config(
 pub fn get_artist_id_from_user_id(user_id: i32) -> SqliteResult<Option<i32>> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     let mut stmt = conn.prepare(
@@ -1445,7 +1453,7 @@ pub fn delete_artist_question(
 ) -> SqliteResult<()> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     // Delete the specific question from artist's configuration
@@ -1464,7 +1472,7 @@ pub fn save_questionnaire_responses(
 ) -> SqliteResult<()> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     for response in responses {
@@ -1490,7 +1498,7 @@ pub fn get_booking_questionnaire_responses(
 ) -> SqliteResult<Vec<BookingQuestionnaireResponse>> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare("
@@ -1519,7 +1527,7 @@ pub fn get_booking_questionnaire_responses(
 pub fn log_error(error_data: CreateErrorLog) -> SqliteResult<i64> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     conn.execute(
@@ -1548,7 +1556,7 @@ pub fn log_error(error_data: CreateErrorLog) -> SqliteResult<i64> {
 pub fn get_recent_errors(limit: i32) -> SqliteResult<Vec<ErrorLog>> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare("
@@ -1584,7 +1592,7 @@ pub fn get_recent_errors(limit: i32) -> SqliteResult<Vec<ErrorLog>> {
 pub fn get_errors_by_type(error_type: String, limit: i32) -> SqliteResult<Vec<ErrorLog>> {
     use rusqlite::params;
     
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     let mut stmt = conn.prepare("
@@ -1627,7 +1635,7 @@ pub fn get_shop_images_paginated(
 ) -> SqliteResult<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32)> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Build the WHERE clause for style filtering
@@ -1749,7 +1757,7 @@ pub fn get_artist_images_paginated(
 ) -> SqliteResult<(Vec<(ArtistImage, Vec<Style>)>, i32)> {
     use rusqlite::params;
 
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
 
     // Build the WHERE clause for style filtering

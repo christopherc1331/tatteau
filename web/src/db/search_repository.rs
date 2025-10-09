@@ -1,7 +1,15 @@
 #[cfg(feature = "ssr")]
 use rusqlite::{Connection, params};
 #[cfg(feature = "ssr")]
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Get the database path from environment variable or use default
+#[cfg(feature = "ssr")]
+fn get_db_path() -> PathBuf {
+    std::env::var("DATABASE_PATH")
+        .unwrap_or_else(|_| "tatteau.db".to_string())
+        .into()
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct SearchResult {
@@ -25,7 +33,7 @@ pub enum SearchResultType {
 
 #[cfg(feature = "ssr")]
 pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchResult>> {
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     let normalized_query = query.trim().to_lowercase();
@@ -225,7 +233,7 @@ pub fn universal_location_search(query: String) -> rusqlite::Result<Vec<SearchRe
 
 #[cfg(feature = "ssr")]
 pub fn get_search_suggestions(query: String, limit: usize) -> rusqlite::Result<Vec<String>> {
-    let db_path = Path::new("tatteau.db");
+    let db_path = get_db_path();
     let conn = Connection::open(db_path)?;
     
     let normalized_query = query.trim().to_lowercase();
