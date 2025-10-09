@@ -5,7 +5,6 @@ primary_region = "ord" # Chicago - change to your preferred region
 
 # Build configuration
 [build]
-  builder = "default"
 
 # Environment variables
 [env]
