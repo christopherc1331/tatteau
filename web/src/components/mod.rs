@@ -1,3 +1,4 @@
+pub mod artist_cta;
 pub mod artist_masonry_gallery;
 pub mod available_date_picker;
 pub mod client_booking_modal;
@@ -20,6 +21,7 @@ pub mod event_item;
 pub mod auth_guard;
 
 // Re-export commonly used types
+pub use artist_cta::ArtistCTA;
 pub use artist_masonry_gallery::ArtistMasonryGallery;
 pub use available_date_picker::AvailableDatePicker;
 pub use client_booking_modal::ClientBookingModal;

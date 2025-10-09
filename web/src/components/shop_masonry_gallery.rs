@@ -1,7 +1,6 @@
 use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
 use crate::components::instagram_embed::InstagramEmbed;
-use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -42,19 +41,14 @@ pub fn ShopMasonryGallery(
                     view! {
                         <div class="shop-masonry-gallery__post">
                             <div class="shop-masonry-gallery__card">
-                                <div class="shop-masonry-gallery__artist-header">
+                                <div class="shop-masonry-gallery__header">
                                     <a href={format!("/artist/{}", post.artist.id)}
                                        class="shop-masonry-gallery__artist-link">
-                                        <span>"👤"</span>
-                                        <span>{artist_name}</span>
+                                        {artist_name}
                                     </a>
-                                </div>
 
-                                <InstagramEmbed short_code={short_code} />
-
-                                {(!post.styles.is_empty()).then(|| {
-                                    view! {
-                                        <div class="shop-masonry-gallery__styles-container">
+                                    {(!post.styles.is_empty()).then(|| {
+                                        view! {
                                             <div class="shop-masonry-gallery__styles-wrapper">
                                                 {post.styles.into_iter().map(|style| {
                                                     view! {
@@ -64,9 +58,11 @@ pub fn ShopMasonryGallery(
                                                     }
                                                 }).collect_view()}
                                             </div>
-                                        </div>
-                                    }
-                                })}
+                                        }
+                                    })}
+                                </div>
+
+                                <InstagramEmbed short_code={short_code} />
                             </div>
                         </div>
                     }

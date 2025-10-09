@@ -6,6 +6,7 @@ use thaw::*;
 
 use crate::{
     components::{
+        artist_cta::ArtistCTA,
         instagram_embed::{InstagramEmbed, InstagramEmbedSize},
         loading::LoadingView,
         TattooGallery,
@@ -290,16 +291,7 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
 
             // Action buttons
             <div class="match-results-modal-actions">
-                <div class="actions-grid">
-                    <A href=format!("/artist/{}", artist.id)
-                       attr:class="action-button match-results-view-profile-btn">
-                        "👤 View Profile"
-                    </A>
-                    <A href=format!("/book/artist/{}", artist.id)
-                       attr:class="action-button match-results-book-now-btn">
-                        "📅 Book Now"
-                    </A>
-                </div>
+                <ArtistCTA artist_id={artist.id as i32} class="match-results-cta" />
             </div>
         </div>
     }

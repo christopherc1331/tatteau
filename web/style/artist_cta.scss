@@ -1,0 +1,64 @@
+.artist-cta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  padding: 1rem 0;
+
+  &__button {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  &__view-profile {
+    background: white;
+    color: #7c3aed;
+    border-color: #7c3aed;
+
+    &:hover {
+      background: #f3f4f6;
+    }
+  }
+
+  &__book-now {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: white;
+
+    &:hover {
+      background: linear-gradient(135deg, #6d28d9 0%, #9333ea 100%);
+    }
+  }
+}
+
+// Specific styles for match results modal
+.match-results-modal-actions {
+  padding: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+
+  .artist-cta {
+    padding: 0;
+  }
+}
+
+// Specific styles for shop masonry gallery
+.shop-masonry-gallery__card {
+  .artist-cta {
+    border-top: 1px solid #e5e7eb;
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+}
