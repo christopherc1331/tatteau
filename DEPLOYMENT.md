@@ -373,15 +373,13 @@ Add to GitHub Secrets as `FLY_API_TOKEN`.
 
 ## Performance Optimization
 
-### Build Caching with cargo-chef
+### Build Optimization
 
-Our Dockerfile uses the **cargo-chef pattern** (recommended by Fly.io) for optimal build performance:
+The Dockerfile uses multi-stage builds for optimal performance:
 
-- **First build**: Slower (installs all dependencies)
-- **Subsequent builds**: Much faster (Docker caches dependency layers)
-- Only rebuilds when dependencies change
-
-This is automatically configured in our Dockerfile.
+- **First build**: 10-20 minutes (builds all Rust dependencies)
+- **Subsequent builds**: Faster with Docker layer caching
+- Optimized image size with separate builder and runtime stages
 
 ### Auto-scaling Configuration
 
@@ -410,10 +408,10 @@ flyctl scale count 3
 
 ### ✅ What We're Doing Right
 
-1. **cargo-chef pattern**: Fast rebuilds with dependency caching
+1. **Multi-stage builds**: Optimized image size and build caching
 2. **Port 8080**: Standard for Fly.io applications
 3. **Bind to 0.0.0.0**: Required for Fly.io networking
-4. **Multi-stage builds**: Small final image size
+4. **Persistent volumes**: Database survives deployments
 5. **min_machines_running = 1**: Prevents cold starts for SSR apps
 6. **Health checks**: Automatic via Leptos homepage
 
@@ -421,7 +419,7 @@ flyctl scale count 3
 
 - **Fly.io Rust Guide**: https://fly.io/docs/rust/
 - **Leptos Deployment**: https://book.leptos.dev/deployment/ssr.html
-- **cargo-chef**: https://github.com/LukeMathWalker/cargo-chef
+- **Fly.io SQLite**: https://fly.io/docs/litefs/
 
 ## Support
 

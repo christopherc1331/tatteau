@@ -1,17 +1,5 @@
-# Multi-stage build for Leptos web application using cargo-chef pattern
-# Stage 1: Planner - generates dependency recipe
-FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
-WORKDIR /app
-
-FROM chef AS planner
-COPY Cargo.toml Cargo.lock ./
-COPY shared-types ./shared-types
-COPY web ./web
-COPY data-ingestion ./data-ingestion
-RUN cargo chef prepare --recipe-path recipe.json
-
-# Stage 2: Builder - caches dependencies and builds app
-FROM chef AS builder
+# Multi-stage build for Leptos web application
+FROM rust:1.88-bookworm AS builder
 
 # Install required dependencies
 RUN apt-get update && apt-get install -y \
@@ -28,11 +16,7 @@ RUN cargo install cargo-leptos --locked
 
 WORKDIR /app
 
-# Copy recipe and build dependencies (cached layer)
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
-
-# Copy source code and build application
+# Copy source code
 COPY Cargo.toml Cargo.lock ./
 COPY shared-types ./shared-types
 COPY web ./web
@@ -62,10 +46,6 @@ COPY --from=builder --chown=tatteau:tatteau /app/web/target/server/release/web /
 
 # Copy the site files
 COPY --from=builder --chown=tatteau:tatteau /app/web/target/site /app/site
-
-# Copy the database (if it exists) - for local development only
-# In production, the database will be on the mounted volume
-COPY --chown=tatteau:tatteau tatteau.db /app/tatteau.db 2>/dev/null || true
 
 # Set environment variables
 ENV LEPTOS_OUTPUT_NAME="web"
