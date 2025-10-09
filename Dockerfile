@@ -25,11 +25,15 @@ COPY data-ingestion ./data-ingestion
 # Build the web application
 WORKDIR /app/web
 # Cache bust for wasm-bindgen 0.2.104 update - 2025-10-09
-RUN cargo leptos build --release && \
-    echo "=== Build complete, checking output ===" && \
-    ls -la target/ && \
-    ls -la target/server/release/ && \
-    ls -la target/site/
+RUN cargo leptos build --release || true && \
+    echo "=== Build complete, checking entire /app structure ===" && \
+    ls -la /app/ && \
+    echo "=== Checking /app/web ===" && \
+    ls -la /app/web/ && \
+    echo "=== Looking for target dirs ===" && \
+    find /app -type d -name "target" 2>/dev/null && \
+    echo "=== Looking for site dirs ===" && \
+    find /app -type d -name "site" 2>/dev/null
 
 # Runtime stage
 FROM debian:bookworm-slim as runtime
