@@ -25,15 +25,7 @@ COPY data-ingestion ./data-ingestion
 # Build the web application
 WORKDIR /app/web
 # Cache bust for wasm-bindgen 0.2.104 update - 2025-10-09
-RUN cargo leptos build --release || true && \
-    echo "=== Build complete, checking entire /app structure ===" && \
-    ls -la /app/ && \
-    echo "=== Checking /app/web ===" && \
-    ls -la /app/web/ && \
-    echo "=== Looking for target dirs ===" && \
-    find /app -type d -name "target" 2>/dev/null && \
-    echo "=== Looking for site dirs ===" && \
-    find /app -type d -name "site" 2>/dev/null
+RUN cargo leptos build --release
 
 # Runtime stage
 FROM debian:bookworm-slim as runtime
@@ -51,11 +43,11 @@ RUN useradd -r -s /bin/false -m -d /app tatteau
 # Set working directory
 WORKDIR /app
 
-# Copy the server binary
-COPY --from=builder --chown=tatteau:tatteau /app/web/target/server/release/web /app/tatteau-web
+# Copy the server binary from workspace target directory
+COPY --from=builder --chown=tatteau:tatteau /app/target/server/release/web /app/tatteau-web
 
-# Copy the site files
-COPY --from=builder --chown=tatteau:tatteau /app/web/target/site /app/site
+# Copy the site files from workspace target directory
+COPY --from=builder --chown=tatteau:tatteau /app/target/site /app/site
 
 # Set environment variables
 ENV LEPTOS_OUTPUT_NAME="web"
