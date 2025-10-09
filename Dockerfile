@@ -24,6 +24,7 @@ COPY data-ingestion ./data-ingestion
 
 # Build the web application
 WORKDIR /app/web
+# Cache bust for wasm-bindgen 0.2.104 update - 2025-10-09
 RUN cargo leptos build --release
 
 # Runtime stage
