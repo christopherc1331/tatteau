@@ -34,6 +34,7 @@ FROM debian:bookworm-slim as runtime
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     sqlite3 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
