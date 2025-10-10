@@ -63,7 +63,7 @@ pub fn TattooGallery(
 
             // Create ArtistImage from post data
             let image = ArtistImage {
-                id: 0, // Placeholder
+                id: post.id as i32, // Use the actual artists_images.id
                 artist_id: post.artist_id as i32,
                 short_code: post.short_code,
             };
