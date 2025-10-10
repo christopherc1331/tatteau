@@ -1,60 +1,64 @@
 body {
-	font-family: sans-serif;
-	text-align: center;
+  font-family: sans-serif;
+  text-align: center;
 }
 
 // Import component styles
-// @import 'navbar'; // Temporarily disabled due to Sass error
-@import 'artist_cta';
-@import 'artist_dashboard_calendar';
-@import 'artist_calendar';
-@import 'artist_highlight';
-@import 'auth';
-@import 'explore';
-@import 'location_search';
-@import 'match_results';
-@import 'quiz';
-@import 'styles';
-@import 'artist_dashboard';
-@import 'artist_dashboard_questionnaire';
-@import 'tattoo_gallery';
-@import 'artist_masonry_gallery';
-@import 'auth_guard';
-@import 'client_booking_modal';
-@import 'error_boundary';
-@import 'event_item';
-@import 'favorite_button';
-@import 'instagram_demo';
-@import 'instagram_embed';
-@import 'instagram_embed_ssr';
-@import 'instagram_fallback_cta';
-@import 'instagram_posts_grid';
-@import 'loading';
-@import 'map_marker_popup';
-@import 'map_renderer';
-@import 'masonry_gallery';
-@import 'multi_step_questionnaire';
-@import 'shop_masonry_gallery';
-@import 'time_block';
-@import 'time_picker';
-@import 'artist_login_prompt';
-@import 'available_date_picker';
-@import 'booking';
-@import 'booking_details';
-@import 'booking_modal';
-@import 'booking_sidebar';
-@import 'calendar_grid';
-@import 'home';
-@import 'not_found';
-@import 'shop';
-@import 'subscription_tiers';
-@import 'booking_confirmation';
-@import 'time_slot_picker';
+@import "navbar";
+@import "artist_cta";
+@import "artist_dashboard_calendar";
+@import "artist_calendar";
+@import "artist_highlight";
+@import "auth";
+@import "explore";
+@import "location_search";
+@import "match_results";
+@import "quiz";
+@import "styles";
+@import "artist_dashboard";
+@import "artist_dashboard_questionnaire";
+@import "tattoo_gallery";
+@import "artist_masonry_gallery";
+@import "auth_guard";
+@import "client_booking_modal";
+@import "error_boundary";
+@import "event_item";
+@import "favorite_button";
+@import "instagram_demo";
+@import "instagram_embed";
+@import "instagram_embed_ssr";
+@import "instagram_fallback_cta";
+@import "instagram_posts_grid";
+@import "loading";
+@import "map_marker_popup";
+@import "map_renderer";
+@import "masonry_gallery";
+@import "multi_step_questionnaire";
+@import "shop_masonry_gallery";
+@import "time_block";
+@import "time_picker";
+@import "artist_login_prompt";
+@import "available_date_picker";
+@import "booking";
+@import "booking_details";
+@import "booking_modal";
+@import "booking_sidebar";
+@import "calendar_grid";
+@import "home";
+@import "not_found";
+@import "shop";
+@import "subscription_tiers";
+@import "booking_confirmation";
+@import "time_slot_picker";
 
 // Global animations
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 // Map loading overlay styles
@@ -97,75 +101,73 @@ body {
 
 // Common button styles
 .btn-primary {
-	background: #007bff;
-	color: white;
-	border: none;
-	padding: 1rem 2rem;
-	border-radius: 8px;
-	font-size: 1.1rem;
-	cursor: pointer;
-	transition: background-color 0.2s ease;
-	
-	&:hover {
-		background: #0056b3;
-	}
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: #0056b3;
+  }
 }
 
 .btn-secondary {
-	background: #6c757d;
-	color: white;
-	border: none;
-	padding: 0.75rem 1.5rem;
-	border-radius: 6px;
-	cursor: pointer;
-	transition: background-color 0.2s ease;
-	
-	&:hover {
-		background: #545b62;
-	}
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background: #545b62;
+  }
 }
 
 .btn-outlined {
-	background: none;
-	border: 1px solid #007bff;
-	color: #007bff;
-	padding: 0.5rem 1rem;
-	border-radius: 6px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-	
-	&:hover {
-		background: #007bff;
-		color: white;
-	}
+  background: none;
+  border: 1px solid #007bff;
+  color: #007bff;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #007bff;
+    color: white;
+  }
 }
 
 // Form styles
 .form-input {
-	width: 100%;
-	padding: 0.5rem;
-	border: 1px solid #ccc;
-	border-radius: 4px;
-	font-size: 1rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
 }
 
 .form-label {
-	display: block;
-	margin-bottom: 0.5rem;
-	font-weight: bold;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
 }
-
 
 // Card styles
 .card {
-	border: 1px solid #ddd;
-	border-radius: 8px;
-	background: white;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-	transition: box-shadow 0.2s ease;
-	
-	&:hover {
-		box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-	}
-}
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
 
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
+}
