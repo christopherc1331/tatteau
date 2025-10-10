@@ -7,6 +7,9 @@ pub fn Navbar() -> impl IntoView {
     // Track authentication state reactively
     let is_logged_in = RwSignal::new(false);
 
+    // Track menu open state
+    let is_menu_open = RwSignal::new(false);
+
     // Check authentication status on mount and updates
     Effect::new(move |_| {
         #[cfg(feature = "hydrate")]
@@ -14,6 +17,16 @@ pub fn Navbar() -> impl IntoView {
             is_logged_in.set(is_authenticated());
         }
     });
+
+    // Toggle menu handler
+    let toggle_menu = move |_| {
+        is_menu_open.update(|open| *open = !*open);
+    };
+
+    // Close menu when clicking a link
+    let close_menu = move |_| {
+        is_menu_open.set(false);
+    };
 
     // Logout handler
     let handle_logout = move |_| {
@@ -32,6 +45,7 @@ pub fn Navbar() -> impl IntoView {
 
             // Update state
             is_logged_in.set(false);
+            is_menu_open.set(false);
 
             // Redirect to home page
             if let Some(window) = web_sys::window() {
@@ -49,12 +63,33 @@ pub fn Navbar() -> impl IntoView {
                     </A>
                 </div>
 
-                <div class="navbar__links">
-                    <A href="/explore" attr:class="navbar__link">
+                <button
+                    class="navbar__hamburger"
+                    class:navbar__hamburger--open=move || is_menu_open.get()
+                    on:click=toggle_menu
+                    attr:aria-label="Toggle navigation menu"
+                    attr:aria-expanded=move || is_menu_open.get().to_string()
+                >
+                    <span class="navbar__hamburger-line"></span>
+                    <span class="navbar__hamburger-line"></span>
+                    <span class="navbar__hamburger-line"></span>
+                </button>
+
+                <div
+                    class="navbar__links"
+                    class:navbar__links--open=move || is_menu_open.get()
+                >
+                    <A href="/" attr:class="navbar__link" on:click=close_menu>
+                        "Home"
+                    </A>
+                    <A href="/explore" attr:class="navbar__link" on:click=close_menu>
                         "Explore"
                     </A>
-                    <A href="/match" attr:class="navbar__link">
+                    <A href="/match" attr:class="navbar__link" on:click=close_menu>
                         "Find My Match"
+                    </A>
+                    <A href="/favorites" attr:class="navbar__link" on:click=close_menu>
+                        "Favorites"
                     </A>
 
                     {move || {
@@ -69,9 +104,14 @@ pub fn Navbar() -> impl IntoView {
                             }.into_any()
                         } else {
                             view! {
-                                <A href="/login" attr:class="navbar__link navbar__link--cta">
-                                    "Login"
-                                </A>
+                                <>
+                                    <A href="/login" attr:class="navbar__link" on:click=close_menu>
+                                        "Login"
+                                    </A>
+                                    <A href="/signup" attr:class="navbar__link navbar__link--cta" on:click=close_menu>
+                                        "Sign Up"
+                                    </A>
+                                </>
                             }.into_any()
                         }
                     }}

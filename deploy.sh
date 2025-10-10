@@ -92,8 +92,8 @@ case $ACTION in
         print_info "Creating database backup..."
         BACKUP_FILE="tatteau-backup-$(date +%Y%m%d-%H%M%S).db"
 
-        # Use railway run to cat the database file
-        railway run cat /app/data/tatteau.db > $BACKUP_FILE
+        # Use railway ssh to cat the database file
+        railway ssh "cat /app/data/tatteau.db" > $BACKUP_FILE
 
         if [ -s "$BACKUP_FILE" ]; then
             print_info "Backup saved to: $BACKUP_FILE"
@@ -107,43 +107,34 @@ case $ACTION in
         ;;
 
     db-restore)
-        if [ -z "$2" ]; then
-            print_error "Please provide backup file: ./deploy.sh db-restore <backup-file>"
-            exit 1
-        fi
-
-        if [ ! -f "$2" ]; then
-            print_error "Backup file not found: $2"
-            exit 1
-        fi
-
-        print_warn "This will overwrite the production database. Are you sure? (yes/no)"
-        read -r confirm
-        if [ "$confirm" = "yes" ]; then
-            print_info "Restoring database from $2..."
-
-            # Create a temporary script to restore the database
-            cat > /tmp/restore-db.sh << 'EOF'
-#!/bin/bash
-cat > /app/data/tatteau.db
-chmod 644 /app/data/tatteau.db
-echo "Database restored successfully"
-EOF
-
-            # Upload and execute the restore
-            cat "$2" | railway run bash /tmp/restore-db.sh
-
-            print_info "Database restored! The service will use the new database."
-            print_warn "You may want to restart the service: railway restart"
-        else
-            print_info "Restore cancelled"
-        fi
+        print_info "Railway database restore via FileBrowser UI"
+        print_info ""
+        print_info "Due to Railway CLI limitations, database restore requires using the FileBrowser template."
+        print_info "Follow these steps:"
+        print_info ""
+        print_info "1. Open your Railway dashboard: https://railway.app/dashboard"
+        print_info "2. In your project, click 'New' -> 'Template'"
+        print_info "3. Search for and deploy the 'FileBrowser' template"
+        print_info "4. After deployment, go to FileBrowser service settings:"
+        print_info "   - Variables tab: Set USE_VOLUME_ROOT=1"
+        print_info "   - Volumes tab: Remove the default volume"
+        print_info "   - Volumes tab: Mount your existing 'tatteau-app-tatteau-app-volume' at /data"
+        print_info "5. Redeploy FileBrowser service"
+        print_info "6. Generate domain for FileBrowser service (Settings -> Networking -> Generate Domain)"
+        print_info "7. Open the FileBrowser URL and upload your database:"
+        print_info "   - Navigate to /data/"
+        print_info "   - Upload tatteau.db (will overwrite existing)"
+        print_info "8. After upload, delete the FileBrowser service"
+        print_info "9. Redeploy your main tatteau-app service to use the new database"
+        print_info ""
+        print_info "Alternative: Use Railway volume backups in the dashboard"
+        print_info ""
         ;;
 
     restart)
         print_info "Restarting Railway service..."
-        railway restart
-        print_info "Service restarted"
+        railway redeploy
+        print_info "Service redeployed"
         ;;
 
     open)
