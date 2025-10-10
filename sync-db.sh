@@ -1,22 +1,44 @@
 #!/bin/bash
-# Sync remote Fly.io database to local file for DataGrip
+# Sync remote Railway database to local file for DataGrip
 
 set -e
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${YELLOW}Syncing database from Fly.io...${NC}"
+echo -e "${YELLOW}Syncing database from Railway...${NC}"
 
-# Download latest database
+# Check if railway CLI is available
+if ! command -v railway &> /dev/null; then
+    echo -e "${RED}Error: Railway CLI not installed${NC}"
+    echo "Install with: npm i -g @railway/cli"
+    exit 1
+fi
+
+# Check if logged in
+if ! railway whoami &> /dev/null; then
+    echo -e "${RED}Error: Not logged into Railway${NC}"
+    echo "Run: railway login"
+    exit 1
+fi
+
+# Download latest database using deploy.sh
 ./deploy.sh db-backup > /dev/null 2>&1
 
 # Find the latest backup
 LATEST=$(ls -t tatteau-backup-*.db 2>/dev/null | head -1)
 
 if [ -z "$LATEST" ]; then
-    echo "Error: No backup file found"
+    echo -e "${RED}Error: No backup file found${NC}"
+    exit 1
+fi
+
+# Verify backup is not empty
+if [ ! -s "$LATEST" ]; then
+    echo -e "${RED}Error: Backup file is empty${NC}"
+    rm -f "$LATEST"
     exit 1
 fi
 

@@ -66,11 +66,20 @@ ENV LEPTOS_RELOAD_PORT="8081"
 ENV RUST_LOG="info"
 ENV DATABASE_PATH="/app/data/tatteau.db"
 
-# Create data directory for volume mount
-RUN mkdir -p /app/data && chown tatteau:tatteau /app/data
+# Create data directory for volume mount (Railway volumes mount at runtime)
+RUN mkdir -p /app/data
 
-# Switch to app user
-USER tatteau
+# Create startup script to fix volume permissions
+RUN echo '#!/bin/bash\n\
+set -e\n\
+# Fix volume permissions (Railway mounts as root)\n\
+chown -R tatteau:tatteau /app/data 2>/dev/null || true\n\
+# Switch to tatteau user and run app\n\
+exec su-exec tatteau /app/tatteau-web' > /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Install su-exec for clean user switching
+RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
 
 # Expose port
 EXPOSE 8080
@@ -79,5 +88,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/ || exit 1
 
-# Run the server
-CMD ["./tatteau-web"]
+# Run startup script as root (to fix permissions), then drop to tatteau user
+CMD ["/app/start.sh"]
