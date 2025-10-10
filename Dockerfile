@@ -52,7 +52,7 @@ RUN useradd -r -s /bin/false -m -d /app tatteau
 WORKDIR /app
 
 # Copy the server binary from workspace target directory
-COPY --from=builder --chown=tatteau:tatteau /app/target/server/release/web /app/tatteau-web
+COPY --from=builder --chown=tatteau:tatteau /app/target/release/web /app/tatteau-web
 
 # Copy the site files from workspace target directory
 COPY --from=builder --chown=tatteau:tatteau /app/target/site /app/site
