@@ -32,6 +32,7 @@ pub fn LoginPage() -> impl IntoView {
     
     let email = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
+    let password_visible = RwSignal::new(false);
     let loading = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
     let success_message = RwSignal::new(Option::<String>::None);
@@ -221,16 +222,58 @@ pub fn LoginPage() -> impl IntoView {
                     submit_login(());
                 }>
                     <div class="auth-form-group">
-                        <Input
-                            placeholder="Email"
-                            input_type=InputType::Email
-                            value=email
-                        />
-                        <Input
-                            placeholder="Password"
-                            input_type=InputType::Password
-                            value=password
-                        />
+                        <div class="auth-input-wrapper">
+                            <span class="auth-input-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                    <polyline points="22,6 12,13 2,6"></polyline>
+                                </svg>
+                            </span>
+                            <Input
+                                class="auth-input"
+                                placeholder="Email"
+                                input_type=InputType::Email
+                                value=email
+                            />
+                        </div>
+                    </div>
+
+                    <div class="auth-form-group">
+                        <div class="auth-input-wrapper">
+                            <span class="auth-input-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                            </span>
+                            <Input
+                                class="auth-input"
+                                placeholder="Password"
+                                input_type=Signal::derive(move || if password_visible.get() { InputType::Text } else { InputType::Password })
+                                value=password
+                            />
+                            <button
+                                type="button"
+                                class="auth-password-toggle"
+                                on:click=move |_| password_visible.set(!password_visible.get())
+                            >
+                                {move || if password_visible.get() {
+                                    view! {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    }.into_any()
+                                }}
+                            </button>
+                        </div>
                     </div>
 
                     {move || error_message.get().map(|msg| view! {
@@ -273,6 +316,8 @@ pub fn SignupPage() -> impl IntoView {
     let phone = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
     let confirm_password = RwSignal::new(String::new());
+    let password_visible = RwSignal::new(false);
+    let confirm_password_visible = RwSignal::new(false);
     let loading = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
 
@@ -411,12 +456,14 @@ pub fn SignupPage() -> impl IntoView {
                     <div class="auth-form-row">
                         <div class="auth-form-group">
                             <Input
+                                class="auth-input"
                                 placeholder="First Name"
                                 value=first_name
                             />
                         </div>
                         <div class="auth-form-group">
                             <Input
+                                class="auth-input"
                                 placeholder="Last Name"
                                 value=last_name
                             />
@@ -424,15 +471,25 @@ pub fn SignupPage() -> impl IntoView {
                     </div>
 
                     <div class="auth-form-group">
-                        <Input
-                            placeholder="Email"
-                            input_type=InputType::Email
-                            value=email
-                        />
+                        <div class="auth-input-wrapper">
+                            <span class="auth-input-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                    <polyline points="22,6 12,13 2,6"></polyline>
+                                </svg>
+                            </span>
+                            <Input
+                                class="auth-input"
+                                placeholder="Email"
+                                input_type=InputType::Email
+                                value=email
+                            />
+                        </div>
                     </div>
 
                     <div class="auth-form-group">
                         <Input
+                            class="auth-input"
                             placeholder="Phone (optional)"
                             input_type=InputType::Tel
                             value=phone
@@ -440,19 +497,79 @@ pub fn SignupPage() -> impl IntoView {
                     </div>
 
                     <div class="auth-form-group">
-                        <Input
-                            placeholder="Password"
-                            input_type=InputType::Password
-                            value=password
-                        />
+                        <div class="auth-input-wrapper">
+                            <span class="auth-input-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                            </span>
+                            <Input
+                                class="auth-input"
+                                placeholder="Password"
+                                input_type=Signal::derive(move || if password_visible.get() { InputType::Text } else { InputType::Password })
+                                value=password
+                            />
+                            <button
+                                type="button"
+                                class="auth-password-toggle"
+                                on:click=move |_| password_visible.set(!password_visible.get())
+                            >
+                                {move || if password_visible.get() {
+                                    view! {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    }.into_any()
+                                }}
+                            </button>
+                        </div>
                     </div>
 
                     <div class="auth-form-group">
-                        <Input
-                            placeholder="Confirm Password"
-                            input_type=InputType::Password
-                            value=confirm_password
-                        />
+                        <div class="auth-input-wrapper">
+                            <span class="auth-input-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                            </span>
+                            <Input
+                                class="auth-input"
+                                placeholder="Confirm Password"
+                                input_type=Signal::derive(move || if confirm_password_visible.get() { InputType::Text } else { InputType::Password })
+                                value=confirm_password
+                            />
+                            <button
+                                type="button"
+                                class="auth-password-toggle"
+                                on:click=move |_| confirm_password_visible.set(!confirm_password_visible.get())
+                            >
+                                {move || if confirm_password_visible.get() {
+                                    view! {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                                        </svg>
+                                    }.into_any()
+                                } else {
+                                    view! {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    }.into_any()
+                                }}
+                            </button>
+                        </div>
                     </div>
 
                     {move || error_message.get().map(|msg| view! {

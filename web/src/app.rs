@@ -13,6 +13,7 @@ use crate::views::artist_highlight::ArtistHighlight;
 use crate::views::auth::{LoginPage, SignupPage};
 use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::booking_confirmation::BookingConfirmation;
+use crate::views::favorites::FavoritesPage;
 use crate::views::home::HomePage;
 use crate::views::map::map_wrapper::DiscoveryMap;
 use crate::views::match_results::MatchResults;
@@ -78,6 +79,7 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("login") view=LoginPage/>
                         <Route path=StaticSegment("signup") view=SignupPage/>
                         <Route path=StaticSegment("explore") view=ExplorePage/>
+                        <Route path=StaticSegment("favorites") view=FavoritesPage/>
                         // <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
                         // <Route path=(StaticSegment("subscription"), StaticSegment("tiers")) view=SubscriptionTiersPage/>
                         <Route path=StaticSegment("match") view=GetMatchedQuiz/>

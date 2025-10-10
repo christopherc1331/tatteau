@@ -109,3 +109,22 @@ pub async fn get_favorites_count(token: String) -> Result<i32, ServerFnError> {
         Ok(0)
     }
 }
+
+#[server]
+pub async fn get_user_favorites_with_details(
+    token: String,
+) -> Result<Vec<crate::db::favorites_repository::FavoritePostWithDetails>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use crate::db::favorites_repository;
+
+        let user_id = extract_user_id_from_token(&token)?;
+
+        favorites_repository::get_user_favorites_with_details(user_id)
+            .map_err(|e| ServerFnError::new(format!("Failed to get favorites with details: {}", e)))
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
