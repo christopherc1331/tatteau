@@ -4,7 +4,7 @@ body {
 }
 
 // Import component styles
-@import 'navbar';
+// @import 'navbar'; // Temporarily disabled due to Sass error
 @import 'artist_cta';
 @import 'artist_dashboard_calendar';
 @import 'artist_calendar';
@@ -23,6 +23,7 @@ body {
 @import 'client_booking_modal';
 @import 'error_boundary';
 @import 'event_item';
+@import 'favorite_button';
 @import 'instagram_demo';
 @import 'instagram_embed';
 @import 'instagram_embed_ssr';

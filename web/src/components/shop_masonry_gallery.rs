@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
 use crate::components::instagram_embed::InstagramEmbed;
+use crate::components::favorite_button::FavoriteButton;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -37,29 +38,28 @@ pub fn ShopMasonryGallery(
                 {shop_posts.into_iter().map(|post| {
                     let short_code = post.image.short_code.clone();
                     let artist_name = post.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
+                    let image_id = post.image.id;
 
                     view! {
                         <div class="shop-masonry-gallery__post">
                             <div class="shop-masonry-gallery__card">
                                 <div class="shop-masonry-gallery__header">
-                                    <a href={format!("/artist/{}", post.artist.id)}
-                                       class="shop-masonry-gallery__artist-link">
-                                        {artist_name}
-                                    </a>
+                                    <div class="shop-masonry-gallery__meta-row">
+                                        <a href={format!("/artist/{}", post.artist.id)}
+                                           class="shop-masonry-gallery__artist-link">
+                                            {artist_name}
+                                        </a>
 
-                                    {(!post.styles.is_empty()).then(|| {
-                                        view! {
-                                            <div class="shop-masonry-gallery__styles-wrapper">
-                                                {post.styles.into_iter().map(|style| {
-                                                    view! {
-                                                        <span class="shop-masonry-gallery__style-tag">
-                                                            {style.name}
-                                                        </span>
-                                                    }
-                                                }).collect_view()}
-                                            </div>
-                                        }
-                                    })}
+                                        {post.styles.into_iter().map(|style| {
+                                            view! {
+                                                <span class="shop-masonry-gallery__style-tag">
+                                                    {style.name}
+                                                </span>
+                                            }
+                                        }).collect_view()}
+
+                                        <FavoriteButton artists_images_id=image_id />
+                                    </div>
                                 </div>
 
                                 <InstagramEmbed short_code={short_code} />

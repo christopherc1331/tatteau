@@ -301,6 +301,21 @@ pub struct QuestionnaireResponse {
     pub response_data: Option<String>, // JSON for arrays/complex data
 }
 
+// User Favorites System
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct UserFavorite {
+    pub id: i32,
+    pub user_id: i32,
+    pub artists_images_id: i32,
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CreateUserFavorite {
+    pub user_id: i32,
+    pub artists_images_id: i32,
+}
+
 // Error Logging System
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ErrorLog {

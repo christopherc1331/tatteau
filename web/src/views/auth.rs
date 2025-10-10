@@ -95,16 +95,24 @@ pub fn LoginPage() -> impl IntoView {
                         
                         // Redirect to appropriate page
                         if let Some(user_type) = auth_response.user_type {
-                            // Check for return_url parameter first
+                            // Check for redirect/return_url parameter first
                             let query = query_map.get();
-                            let redirect_url = if let Some(return_url) = query.get("return_url") {
-                                // Use the return URL if provided
+                            let mut redirect_url = if let Some(redirect) = query.get("redirect") {
+                                // Use the redirect URL if provided
+                                redirect.clone()
+                            } else if let Some(return_url) = query.get("return_url") {
+                                // Use the return URL if provided (backwards compatibility)
                                 return_url.clone()
                             } else if user_type == "artist" {
                                 "/artist/dashboard".to_string()
                             } else {
                                 "/explore".to_string() // Client goes to explore page
                             };
+
+                            // Append favorite parameter if present
+                            if let Some(favorite) = query.get("favorite") {
+                                redirect_url = format!("{}?favorite={}", redirect_url, favorite);
+                            }
 
                             if let Some(window) = web_sys::window() {
                                 let _ = window.location().set_href(&redirect_url);
@@ -138,15 +146,23 @@ pub fn LoginPage() -> impl IntoView {
                                 let navigate = navigate.clone();
                                 move |_| {
                                     user_type.set("client".to_string());
-                                    
-                                    // Build query string with user_type and preserve success if present
+
+                                    // Build query string with user_type and preserve success/redirect/favorite if present
                                     let current_query = query_map.get();
-                                    let mut query_parts = vec!["user_type=client"];
-                                    
+                                    let mut query_parts = vec!["user_type=client".to_string()];
+
                                     if current_query.get("success").is_some() {
-                                        query_parts.push("success=signup");
+                                        query_parts.push("success=signup".to_string());
                                     }
-                                    
+
+                                    if let Some(redirect) = current_query.get("redirect") {
+                                        query_parts.push(format!("redirect={}", redirect));
+                                    }
+
+                                    if let Some(favorite) = current_query.get("favorite") {
+                                        query_parts.push(format!("favorite={}", favorite));
+                                    }
+
                                     let query_string = format!("?{}", query_parts.join("&"));
                                     navigate(&format!("/login{}", query_string), Default::default());
                                 }
@@ -160,15 +176,23 @@ pub fn LoginPage() -> impl IntoView {
                                 let navigate = navigate.clone();
                                 move |_| {
                                     user_type.set("artist".to_string());
-                                    
-                                    // Build query string with user_type and preserve success if present
+
+                                    // Build query string with user_type and preserve success/redirect/favorite if present
                                     let current_query = query_map.get();
-                                    let mut query_parts = vec!["user_type=artist"];
-                                    
+                                    let mut query_parts = vec!["user_type=artist".to_string()];
+
                                     if current_query.get("success").is_some() {
-                                        query_parts.push("success=signup");
+                                        query_parts.push("success=signup".to_string());
                                     }
-                                    
+
+                                    if let Some(redirect) = current_query.get("redirect") {
+                                        query_parts.push(format!("redirect={}", redirect));
+                                    }
+
+                                    if let Some(favorite) = current_query.get("favorite") {
+                                        query_parts.push(format!("favorite={}", favorite));
+                                    }
+
                                     let query_string = format!("?{}", query_parts.join("&"));
                                     navigate(&format!("/login{}", query_string), Default::default());
                                 }
