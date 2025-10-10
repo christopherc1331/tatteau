@@ -69,17 +69,17 @@ ENV DATABASE_PATH="/app/data/tatteau.db"
 # Create data directory for volume mount (Railway volumes mount at runtime)
 RUN mkdir -p /app/data
 
+# Install gosu for clean user switching
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
+
 # Create startup script to fix volume permissions
 RUN echo '#!/bin/bash\n\
 set -e\n\
 # Fix volume permissions (Railway mounts as root)\n\
 chown -R tatteau:tatteau /app/data 2>/dev/null || true\n\
 # Switch to tatteau user and run app\n\
-exec su-exec tatteau /app/tatteau-web' > /app/start.sh && \
+exec gosu tatteau /app/tatteau-web' > /app/start.sh && \
     chmod +x /app/start.sh
-
-# Install su-exec for clean user switching
-RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
 
 # Expose port
 EXPOSE 8080
