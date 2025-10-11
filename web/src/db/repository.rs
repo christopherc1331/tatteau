@@ -39,8 +39,8 @@ pub async fn get_cities_and_coords(state: String) -> DbResult<Vec<CityCoords>> {
         .map(|row| CityCoords {
             city: row.get("city"),
             state: row.get("state"),
-            lat: row.get("lat"),
-            long: row.get("long"),
+            lat: row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
+            long: row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
         })
         .filter(|c| c.city.parse::<f64>().is_err())
         .collect();
@@ -100,8 +100,8 @@ pub async fn query_locations(
             LocationInfo {
                 id: row.get("id"),
                 name: row.get("name"),
-                lat: row.get("lat"),
-                long: row.get("long"),
+                lat: row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
+                long: row.try_get::<f32, _>("long").ok().map(|v| v as f64),
                 city: row.get("city"),
                 county: row.get("county"),
                 state: row.get("state"),
@@ -171,8 +171,8 @@ pub async fn get_city_coordinates(city_name: String) -> DbResult<CityCoords> {
         .map(|row| CityCoords {
             city: row.get("city"),
             state: row.get("state_name"),
-            lat: row.get("latitude"),
-            long: row.get("longitude"),
+            lat: row.try_get::<f32, _>("latitude").unwrap_or(0.0) as f64,
+            long: row.try_get::<f32, _>("longitude").unwrap_or(0.0) as f64,
         })
         .collect();
 
@@ -222,8 +222,8 @@ pub async fn get_artist_location(location_id: i32) -> DbResult<Location> {
     Ok(Location {
         id: row.get("id"),
         name: row.get("name"),
-        lat: row.get("lat"),
-        long: row.get("long"),
+        lat: row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
+        long: row.try_get::<f32, _>("long").ok().map(|v| v as f64),
         city: row.get("city"),
         state: row.get("state"),
         address: row.get("address"),
@@ -323,8 +323,8 @@ pub async fn get_location_by_id(location_id: i32) -> DbResult<Location> {
     Ok(Location {
         id: row.get("id"),
         name: row.get("name"),
-        lat: row.get("lat"),
-        long: row.get("long"),
+        lat: row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
+        long: row.try_get::<f32, _>("long").ok().map(|v| v as f64),
         city: row.get("city"),
         state: row.get("state"),
         address: row.get("address"),
@@ -790,8 +790,8 @@ pub async fn query_locations_with_details(
         let location_info = LocationInfo {
             id: location_id,
             name: location_row.get("name"),
-            lat: location_row.get("lat"),
-            long: location_row.get("long"),
+            lat: location_row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
+            long: location_row.try_get::<f32, _>("long").ok().map(|v| v as f64),
             city: location_row.get("city"),
             county: location_row.get("county"),
             state: location_row.get("state"),
@@ -1030,8 +1030,8 @@ pub async fn get_coords_by_postal_code(postal_code: String) -> DbResult<CityCoor
     Ok(CityCoords {
         city: row.get("city"),
         state: row.get("state"),
-        lat: row.get("lat"),
-        long: row.get("long"),
+        lat: row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
+        long: row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
     })
 }
 
@@ -1057,8 +1057,8 @@ pub async fn get_location_with_artist_details(
     let location = shared_types::LocationInfo {
         id: location_row.get("id"),
         name: location_row.get("name"),
-        lat: location_row.get("lat"),
-        long: location_row.get("long"),
+        lat: location_row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
+        long: location_row.try_get::<f32, _>("long").ok().map(|v| v as f64),
         city: location_row.get("city"),
         county: location_row.get("county"),
         state: location_row.get("state"),
