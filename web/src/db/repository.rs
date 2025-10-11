@@ -5,31 +5,18 @@ use super::entities::{
     ErrorLog, CreateErrorLog,
 };
 #[cfg(feature = "ssr")]
-use rusqlite::{Connection, Result as SqliteResult};
+use sqlx::{PgPool, Row, Executor};
 #[cfg(feature = "ssr")]
 use serde_json;
 use shared_types::{LocationInfo, MapBounds};
 #[cfg(feature = "ssr")]
-use std::path::{Path, PathBuf};
-
-/// Get the database path from environment variable or use default
-#[cfg(feature = "ssr")]
-fn get_db_path() -> PathBuf {
-    std::env::var("DATABASE_PATH")
-        .unwrap_or_else(|_| "tatteau.db".to_string())
-        .into()
-}
+type DbResult<T> = Result<T, sqlx::Error>;
 
 #[cfg(feature = "ssr")]
-pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
-    use rusqlite::params;
+pub async fn get_cities_and_coords(state: String) -> DbResult<Vec<CityCoords>> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-
-    // Open a connection to the database
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "
             SELECT
                 city,
@@ -38,43 +25,40 @@ pub fn get_cities_and_coords(state: String) -> SqliteResult<Vec<CityCoords>> {
                 long
             FROM locations
             WHERE
-                state = ?1
+                state = $1
             AND (is_person IS NULL OR is_person != 1)
             GROUP BY city
         ",
-    )?;
+    )
+    .bind(&state)
+    .fetch_all(pool)
+    .await?;
 
-    let city_coords = stmt.query_map(params![state], |row| {
-        Ok(CityCoords {
-            city: row.get(0)?,
-            state: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-        })
-    })?;
-
-    city_coords
+    let city_coords: Vec<CityCoords> = rows
         .into_iter()
-        .filter(|c| c.as_ref().unwrap().city.parse::<f64>().is_err())
-        .collect()
+        .map(|row| CityCoords {
+            city: row.get("city"),
+            state: row.get("state"),
+            lat: row.get("lat"),
+            long: row.get("long"),
+        })
+        .filter(|c| c.city.parse::<f64>().is_err())
+        .collect();
+
+    Ok(city_coords)
 }
 
 #[cfg(feature = "ssr")]
-pub fn query_locations(
+pub async fn query_locations(
     state: String,
     city: String,
     bounds: MapBounds,
-) -> SqliteResult<Vec<LocationInfo>> {
-    use rusqlite::params;
-    let db_path = get_db_path();
+) -> DbResult<Vec<LocationInfo>> {
+    let pool = crate::db::pool::get_pool();
 
-    // Open a connection to the database
-    let conn = Connection::open(db_path)?;
-
-    // Prepare and execute the query
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "
-        SELECT 
+        SELECT
             l.id,
             l.name,
             l.lat,
@@ -94,500 +78,430 @@ pub fn query_locations(
         FROM locations l
         LEFT JOIN artists a ON l.id = a.location_id
         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-        WHERE 
-            l.lat BETWEEN ?1 AND ?2
-            AND l.long BETWEEN ?3 AND ?4
+        WHERE
+            l.lat BETWEEN $1 AND $2
+            AND l.long BETWEEN $3 AND $4
             AND (l.is_person IS NULL OR l.is_person != 1)
         GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id
     ",
-    )?;
+    )
+    .bind(bounds.south_west.lat)
+    .bind(bounds.north_east.lat)
+    .bind(bounds.south_west.long)
+    .bind(bounds.north_east.long)
+    .fetch_all(pool)
+    .await?;
 
-    // Map the results to LocationInfo structs
-    let locations = stmt.query_map(
-        params![
-            bounds.south_west.lat,
-            bounds.north_east.lat,
-            bounds.south_west.long,
-            bounds.north_east.long
-        ],
-        |row| {
-            Ok(LocationInfo {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                lat: row.get(2)?,
-                long: row.get(3)?,
-                city: row.get(4)?,
-                county: row.get(5)?,
-                state: row.get(6)?,
-                country_code: row.get(7)?,
-                postal_code: row.get(8)?,
-                is_open: row.get(9)?,
-                address: row.get(10)?,
-                category: row.get(11)?,
-                website_uri: row.get(12)?,
-                _id: row.get(13)?,
-                has_artists: Some(row.get::<_, i32>(14)? == 1),
-                artist_images_count: Some(row.get(15)?),
-            })
-        },
-    )?;
+    let locations: Vec<LocationInfo> = rows
+        .into_iter()
+        .map(|row| {
+            let has_artists: i64 = row.get("has_artists");
+            let artist_images_count: i64 = row.get("artist_images_count");
+            LocationInfo {
+                id: row.get("id"),
+                name: row.get("name"),
+                lat: row.get("lat"),
+                long: row.get("long"),
+                city: row.get("city"),
+                county: row.get("county"),
+                state: row.get("state"),
+                country_code: row.get("country_code"),
+                postal_code: row.get("postal_code"),
+                is_open: row.get("is_open"),
+                address: row.get("address"),
+                category: row.get("category"),
+                website_uri: row.get("website_uri"),
+                _id: row.get("_id"),
+                has_artists: Some(has_artists == 1),
+                artist_images_count: Some(artist_images_count as i32),
+            }
+        })
+        .collect();
 
-    // Collect all results into a vector
-    let mut result = Vec::new();
-    for location in locations {
-        result.push(location?);
-    }
-
-    Ok(result)
+    Ok(locations)
 }
 
 pub struct LocationState {
     pub state: String,
 }
 #[cfg(feature = "ssr")]
-pub fn get_states() -> SqliteResult<Vec<LocationState>> {
-    use std::error::Error;
+pub async fn get_states() -> DbResult<Vec<LocationState>> {
+    let pool = crate::db::pool::get_pool();
 
-    use rusqlite::MappedRows;
-
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "
         SELECT DISTINCT state
         FROM locations
         WHERE country_code = 'United States'
         ORDER BY state ASC
     ",
-    )?;
+    )
+    .fetch_all(pool)
+    .await?;
 
-    // let mut result = Vec::new();
+    let states = rows
+        .into_iter()
+        .map(|r| LocationState { state: r.get("state") })
+        .collect();
 
-    let res = stmt.query_map([], |r| Ok(LocationState { state: r.get(0)? }))?;
-
-    res.into_iter().collect()
+    Ok(states)
 }
 
-//     "Washington".to_string(),
-//     "Virginia".to_string(),
-//     "Vermont".to_string(),
-//     "Utah".to_string(),
-//     "Texas".to_string(),
-//     "Tennessee".to_string(),
-//     "South Dakota".to_string(),
-//     "South Carolina".to_string(),
-//     "Rhode Island".to_string(),
-//     "Pennsylvania".to_string(),
-//     "Oregon".to_string(),
-//     "Oklahoma".to_string(),
-//     "Ohio".to_string(),
-//     "North Dakota".to_string(),
-//     "North Carolina".to_string(),
-//     "New York".to_string(),
-//     "New Mexico".to_string(),
-//     "New Jersey".to_string(),
-//     "New Hampshire".to_string(),
-//     "Nevada".to_string(),
-//     "Nebraska".to_string(),
-//     "Montana".to_string(),
-//     "Missouri".to_string(),
-//     "Mississippi".to_string(),
-//     "Minnesota".to_string(),
-//     "Michigan".to_string(),
-//     "Massachusetts".to_string(),
-//     "Maryland".to_string(),
-//     "Maine".to_string(),
-//     "MI".to_string(),
-//     "Louisiana".to_string(),
-//     "Kentucky".to_string(),
-//     "Kansas".to_string(),
-//     "Iowa".to_string(),
-//     "Indiana".to_string(),
-//     "Illinois".to_string(),
-//     "Idaho".to_string(),
-//     "IL".to_string(),
-//     "Hawaii".to_string(),
-//     "Georgia".to_string(),
-//     "Florida".to_string(),
-//     "District of Columbia".to_string(),
-//     "Delaware".to_string(),
-//     "Connecticut".to_string(),
-//     "Colorado".to_string(),
-//     "California".to_string(),
-//     "Arkansas".to_string(),
-//     "Arizona".to_string(),
-//     "Alaska".to_string(),
-//     "Alabama".to_string(),
-// ])
-
 #[cfg(feature = "ssr")]
-pub fn get_city_coordinates(city_name: String) -> SqliteResult<CityCoords> {
-    use rusqlite::params;
+pub async fn get_city_coordinates(city_name: String) -> DbResult<CityCoords> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-
-    // Open a connection to the database
-    let conn = Connection::open(db_path)?;
-
-    // Prepare and execute the query
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "
-            SELECT 
+            SELECT
                 state_name,
-                city, 
-                latitude, 
+                city,
+                latitude,
                 longitude
             FROM cities
-            WHERE LOWER(REPLACE(city, \"'\", \" \")) LIKE ?1
+            WHERE LOWER(REPLACE(city, '''', ' ')) LIKE $1
         ",
-    )?;
-    let mapped_rows = stmt
-        .query_map(params![format!("%{}%", city_name)], |row| {
-            Ok(CityCoords {
-                city: row.get(1)?,
-                state: row.get(0)?,
-                lat: row.get(2)?,
-                long: row.get(3)?,
-            })
-        })
-        .expect("Should fetch city coordinates successfully");
-    let city_coords: SqliteResult<Vec<CityCoords>> = mapped_rows.into_iter().collect();
+    )
+    .bind(format!("%{}%", city_name))
+    .fetch_all(pool)
+    .await?;
 
-    if let Ok(cities) = city_coords {
-        if let Some(city) = cities.first() {
-            Ok(city.clone())
-        } else {
-            Err(rusqlite::Error::QueryReturnedNoRows)
-        }
-    } else {
-        Err(rusqlite::Error::QueryReturnedNoRows)
-    }
+    let city_coords: Vec<CityCoords> = rows
+        .into_iter()
+        .map(|row| CityCoords {
+            city: row.get("city"),
+            state: row.get("state_name"),
+            lat: row.get("latitude"),
+            long: row.get("longitude"),
+        })
+        .collect();
+
+    city_coords.first()
+        .cloned()
+        .ok_or_else(|| sqlx::Error::RowNotFound)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_by_id(artist_id: i32) -> SqliteResult<Artist> {
-    use rusqlite::params;
+pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
+    let row = sqlx::query(
         "SELECT id, name, location_id, social_links, email, phone, years_experience, styles_extracted
          FROM artists
-         WHERE id = ?1"
-    )?;
+         WHERE id = $1"
+    )
+    .bind(artist_id)
+    .fetch_one(pool)
+    .await?;
 
-    stmt.query_row(params![artist_id], |row| {
-        Ok(Artist {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            location_id: row.get(2)?,
-            social_links: row.get(3)?,
-            email: row.get(4)?,
-            phone: row.get(5)?,
-            years_experience: row.get(6)?,
-            styles_extracted: row.get(7)?,
-        })
+    Ok(Artist {
+        id: row.get("id"),
+        name: row.get("name"),
+        location_id: row.get("location_id"),
+        social_links: row.get("social_links"),
+        email: row.get("email"),
+        phone: row.get("phone"),
+        years_experience: row.get("years_experience"),
+        styles_extracted: row.get("styles_extracted"),
     })
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_location(location_id: i32) -> SqliteResult<Location> {
-    use rusqlite::params;
+pub async fn get_artist_location(location_id: i32) -> DbResult<Location> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
+    let row = sqlx::query(
         "SELECT id, name, lat, long, city, state, address, website_uri
          FROM locations
-         WHERE id = ?1",
-    )?;
+         WHERE id = $1",
+    )
+    .bind(location_id)
+    .fetch_one(pool)
+    .await?;
 
-    stmt.query_row(params![location_id], |row| {
-        Ok(Location {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-            city: row.get(4)?,
-            state: row.get(5)?,
-            address: row.get(6)?,
-            website_uri: row.get(7)?,
-        })
+    Ok(Location {
+        id: row.get("id"),
+        name: row.get("name"),
+        lat: row.get("lat"),
+        long: row.get("long"),
+        city: row.get("city"),
+        state: row.get("state"),
+        address: row.get("address"),
+        website_uri: row.get("website_uri"),
     })
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_styles(artist_id: i32) -> SqliteResult<Vec<Style>> {
-    use rusqlite::params;
+pub async fn get_artist_styles(artist_id: i32) -> DbResult<Vec<Style>> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "SELECT s.id, s.name
          FROM styles s
          JOIN artists_styles ast ON s.id = ast.style_id
-         WHERE ast.artist_id = ?1",
-    )?;
+         WHERE ast.artist_id = $1",
+    )
+    .bind(artist_id)
+    .fetch_all(pool)
+    .await?;
 
-    let styles = stmt.query_map(params![artist_id], |row| {
-        Ok(Style {
-            id: row.get(0)?,
-            name: row.get(1)?,
+    let styles = rows
+        .into_iter()
+        .map(|row| Style {
+            id: row.get("id"),
+            name: row.get("name"),
         })
-    })?;
+        .collect();
 
-    styles.collect()
+    Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_images_with_styles(
+pub async fn get_artist_images_with_styles(
     artist_id: i32,
-) -> SqliteResult<Vec<(ArtistImage, Vec<Style>)>> {
-    use rusqlite::params;
-
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<(ArtistImage, Vec<Style>)>> {
+    let pool = crate::db::pool::get_pool();
 
     // First get all images for the artist
-    let mut images_stmt = conn.prepare(
+    let image_rows = sqlx::query(
         "SELECT id, short_code, artist_id
          FROM artists_images
-         WHERE artist_id = ?1",
-    )?;
-
-    let images = images_stmt.query_map(params![artist_id], |row| {
-        Ok(ArtistImage {
-            id: row.get(0)?,
-            short_code: row.get(1)?,
-            artist_id: row.get(2)?,
-        })
-    })?;
+         WHERE artist_id = $1",
+    )
+    .bind(artist_id)
+    .fetch_all(pool)
+    .await?;
 
     let mut result = Vec::new();
 
     // For each image, get its styles
-    for image in images {
-        let img = image?;
+    for image_row in image_rows {
+        let img = ArtistImage {
+            id: image_row.get("id"),
+            short_code: image_row.get("short_code"),
+            artist_id: image_row.get("artist_id"),
+        };
         let img_id = img.id;
 
-        let mut styles_stmt = conn.prepare(
+        let style_rows = sqlx::query(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = ?1",
-        )?;
+             WHERE ais.artists_images_id = $1",
+        )
+        .bind(img_id)
+        .fetch_all(pool)
+        .await?;
 
-        let styles = styles_stmt.query_map(params![img_id], |row| {
-            Ok(Style {
-                id: row.get(0)?,
-                name: row.get(1)?,
+        let styles: Vec<Style> = style_rows
+            .into_iter()
+            .map(|row| Style {
+                id: row.get("id"),
+                name: row.get("name"),
             })
-        })?;
+            .collect();
 
-        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
-        result.push((img, styles_vec?));
+        result.push((img, styles));
     }
 
     Ok(result)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_location_by_id(location_id: i32) -> SqliteResult<Location> {
-    use rusqlite::params;
+pub async fn get_location_by_id(location_id: i32) -> DbResult<Location> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
+    let row = sqlx::query(
         "SELECT id, name, lat, long, city, state, address, website_uri
          FROM locations
-         WHERE id = ?1",
-    )?;
+         WHERE id = $1",
+    )
+    .bind(location_id)
+    .fetch_one(pool)
+    .await?;
 
-    stmt.query_row(params![location_id], |row| {
-        Ok(Location {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-            city: row.get(4)?,
-            state: row.get(5)?,
-            address: row.get(6)?,
-            website_uri: row.get(7)?,
-        })
+    Ok(Location {
+        id: row.get("id"),
+        name: row.get("name"),
+        lat: row.get("lat"),
+        long: row.get("long"),
+        city: row.get("city"),
+        state: row.get("state"),
+        address: row.get("address"),
+        website_uri: row.get("website_uri"),
     })
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artists_by_location(location_id: i32) -> SqliteResult<Vec<Artist>> {
-    use rusqlite::params;
+pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-
-    // Updated query to join with locations and ensure we're getting artists for actual shops, not persons
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "SELECT a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
          FROM artists a
          JOIN locations l ON a.location_id = l.id
-         WHERE a.location_id = ?1 
+         WHERE a.location_id = $1
          AND (l.is_person IS NULL OR l.is_person != 1)
          AND a.name IS NOT NULL
          AND a.name != ''"
-    )?;
+    )
+    .bind(location_id)
+    .fetch_all(pool)
+    .await?;
 
-    let artists = stmt.query_map(params![location_id], |row| {
-        Ok(Artist {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            location_id: row.get(2)?,
-            social_links: row.get(3)?,
-            email: row.get(4)?,
-            phone: row.get(5)?,
-            years_experience: row.get(6)?,
-            styles_extracted: row.get(7)?,
+    let artists = rows
+        .into_iter()
+        .map(|row| Artist {
+            id: row.get("id"),
+            name: row.get("name"),
+            location_id: row.get("location_id"),
+            social_links: row.get("social_links"),
+            email: row.get("email"),
+            phone: row.get("phone"),
+            years_experience: row.get("years_experience"),
+            styles_extracted: row.get("styles_extracted"),
         })
-    })?;
+        .collect();
 
-    artists.collect()
+    Ok(artists)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_all_styles_by_location(location_id: i32) -> SqliteResult<Vec<Style>> {
-    use rusqlite::params;
+pub async fn get_all_styles_by_location(location_id: i32) -> DbResult<Vec<Style>> {
+    let pool = crate::db::pool::get_pool();
 
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-
-    let mut stmt = conn.prepare(
+    let rows = sqlx::query(
         "SELECT DISTINCT s.id, s.name
          FROM styles s
          JOIN artists_styles ast ON s.id = ast.style_id
          JOIN artists a ON ast.artist_id = a.id
          JOIN locations l ON a.location_id = l.id
-         WHERE a.location_id = ?1
+         WHERE a.location_id = $1
          AND (l.is_person IS NULL OR l.is_person != 1)
          AND a.name IS NOT NULL
          AND a.name != ''
          ORDER BY s.name",
-    )?;
+    )
+    .bind(location_id)
+    .fetch_all(pool)
+    .await?;
 
-    let styles = stmt.query_map(params![location_id], |row| {
-        Ok(Style {
-            id: row.get(0)?,
-            name: row.get(1)?,
+    let styles = rows
+        .into_iter()
+        .map(|row| Style {
+            id: row.get("id"),
+            name: row.get("name"),
         })
-    })?;
+        .collect();
 
-    styles.collect()
+    Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_all_images_with_styles_by_location(
+pub async fn get_all_images_with_styles_by_location(
     location_id: i32,
-) -> SqliteResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
-    use rusqlite::params;
-
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
+    let pool = crate::db::pool::get_pool();
 
     // First get all images for artists at this location, filtering out person locations
-    let mut stmt = conn.prepare(
-        "SELECT ai.id, ai.short_code, ai.artist_id, a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+    let image_rows = sqlx::query(
+        "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
          FROM artists_images ai
          JOIN artists a ON ai.artist_id = a.id
          JOIN locations l ON a.location_id = l.id
-         WHERE a.location_id = ?1
+         WHERE a.location_id = $1
          AND (l.is_person IS NULL OR l.is_person != 1)
          AND a.name IS NOT NULL
          AND a.name != ''"
-    )?;
-
-    let images = stmt.query_map(params![location_id], |row| {
-        let image = ArtistImage {
-            id: row.get(0)?,
-            short_code: row.get(1)?,
-            artist_id: row.get(2)?,
-        };
-
-        let artist = Artist {
-            id: row.get(3)?,
-            name: row.get(4)?,
-            location_id: row.get(5)?,
-            social_links: row.get(6)?,
-            email: row.get(7)?,
-            phone: row.get(8)?,
-            years_experience: row.get(9)?,
-            styles_extracted: row.get(10)?,
-        };
-
-        Ok((image, artist))
-    })?;
+    )
+    .bind(location_id)
+    .fetch_all(pool)
+    .await?;
 
     let mut result = Vec::new();
 
     // For each image, get its styles
-    for item in images {
-        let (image, artist) = item?;
+    for image_row in image_rows {
+        let image = ArtistImage {
+            id: image_row.get("id"),
+            short_code: image_row.get("short_code"),
+            artist_id: image_row.get("artist_id"),
+        };
+
+        let artist = Artist {
+            id: image_row.get("a_id"),
+            name: image_row.get("name"),
+            location_id: image_row.get("location_id"),
+            social_links: image_row.get("social_links"),
+            email: image_row.get("email"),
+            phone: image_row.get("phone"),
+            years_experience: image_row.get("years_experience"),
+            styles_extracted: image_row.get("styles_extracted"),
+        };
+
         let img_id = image.id;
 
-        let mut styles_stmt = conn.prepare(
+        let style_rows = sqlx::query(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = ?1",
-        )?;
+             WHERE ais.artists_images_id = $1",
+        )
+        .bind(img_id)
+        .fetch_all(pool)
+        .await?;
 
-        let styles = styles_stmt.query_map(params![img_id], |row| {
-            Ok(Style {
-                id: row.get(0)?,
-                name: row.get(1)?,
+        let styles: Vec<Style> = style_rows
+            .into_iter()
+            .map(|row| Style {
+                id: row.get("id"),
+                name: row.get("name"),
             })
-        })?;
+            .collect();
 
-        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
-        result.push((image, styles_vec?, artist));
+        result.push((image, styles, artist));
     }
 
     Ok(result)
 }
 
 #[cfg(feature = "ssr")]
-pub fn save_quiz_session(
+pub async fn save_quiz_session(
     style_preference: String,
     body_placement: String,
     pain_tolerance: i32,
     budget_min: f64,
     budget_max: f64,
     vibe_preference: String,
-) -> SqliteResult<i64> {
-    use rusqlite::params;
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<i64> {
+    let pool = crate::db::pool::get_pool();
 
-    conn.execute(
+    let row = sqlx::query(
         "INSERT INTO client_quiz_sessions (style_preference, body_placement, pain_tolerance, budget_min, budget_max, vibe_preference)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![style_preference, body_placement, pain_tolerance, budget_min, budget_max, vibe_preference],
-    )?;
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id",
+    )
+    .bind(style_preference)
+    .bind(body_placement)
+    .bind(pain_tolerance)
+    .bind(budget_min)
+    .bind(budget_max)
+    .bind(vibe_preference)
+    .fetch_one(pool)
+    .await?;
 
-    Ok(conn.last_insert_rowid())
+    Ok(row.get("id"))
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_location_stats_for_city(
+pub async fn get_location_stats_for_city(
     city: String,
     state: String,
-) -> SqliteResult<crate::server::LocationStats> {
-    use rusqlite::params;
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<crate::server::LocationStats> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare(
-        "SELECT 
+    let row = sqlx::query(
+        "SELECT
             COUNT(DISTINCT l.id) as shop_count,
             COUNT(DISTINCT a.id) as artist_count,
             COUNT(DISTINCT s.id) as styles_available
@@ -595,26 +509,27 @@ pub fn get_location_stats_for_city(
          LEFT JOIN artists a ON l.id = a.location_id
          LEFT JOIN artists_styles ast ON a.id = ast.artist_id
          LEFT JOIN styles s ON ast.style_id = s.id
-         WHERE l.city = ?1 AND l.state = ?2
+         WHERE l.city = $1 AND l.state = $2
          AND (l.is_person IS NULL OR l.is_person != 1)",
-    )?;
+    )
+    .bind(city)
+    .bind(state)
+    .fetch_one(pool)
+    .await?;
 
-    stmt.query_row(params![city, state], |row| {
-        Ok(crate::server::LocationStats {
-            shop_count: row.get(0)?,
-            artist_count: row.get(1)?,
-            styles_available: row.get(2)?,
-        })
+    Ok(crate::server::LocationStats {
+        shop_count: row.get("shop_count"),
+        artist_count: row.get("artist_count"),
+        styles_available: row.get("styles_available"),
     })
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWithCount>> {
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_all_styles_with_counts() -> DbResult<Vec<crate::server::StyleWithCount>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare(
-        "SELECT 
+    let rows = sqlx::query(
+        "SELECT
             s.id,
             s.name,
             COUNT(DISTINCT ast.artist_id) as artist_count
@@ -622,30 +537,32 @@ pub fn get_all_styles_with_counts() -> SqliteResult<Vec<crate::server::StyleWith
          LEFT JOIN artists_styles ast ON s.id = ast.style_id
          GROUP BY s.id, s.name
          ORDER BY artist_count DESC, s.name ASC",
-    )?;
+    )
+    .fetch_all(pool)
+    .await?;
 
-    let styles = stmt.query_map([], |row| {
-        Ok(crate::server::StyleWithCount {
-            id: row.get(0)?,
-            name: row.get(1)?,
+    let styles = rows
+        .into_iter()
+        .map(|row| crate::server::StyleWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
             description: None,
-            artist_count: row.get(2)?,
+            artist_count: row.get("artist_count"),
             sample_images: None,
         })
-    })?;
+        .collect();
 
-    styles.collect()
+    Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_styles_with_counts_in_bounds(
+pub async fn get_styles_with_counts_in_bounds(
     bounds: shared_types::MapBounds,
-) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<crate::server::StyleWithCount>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare(
-        "SELECT 
+    let rows = sqlx::query(
+        "SELECT
             s.id,
             s.name,
             COUNT(DISTINCT ast.artist_id) as artist_count
@@ -653,64 +570,61 @@ pub fn get_styles_with_counts_in_bounds(
          INNER JOIN artists_styles ast ON s.id = ast.style_id
          INNER JOIN artists a ON ast.artist_id = a.id
          INNER JOIN locations l ON a.location_id = l.id
-         WHERE l.lat BETWEEN ?1 AND ?2
-           AND l.long BETWEEN ?3 AND ?4
+         WHERE l.lat BETWEEN $1 AND $2
+           AND l.long BETWEEN $3 AND $4
          GROUP BY s.id, s.name
-         HAVING artist_count > 0
+         HAVING COUNT(DISTINCT ast.artist_id) > 0
          ORDER BY artist_count DESC, s.name ASC",
-    )?;
+    )
+    .bind(bounds.south_west.lat)
+    .bind(bounds.north_east.lat)
+    .bind(bounds.south_west.long)
+    .bind(bounds.north_east.long)
+    .fetch_all(pool)
+    .await?;
 
-    let styles = stmt.query_map(
-        [
-            bounds.south_west.lat,
-            bounds.north_east.lat,
-            bounds.south_west.long,
-            bounds.north_east.long,
-        ],
-        |row| {
-            Ok(crate::server::StyleWithCount {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: None,
-                artist_count: row.get(2)?,
-                sample_images: None,
-            })
-        },
-    )?;
+    let styles = rows
+        .into_iter()
+        .map(|row| crate::server::StyleWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
+            description: None,
+            artist_count: row.get("artist_count"),
+            sample_images: None,
+        })
+        .collect();
 
-    styles.collect()
+    Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_styles_by_location(
+pub async fn get_styles_by_location(
     states: Option<Vec<String>>,
     cities: Option<Vec<String>>,
-) -> SqliteResult<Vec<crate::server::StyleWithCount>> {
-    use rusqlite::params_from_iter;
-
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<crate::server::StyleWithCount>> {
+    let pool = crate::db::pool::get_pool();
 
     // Build query based on location filters
-    // Query artists_images_styles to show only styles that have actual tagged images
     let mut where_clauses = Vec::new();
-    let mut query_params: Vec<String> = Vec::new();
+    let mut bind_idx = 1;
 
-    // Add state filter if provided
-    if let Some(state_list) = &states {
+    // Build WHERE clause
+    if let Some(ref state_list) = states {
         if !state_list.is_empty() {
-            let state_placeholders = state_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            where_clauses.push(format!("l.state IN ({})", state_placeholders));
-            query_params.extend(state_list.iter().cloned());
+            let placeholders: Vec<String> = (0..state_list.len())
+                .map(|i| format!("${}", bind_idx + i))
+                .collect();
+            where_clauses.push(format!("l.state IN ({})", placeholders.join(",")));
+            bind_idx += state_list.len();
         }
     }
 
-    // Add city filter if provided
-    if let Some(city_list) = &cities {
+    if let Some(ref city_list) = cities {
         if !city_list.is_empty() {
-            let city_placeholders = city_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            where_clauses.push(format!("l.city IN ({})", city_placeholders));
-            query_params.extend(city_list.iter().cloned());
+            let placeholders: Vec<String> = (0..city_list.len())
+                .map(|i| format!("${}", bind_idx + i))
+                .collect();
+            where_clauses.push(format!("l.city IN ({})", placeholders.join(",")));
         }
     }
 
@@ -741,175 +655,197 @@ pub fn get_styles_by_location(
         join_type,
         join_type,
         where_clause,
-        if where_clauses.is_empty() { "" } else { "HAVING image_count > 0" }
+        if where_clauses.is_empty() { "" } else { "HAVING COUNT(DISTINCT ai.id) > 0" }
     );
 
-    let mut stmt = conn.prepare(&query)?;
+    let mut sql_query = sqlx::query(&query);
 
-    let map_row = |row: &rusqlite::Row| -> rusqlite::Result<crate::server::StyleWithCount> {
-        Ok(crate::server::StyleWithCount {
-            id: row.get(0)?,
-            name: row.get(1)?,
+    // Bind state parameters
+    if let Some(ref state_list) = states {
+        for state in state_list {
+            sql_query = sql_query.bind(state);
+        }
+    }
+
+    // Bind city parameters
+    if let Some(ref city_list) = cities {
+        for city in city_list {
+            sql_query = sql_query.bind(city);
+        }
+    }
+
+    let rows = sql_query.fetch_all(pool).await?;
+
+    let styles = rows
+        .into_iter()
+        .map(|row| crate::server::StyleWithCount {
+            id: row.get("id"),
+            name: row.get("name"),
             description: None,
-            artist_count: row.get(2)?,
+            artist_count: row.get("image_count"),
             sample_images: None,
         })
-    };
+        .collect();
 
-    let styles_iter = if query_params.is_empty() {
-        stmt.query_map([], map_row)?
-    } else {
-        stmt.query_map(params_from_iter(query_params.iter()), map_row)?
-    };
-
-    styles_iter.collect()
+    Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-fn map_location_row(row: &rusqlite::Row) -> rusqlite::Result<(shared_types::LocationInfo, i32)> {
-    use shared_types::LocationInfo;
-    let location_id: i32 = row.get(0)?;
-    let location_info = LocationInfo {
-        id: location_id as i32,
-        name: row.get(1)?,
-        lat: row.get(2)?,
-        long: row.get(3)?,
-        city: row.get(4)?,
-        county: row.get(5)?,
-        state: row.get(6)?,
-        country_code: row.get(7)?,
-        postal_code: row.get(8)?,
-        is_open: row.get(9)?,
-        address: row.get(10)?,
-        category: row.get(11)?,
-        website_uri: row.get(12)?,
-        _id: row.get(13)?,
-        has_artists: Some(row.get::<_, i32>(15)? == 1),
-        artist_images_count: Some(row.get(16)?),
-    };
-    Ok((location_info, row.get::<_, i32>(14)?))
-}
-
-#[cfg(feature = "ssr")]
-pub fn query_locations_with_details(
+pub async fn query_locations_with_details(
     state: String,
     city: String,
     bounds: MapBounds,
     style_filter: Option<Vec<i32>>,
-) -> SqliteResult<Vec<crate::server::EnhancedLocationInfo>> {
-    use rusqlite::params;
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<crate::server::EnhancedLocationInfo>> {
+    let pool = crate::db::pool::get_pool();
 
     // Build the query based on whether we have style filters
-    let query = if style_filter.is_some() && !style_filter.as_ref().unwrap().is_empty() {
-        "SELECT DISTINCT
-            l.id, l.name, l.lat, l.long, l.city, l.county, l.state, 
-            l.country_code, l.postal_code, l.is_open, l.address, 
-            l.category, l.website_uri, l._id,
-            COUNT(DISTINCT a.id) as artist_count,
-            CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
-            COUNT(DISTINCT ai.id) as artist_images_count
-         FROM locations l
-         LEFT JOIN artists a ON l.id = a.location_id
-         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-         LEFT JOIN artists_styles ast ON a.id = ast.artist_id
-         WHERE l.lat BETWEEN ?1 AND ?2
-         AND l.long BETWEEN ?3 AND ?4
-         AND (l.is_person IS NULL OR l.is_person != 1)
-         AND ast.style_id IN (SELECT value FROM json_each(?5))
-         GROUP BY l.id"
-    } else {
-        "SELECT 
-            l.id, l.name, l.lat, l.long, l.city, l.county, l.state, 
-            l.country_code, l.postal_code, l.is_open, l.address, 
-            l.category, l.website_uri, l._id,
-            COUNT(DISTINCT a.id) as artist_count,
-            CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
-            COUNT(DISTINCT ai.id) as artist_images_count
-         FROM locations l
-         LEFT JOIN artists a ON l.id = a.location_id
-         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-         WHERE l.lat BETWEEN ?1 AND ?2
-         AND l.long BETWEEN ?3 AND ?4
-         AND (l.is_person IS NULL OR l.is_person != 1)
-         GROUP BY l.id"
-    };
-
-    let mut stmt = conn.prepare(query)?;
-
-    let locations = if let Some(ref styles) = style_filter {
+    let (query, style_json) = if let Some(ref styles) = style_filter {
         if !styles.is_empty() {
-            let style_json = serde_json::to_string(&styles).unwrap();
-            stmt.query_map(
-                params![
-                    bounds.south_west.lat,
-                    bounds.north_east.lat,
-                    bounds.south_west.long,
-                    bounds.north_east.long,
-                    style_json
-                ],
-                map_location_row,
-            )?
+            let json = serde_json::to_value(styles).unwrap();
+            (
+                "SELECT DISTINCT
+                    l.id, l.name, l.lat, l.long, l.city, l.county, l.state,
+                    l.country_code, l.postal_code, l.is_open, l.address,
+                    l.category, l.website_uri, l._id,
+                    COUNT(DISTINCT a.id) as artist_count,
+                    CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
+                    COUNT(DISTINCT ai.id) as artist_images_count
+                 FROM locations l
+                 LEFT JOIN artists a ON l.id = a.location_id
+                 LEFT JOIN artists_images ai ON a.id = ai.artist_id
+                 LEFT JOIN artists_styles ast ON a.id = ast.artist_id
+                 WHERE l.lat BETWEEN $1 AND $2
+                 AND l.long BETWEEN $3 AND $4
+                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND ast.style_id = ANY($5::int[])
+                 GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id",
+                Some(json)
+            )
         } else {
-            stmt.query_map(
-                params![
-                    bounds.south_west.lat,
-                    bounds.north_east.lat,
-                    bounds.south_west.long,
-                    bounds.north_east.long
-                ],
-                map_location_row,
-            )?
+            (
+                "SELECT
+                    l.id, l.name, l.lat, l.long, l.city, l.county, l.state,
+                    l.country_code, l.postal_code, l.is_open, l.address,
+                    l.category, l.website_uri, l._id,
+                    COUNT(DISTINCT a.id) as artist_count,
+                    CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
+                    COUNT(DISTINCT ai.id) as artist_images_count
+                 FROM locations l
+                 LEFT JOIN artists a ON l.id = a.location_id
+                 LEFT JOIN artists_images ai ON a.id = ai.artist_id
+                 WHERE l.lat BETWEEN $1 AND $2
+                 AND l.long BETWEEN $3 AND $4
+                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id",
+                None
+            )
         }
     } else {
-        stmt.query_map(
-            params![
-                bounds.south_west.lat,
-                bounds.north_east.lat,
-                bounds.south_west.long,
-                bounds.north_east.long
-            ],
-            map_location_row,
-        )?
+        (
+            "SELECT
+                l.id, l.name, l.lat, l.long, l.city, l.county, l.state,
+                l.country_code, l.postal_code, l.is_open, l.address,
+                l.category, l.website_uri, l._id,
+                COUNT(DISTINCT a.id) as artist_count,
+                CASE WHEN COUNT(DISTINCT a.id) > 0 THEN 1 ELSE 0 END as has_artists,
+                COUNT(DISTINCT ai.id) as artist_images_count
+             FROM locations l
+             LEFT JOIN artists a ON l.id = a.location_id
+             LEFT JOIN artists_images ai ON a.id = ai.artist_id
+             WHERE l.lat BETWEEN $1 AND $2
+             AND l.long BETWEEN $3 AND $4
+             AND (l.is_person IS NULL OR l.is_person != 1)
+             GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id",
+            None
+        )
+    };
+
+    let location_rows = if let Some(json) = style_json {
+        let styles_vec: Vec<i32> = serde_json::from_value(json).unwrap();
+        sqlx::query(query)
+            .bind(bounds.south_west.lat)
+            .bind(bounds.north_east.lat)
+            .bind(bounds.south_west.long)
+            .bind(bounds.north_east.long)
+            .bind(&styles_vec)
+            .fetch_all(pool)
+            .await?
+    } else {
+        sqlx::query(query)
+            .bind(bounds.south_west.lat)
+            .bind(bounds.north_east.lat)
+            .bind(bounds.south_west.long)
+            .bind(bounds.north_east.long)
+            .fetch_all(pool)
+            .await?
     };
 
     let mut result = Vec::new();
-    for location_result in locations {
-        let (location_info, artist_count) = location_result?;
+    for location_row in location_rows {
+        let location_id: i32 = location_row.get("id");
+        let has_artists_val: i64 = location_row.get("has_artists");
+        let artist_images_count: i64 = location_row.get("artist_images_count");
 
-        // Get image count and styles for this location
-        let mut image_count_stmt = conn.prepare(
-            "SELECT COUNT(DISTINCT ai.id)
+        let location_info = LocationInfo {
+            id: location_id,
+            name: location_row.get("name"),
+            lat: location_row.get("lat"),
+            long: location_row.get("long"),
+            city: location_row.get("city"),
+            county: location_row.get("county"),
+            state: location_row.get("state"),
+            country_code: location_row.get("country_code"),
+            postal_code: location_row.get("postal_code"),
+            is_open: location_row.get("is_open"),
+            address: location_row.get("address"),
+            category: location_row.get("category"),
+            website_uri: location_row.get("website_uri"),
+            _id: location_row.get("_id"),
+            has_artists: Some(has_artists_val == 1),
+            artist_images_count: Some(artist_images_count as i32),
+        };
+
+        let artist_count: i64 = location_row.get("artist_count");
+
+        // Get image count for this location
+        let image_count_row = sqlx::query(
+            "SELECT COUNT(DISTINCT ai.id) as cnt
              FROM artists_images ai
              JOIN artists a ON ai.artist_id = a.id
-             WHERE a.location_id = ?1",
-        )?;
+             WHERE a.location_id = $1",
+        )
+        .bind(location_id)
+        .fetch_one(pool)
+        .await?;
 
-        let image_count: i32 =
-            image_count_stmt.query_row(params![location_info.id], |row| row.get(0))?;
+        let image_count: i64 = image_count_row.get("cnt");
 
-        let mut styles_stmt = conn.prepare(
+        // Get styles for this location
+        let style_rows = sqlx::query(
             "SELECT DISTINCT s.name
              FROM styles s
              JOIN artists_styles ast ON s.id = ast.style_id
              JOIN artists a ON ast.artist_id = a.id
-             WHERE a.location_id = ?1
+             WHERE a.location_id = $1
              LIMIT 5",
-        )?;
+        )
+        .bind(location_id)
+        .fetch_all(pool)
+        .await?;
 
-        let styles: Vec<String> = styles_stmt
-            .query_map(params![location_info.id], |row| row.get(0))?
-            .filter_map(Result::ok)
+        let styles: Vec<String> = style_rows
+            .into_iter()
+            .map(|row| row.get("name"))
             .collect();
 
         result.push(crate::server::EnhancedLocationInfo {
             location: location_info,
-            artist_count,
-            image_count,
+            artist_count: artist_count as i32,
+            image_count: image_count as i32,
             styles,
-            min_price: None, // TODO: Add when artist_pricing table exists
-            max_price: None, // TODO: Add when artist_pricing table exists
+            min_price: None,
+            max_price: None,
         });
     }
 
@@ -917,18 +853,15 @@ pub fn query_locations_with_details(
 }
 
 #[cfg(feature = "ssr")]
-pub fn query_matched_artists(
+pub async fn query_matched_artists(
     style_preferences: Vec<String>,
     location: String,
     price_range: Option<(f64, f64)>,
-) -> SqliteResult<Vec<crate::server::MatchedArtist>> {
-    use rusqlite::params;
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<crate::server::MatchedArtist>> {
+    let pool = crate::db::pool::get_pool();
 
-    // Start with a simple query to get artists, then we'll add filtering later
-    let query = "
-        SELECT DISTINCT 
+    let rows = sqlx::query(
+        "SELECT DISTINCT
             a.id,
             a.name,
             l.city,
@@ -943,89 +876,97 @@ pub fn query_matched_artists(
         AND a.name IS NOT NULL
         AND a.name != ''
         GROUP BY a.id, a.name, l.city, l.state, l.name, a.years_experience
-        ORDER BY image_count DESC, a.name ASC 
-        LIMIT 10
-    ";
+        ORDER BY image_count DESC, a.name ASC
+        LIMIT 10"
+    )
+    .fetch_all(pool)
+    .await?;
 
-    let mut stmt = conn.prepare(query)?;
+    let mut artists = Vec::new();
 
-    let artist_iter = stmt.query_map([], |row| {
-        let artist_id: i64 = row.get(0)?;
-        let artist_name: String = row.get(1)?;
-        let city: String = row.get(2).unwrap_or_else(|_| "Unknown".to_string());
-        let state: String = row.get(3).unwrap_or_else(|_| "Unknown".to_string());
-        let location_name: String = row.get(4).unwrap_or_else(|_| "Unknown Studio".to_string());
-        let years_experience: Option<i32> = row.get(5).ok();
-        let image_count: i32 = row.get(6).unwrap_or(0);
+    for row in rows {
+        let artist_id: i64 = row.get("id");
+        let artist_name: String = row.get("name");
+        let city: Option<String> = row.try_get("city").ok();
+        let state: Option<String> = row.try_get("state").ok();
+        let location_name: Option<String> = row.try_get("location_name").ok();
+        let years_experience: Option<i32> = row.try_get("years_experience").ok();
+        let image_count: i64 = row.get("image_count");
 
         // Get styles for this artist
-        let styles = get_artist_styles_by_id(&conn, artist_id).unwrap_or_default();
+        let styles = get_artist_styles_by_id(pool, artist_id).await.unwrap_or_default();
 
         // Get portfolio images for this artist
-        let portfolio_images =
-            get_artist_portfolio_images_by_id(&conn, artist_id).unwrap_or_default();
+        let portfolio_images = get_artist_portfolio_images_by_id(pool, artist_id).await.unwrap_or_default();
 
         // Calculate match score based on style overlap and image count
-        let match_score = calculate_match_score(&styles, &style_preferences, image_count);
+        let match_score = calculate_match_score(&styles, &style_preferences, image_count as i32);
 
-        Ok(crate::server::MatchedArtist {
+        artists.push(crate::server::MatchedArtist {
             id: artist_id,
             name: artist_name,
             all_styles: styles.clone(),
             portfolio_images,
-            avatar_url: None, // TODO: Add avatar support in database
+            avatar_url: None,
             years_experience,
-            min_price: Some(150.0), // TODO: Get from artist pricing table
-            max_price: Some(400.0), // TODO: Get from artist pricing table
-            avg_rating: 4.2,        // TODO: Calculate from reviews
-            image_count,
+            min_price: Some(150.0),
+            max_price: Some(400.0),
+            avg_rating: 4.2,
+            image_count: image_count as i32,
             match_score,
-            city,
-            state,
-            location_name,
+            city: city.unwrap_or_else(|| "Unknown".to_string()),
+            state: state.unwrap_or_else(|| "Unknown".to_string()),
+            location_name: location_name.unwrap_or_else(|| "Unknown Studio".to_string()),
             primary_style: styles.first().unwrap_or(&"Various".to_string()).clone(),
-        })
-    })?;
+        });
+    }
 
-    artist_iter.collect()
+    Ok(artists)
 }
 
 #[cfg(feature = "ssr")]
-fn get_artist_styles_by_id(conn: &Connection, artist_id: i64) -> SqliteResult<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT s.name FROM styles s 
-         JOIN artists_styles ars ON s.id = ars.style_id 
-         WHERE ars.artist_id = ?",
-    )?;
+async fn get_artist_styles_by_id(pool: &PgPool, artist_id: i64) -> DbResult<Vec<String>> {
+    let rows = sqlx::query(
+        "SELECT s.name FROM styles s
+         JOIN artists_styles ars ON s.id = ars.style_id
+         WHERE ars.artist_id = $1",
+    )
+    .bind(artist_id)
+    .fetch_all(pool)
+    .await?;
 
-    let style_iter = stmt.query_map([artist_id], |row| Ok(row.get::<_, String>(0)?))?;
+    let styles = rows
+        .into_iter()
+        .map(|row| row.get("name"))
+        .collect();
 
-    style_iter.collect()
+    Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-fn get_artist_portfolio_images_by_id(
-    conn: &Connection,
+async fn get_artist_portfolio_images_by_id(
+    pool: &PgPool,
     artist_id: i64,
-) -> SqliteResult<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT short_code FROM artists_images 
-         WHERE artist_id = ? 
-         ORDER BY id DESC 
+) -> DbResult<Vec<String>> {
+    let rows = sqlx::query(
+        "SELECT short_code FROM artists_images
+         WHERE artist_id = $1
+         ORDER BY id DESC
          LIMIT 4",
-    )?;
+    )
+    .bind(artist_id)
+    .fetch_all(pool)
+    .await?;
 
-    let image_iter = stmt.query_map([artist_id], |row| {
-        let short_code: String = row.get(0)?;
-        // Return the Instagram post URL so we can create proper embeds
-        // We'll handle the embedding in the frontend component
-        Ok(format!(
-            "https://www.instagram.com/p/{}/",
-            short_code
-        ))
-    })?;
+    let images = rows
+        .into_iter()
+        .map(|row| {
+            let short_code: String = row.get("short_code");
+            format!("https://www.instagram.com/p/{}/", short_code)
+        })
+        .collect();
 
-    image_iter.collect()
+    Ok(images)
 }
 
 #[cfg(feature = "ssr")]
@@ -1060,222 +1001,230 @@ fn calculate_match_score(
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_coords_by_postal_code(postal_code: String) -> SqliteResult<CityCoords> {
-    use rusqlite::params;
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_coords_by_postal_code(postal_code: String) -> DbResult<CityCoords> {
+    let pool = crate::db::pool::get_pool();
 
     // First check if the postal code exists
-    let mut check_stmt = conn.prepare("SELECT COUNT(*) FROM locations WHERE postal_code = ?1")?;
+    let count_row = sqlx::query("SELECT COUNT(*) as cnt FROM locations WHERE postal_code = $1")
+        .bind(&postal_code)
+        .fetch_one(pool)
+        .await?;
 
-    let count: i32 = check_stmt.query_row(params![postal_code], |row| row.get(0))?;
+    let count: i64 = count_row.get("cnt");
 
     if count == 0 {
-        return Err(rusqlite::Error::QueryReturnedNoRows);
+        return Err(sqlx::Error::RowNotFound);
     }
 
-    let mut stmt = conn.prepare(
+    let row = sqlx::query(
         "SELECT DISTINCT city, state, lat, long
          FROM locations
-         WHERE postal_code = ?1
+         WHERE postal_code = $1
          AND (is_person IS NULL OR is_person != 1)
          LIMIT 1",
-    )?;
+    )
+    .bind(postal_code)
+    .fetch_one(pool)
+    .await?;
 
-    stmt.query_row(params![postal_code], |row| {
-        Ok(CityCoords {
-            city: row.get(0)?,
-            state: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-        })
+    Ok(CityCoords {
+        city: row.get("city"),
+        state: row.get("state"),
+        lat: row.get("lat"),
+        long: row.get("long"),
     })
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_location_with_artist_details(
+pub async fn get_location_with_artist_details(
     location_id: i32,
-) -> SqliteResult<crate::server::LocationDetailInfo> {
+) -> DbResult<crate::server::LocationDetailInfo> {
     use crate::server::{ArtistThumbnail, LocationDetailInfo};
-    use rusqlite::params;
-    let db_path = get_db_path();
-    let conn = rusqlite::Connection::open(db_path)?;
+
+    let pool = crate::db::pool::get_pool();
 
     // Get location info
-    let location_query = "
-        SELECT id, name, lat, long, city, county, state, country_code, 
+    let location_row = sqlx::query(
+        "SELECT id, name, lat, long, city, county, state, country_code,
                postal_code, is_open, address, category, website_uri, _id
-        FROM locations 
-        WHERE id = ?1
-    ";
+        FROM locations
+        WHERE id = $1"
+    )
+    .bind(location_id)
+    .fetch_one(pool)
+    .await?;
 
-    let location = conn.query_row(location_query, params![location_id], |row| {
-        Ok(shared_types::LocationInfo {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            lat: row.get(2)?,
-            long: row.get(3)?,
-            city: row.get(4)?,
-            county: row.get(5)?,
-            state: row.get(6)?,
-            country_code: row.get(7)?,
-            postal_code: row.get(8)?,
-            is_open: row.get(9)?,
-            address: row.get(10)?,
-            category: row.get(11)?,
-            website_uri: row.get(12)?,
-            _id: row.get(13)?,
-            has_artists: None,
-            artist_images_count: None,
-        })
-    })?;
+    let location = shared_types::LocationInfo {
+        id: location_row.get("id"),
+        name: location_row.get("name"),
+        lat: location_row.get("lat"),
+        long: location_row.get("long"),
+        city: location_row.get("city"),
+        county: location_row.get("county"),
+        state: location_row.get("state"),
+        country_code: location_row.get("country_code"),
+        postal_code: location_row.get("postal_code"),
+        is_open: location_row.get("is_open"),
+        address: location_row.get("address"),
+        category: location_row.get("category"),
+        website_uri: location_row.get("website_uri"),
+        _id: location_row.get("_id"),
+        has_artists: None,
+        artist_images_count: None,
+    };
 
     // Get artists with their primary image and style
-    let artists_query = "
-        SELECT DISTINCT a.id, a.name,
-               (SELECT ai.short_code 
-                FROM artists_images ai 
-                WHERE ai.artist_id = a.id 
+    let artist_rows = sqlx::query(
+        "SELECT DISTINCT a.id, a.name,
+               (SELECT ai.short_code
+                FROM artists_images ai
+                WHERE ai.artist_id = a.id
                 LIMIT 1) as image_url,
-               (SELECT s.name 
-                FROM styles s 
-                JOIN artists_styles ast ON s.id = ast.style_id 
-                WHERE ast.artist_id = a.id 
+               (SELECT s.name
+                FROM styles s
+                JOIN artists_styles ast ON s.id = ast.style_id
+                WHERE ast.artist_id = a.id
                 LIMIT 1) as primary_style
         FROM artists a
-        WHERE a.location_id = ?1
+        WHERE a.location_id = $1
         ORDER BY a.name
-        LIMIT 4
-    ";
+        LIMIT 4"
+    )
+    .bind(location_id)
+    .fetch_all(pool)
+    .await?;
 
-    let mut stmt = conn.prepare(artists_query)?;
-    let artist_rows = stmt.query_map(params![location_id], |row| {
-        Ok(ArtistThumbnail {
-            artist_id: row.get(0)?,
-            artist_name: row.get(1)?,
-            image_url: row.get(2)?,
-            primary_style: row.get(3)?,
+    let artists: Vec<ArtistThumbnail> = artist_rows
+        .into_iter()
+        .map(|row| ArtistThumbnail {
+            artist_id: row.get("id"),
+            artist_name: row.get("name"),
+            image_url: row.try_get("image_url").ok(),
+            primary_style: row.try_get("primary_style").ok(),
         })
-    })?;
-
-    let artists: Vec<ArtistThumbnail> = artist_rows.collect::<Result<Vec<_>, _>>()?;
+        .collect();
 
     // Get counts and stats
-    let stats_query = "
-        SELECT 
+    let stats_row = sqlx::query(
+        "SELECT
             COUNT(DISTINCT a.id) as artist_count,
             COUNT(DISTINCT ai.id) as image_count
         FROM artists a
         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-        WHERE a.location_id = ?1
-    ";
+        WHERE a.location_id = $1"
+    )
+    .bind(location_id)
+    .fetch_one(pool)
+    .await?;
 
-    let (artist_count, image_count): (i32, i32) =
-        conn.query_row(stats_query, params![location_id], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })?;
+    let artist_count: i64 = stats_row.get("artist_count");
+    let image_count: i64 = stats_row.get("image_count");
 
     // Get styles
-    let styles_query = "
-        SELECT DISTINCT s.name
+    let style_rows = sqlx::query(
+        "SELECT DISTINCT s.name
         FROM styles s
         JOIN artists_styles ast ON s.id = ast.style_id
         JOIN artists a ON ast.artist_id = a.id
-        WHERE a.location_id = ?1
+        WHERE a.location_id = $1
         ORDER BY s.name
-        LIMIT 5
-    ";
+        LIMIT 5"
+    )
+    .bind(location_id)
+    .fetch_all(pool)
+    .await?;
 
-    let mut styles_stmt = conn.prepare(styles_query)?;
-    let style_rows = styles_stmt.query_map(params![location_id], |row| row.get::<_, String>(0))?;
-    let styles: Vec<String> = style_rows.collect::<Result<Vec<_>, _>>()?;
+    let styles: Vec<String> = style_rows
+        .into_iter()
+        .map(|row| row.get("name"))
+        .collect();
 
     Ok(LocationDetailInfo {
         location,
-        artist_count,
-        image_count,
+        artist_count: artist_count as i32,
+        image_count: image_count as i32,
         styles,
         artists,
-        min_price: None, // TODO: Add when pricing table exists
-        max_price: None, // TODO: Add when pricing table exists
-        average_rating: None, // TODO: Add when artist_reviews table exists
+        min_price: None,
+        max_price: None,
+        average_rating: None,
     })
 }
 
 // Questionnaire System Repository Functions
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionnaireForm> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_artist_questionnaire(artist_id: i32) -> DbResult<ClientQuestionnaireForm> {
+    let pool = crate::db::pool::get_pool();
 
-    // Fix: Only get the latest/most specific configuration per question_id
-    // Prioritize rows with custom_options, then take the one with highest id
-    let mut stmt = conn.prepare("
-        WITH latest_configs AS (
-            SELECT q.id, q.question_type, q.question_text, aq.is_required, 
+    // Get artist's questionnaire configuration
+    let question_rows = sqlx::query(
+        "WITH latest_configs AS (
+            SELECT q.id, q.question_type, q.question_text, aq.is_required,
                    COALESCE(aq.custom_options, q.options_data) as options,
                    q.validation_rules, aq.display_order,
                    ROW_NUMBER() OVER (
-                       PARTITION BY q.id 
-                       ORDER BY 
+                       PARTITION BY q.id
+                       ORDER BY
                            CASE WHEN aq.custom_options IS NOT NULL THEN 0 ELSE 1 END,
                            aq.id DESC
                    ) as rn
             FROM questionnaire_questions q
             JOIN artist_questionnaires aq ON q.id = aq.question_id
-            WHERE aq.artist_id = ?1 AND aq.is_enabled = 1
+            WHERE aq.artist_id = $1 AND aq.is_enabled = true
         )
         SELECT id, question_type, question_text, is_required, options, validation_rules
         FROM latest_configs
         WHERE rn = 1
-        ORDER BY display_order
-    ")?;
+        ORDER BY display_order"
+    )
+    .bind(artist_id)
+    .fetch_all(pool)
+    .await?;
 
-    let question_rows = stmt.query_map(params![artist_id], |row| {
-        let options_str: Option<String> = row.get(4)?;
-        let options = match options_str {
-            Some(json_str) => serde_json::from_str(&json_str).unwrap_or_default(),
-            None => vec![],
-        };
+    let mut questions: Vec<ClientQuestionnaireQuestion> = question_rows
+        .into_iter()
+        .map(|row| {
+            let options_str: Option<String> = row.try_get("options").ok().flatten();
+            let options = match options_str {
+                Some(json_str) => serde_json::from_str(&json_str).unwrap_or_default(),
+                None => vec![],
+            };
 
-        Ok(ClientQuestionnaireQuestion {
-            id: row.get(0)?,
-            question_type: row.get(1)?,
-            question_text: row.get(2)?,
-            is_required: row.get(3)?,
-            options,
-            validation_rules: row.get(5)?,
+            ClientQuestionnaireQuestion {
+                id: row.get("id"),
+                question_type: row.get("question_type"),
+                question_text: row.get("question_text"),
+                is_required: row.get("is_required"),
+                options,
+                validation_rules: row.try_get("validation_rules").ok(),
+            }
         })
-    })?;
+        .collect();
 
-    let mut questions: Vec<ClientQuestionnaireQuestion> = question_rows.collect::<Result<Vec<_>, _>>()?;
-    
     // Always append mandatory system appointment date question (question ID 6)
-    // Check if appointment date question is already included to avoid duplicates
     let has_appointment_question = questions.iter().any(|q| q.id == 6);
     if !has_appointment_question {
-        let mut system_stmt = conn.prepare("
-            SELECT id, question_type, question_text, validation_rules
+        let system_question_result = sqlx::query(
+            "SELECT id, question_type, question_text, validation_rules
             FROM questionnaire_questions
-            WHERE id = 6
-        ")?;
-        if let Some(system_question) = system_stmt.query_row([], |row| {
-            Ok(ClientQuestionnaireQuestion {
-                id: row.get(0)?,
-                question_type: row.get(1)?,
-                question_text: row.get(2)?,
-                is_required: true, // Always required as system question
+            WHERE id = 6"
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(system_row) = system_question_result {
+            questions.push(ClientQuestionnaireQuestion {
+                id: system_row.get("id"),
+                question_type: system_row.get("question_type"),
+                question_text: system_row.get("question_text"),
+                is_required: true,
                 options: vec![],
-                validation_rules: row.get(3)?,
-            })
-        }).ok() {
-            questions.push(system_question);
+                validation_rules: system_row.try_get("validation_rules").ok(),
+            });
         }
     }
-    
+
     Ok(ClientQuestionnaireForm {
         artist_id,
         questions,
@@ -1284,564 +1233,658 @@ pub fn get_artist_questionnaire(artist_id: i32) -> SqliteResult<ClientQuestionna
 
 // Artist Availability and Booking Conflict Functions
 #[cfg(feature = "ssr")]
-pub fn check_artist_availability(artist_id: i32, requested_date: &str, requested_time: &str) -> SqliteResult<bool> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    
+pub async fn check_artist_availability(artist_id: i32, requested_date: &str, requested_time: &str) -> DbResult<bool> {
+    let pool = crate::db::pool::get_pool();
+
     // Check for existing bookings at the requested time
-    let mut booking_stmt = conn.prepare("
-        SELECT COUNT(*) 
-        FROM bookings 
-        WHERE artist_id = ?1 
-        AND booking_date = ?2 
-        AND status NOT IN ('cancelled', 'rejected')
-    ")?;
-    
-    let booking_conflicts: i64 = booking_stmt.query_row(params![artist_id, requested_date], |row| {
-        row.get(0)
-    })?;
-    
+    let booking_row = sqlx::query(
+        "SELECT COUNT(*) as cnt
+        FROM bookings
+        WHERE artist_id = $1
+        AND booking_date = $2
+        AND status NOT IN ('cancelled', 'rejected')"
+    )
+    .bind(artist_id)
+    .bind(requested_date)
+    .fetch_one(pool)
+    .await?;
+
+    let booking_conflicts: i64 = booking_row.get("cnt");
+
     if booking_conflicts > 0 {
         return Ok(false); // Time slot already booked
     }
-    
+
     // Check for artist availability restrictions
-    // This is a simplified check - in production, this would need more complex time parsing
-    let mut availability_stmt = conn.prepare("
-        SELECT COUNT(*) 
-        FROM artist_availability 
-        WHERE artist_id = ?1 
-        AND (specific_date = ?2 OR day_of_week = strftime('%w', ?2))
-        AND is_available = 0
-    ")?;
-    
-    let availability_blocks: i64 = availability_stmt.query_row(params![artist_id, requested_date], |row| {
-        row.get(0)
-    })?;
-    
+    let availability_row = sqlx::query(
+        "SELECT COUNT(*) as cnt
+        FROM artist_availability
+        WHERE artist_id = $1
+        AND (specific_date = $2 OR day_of_week = EXTRACT(DOW FROM $2::date)::text)
+        AND is_available = false"
+    )
+    .bind(artist_id)
+    .bind(requested_date)
+    .fetch_one(pool)
+    .await?;
+
+    let availability_blocks: i64 = availability_row.get("cnt");
+
     if availability_blocks > 0 {
         return Ok(false); // Time slot is blocked by artist
     }
-    
+
     Ok(true) // Time slot appears to be available
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_all_default_questions() -> SqliteResult<Vec<QuestionnaireQuestion>> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_all_default_questions() -> DbResult<Vec<QuestionnaireQuestion>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare("
-        SELECT id, question_type, question_text, is_default, 
+    let rows = sqlx::query(
+        "SELECT id, question_type, question_text, is_default,
                options_data, validation_rules, created_at
         FROM questionnaire_questions
         WHERE is_default = true
-        ORDER BY id
-    ")?;
+        ORDER BY id"
+    )
+    .fetch_all(pool)
+    .await?;
 
-    let question_rows = stmt.query_map([], |row| {
-        Ok(QuestionnaireQuestion {
-            id: row.get(0)?,
-            question_type: row.get(1)?,
-            question_text: row.get(2)?,
-            is_default: row.get(3)?,
-            options_data: row.get(4)?,
-            validation_rules: row.get(5)?,
-            created_at: row.get(6)?,
+    let questions = rows
+        .into_iter()
+        .map(|row| QuestionnaireQuestion {
+            id: row.get("id"),
+            question_type: row.get("question_type"),
+            question_text: row.get("question_text"),
+            is_default: row.get("is_default"),
+            options_data: row.try_get("options_data").ok(),
+            validation_rules: row.try_get("validation_rules").ok(),
+            created_at: row.get("created_at"),
         })
-    })?;
+        .collect();
 
-    question_rows.collect()
+    Ok(questions)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_questionnaire_config(artist_id: i32) -> SqliteResult<Vec<ArtistQuestionnaire>> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_artist_questionnaire_config(artist_id: i32) -> DbResult<Vec<ArtistQuestionnaire>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare("
-        SELECT id, artist_id, question_id, is_required, display_order, custom_options, is_enabled
+    let rows = sqlx::query(
+        "SELECT id, artist_id, question_id, is_required, display_order, custom_options, is_enabled
         FROM artist_questionnaires
-        WHERE artist_id = ?1
-        ORDER BY display_order
-    ")?;
+        WHERE artist_id = $1
+        ORDER BY display_order"
+    )
+    .bind(artist_id)
+    .fetch_all(pool)
+    .await?;
 
-    let config_rows = stmt.query_map(params![artist_id], |row| {
-        Ok(ArtistQuestionnaire {
-            id: row.get(0)?,
-            artist_id: row.get(1)?,
-            question_id: row.get(2)?,
-            is_required: row.get(3)?,
-            display_order: row.get(4)?,
-            custom_options: row.get(5)?,
-            is_enabled: row.get(6)?,
+    let config = rows
+        .into_iter()
+        .map(|row| ArtistQuestionnaire {
+            id: row.get("id"),
+            artist_id: row.get("artist_id"),
+            question_id: row.get("question_id"),
+            is_required: row.get("is_required"),
+            display_order: row.get("display_order"),
+            custom_options: row.try_get("custom_options").ok(),
+            is_enabled: row.get("is_enabled"),
         })
-    })?;
+        .collect();
 
-    config_rows.collect()
+    Ok(config)
 }
 
 #[cfg(feature = "ssr")]
-pub fn update_artist_questionnaire_config(
+pub async fn update_artist_questionnaire_config(
     artist_id: i32,
     config: Vec<ArtistQuestionnaire>
-) -> SqliteResult<()> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    
+) -> DbResult<()> {
+    let pool = crate::db::pool::get_pool();
+
+    // Start a transaction
+    let mut tx = pool.begin().await?;
+
     // Remove existing config
-    conn.execute(
-        "DELETE FROM artist_questionnaires WHERE artist_id = ?1",
-        params![artist_id],
-    )?;
-    
+    sqlx::query("DELETE FROM artist_questionnaires WHERE artist_id = $1")
+        .bind(artist_id)
+        .execute(&mut *tx)
+        .await?;
+
     // Insert new config
     for item in config {
-        conn.execute(
+        sqlx::query(
             "INSERT INTO artist_questionnaires
              (artist_id, question_id, is_required, display_order, custom_options, is_enabled)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                item.artist_id,
-                item.question_id,
-                item.is_required,
-                item.display_order,
-                item.custom_options,
-                item.is_enabled
-            ],
-        )?;
+             VALUES ($1, $2, $3, $4, $5, $6)"
+        )
+        .bind(item.artist_id)
+        .bind(item.question_id)
+        .bind(item.is_required)
+        .bind(item.display_order)
+        .bind(item.custom_options)
+        .bind(item.is_enabled)
+        .execute(&mut *tx)
+        .await?;
     }
-    
+
+    tx.commit().await?;
+
     Ok(())
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_artist_id_from_user_id(user_id: i32) -> SqliteResult<Option<i32>> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    
-    let mut stmt = conn.prepare(
-        "SELECT artist_id FROM artist_users WHERE id = ?1"
-    )?;
-    
-    let artist_id: Result<i32, rusqlite::Error> = stmt.query_row(
-        params![user_id],
-        |row| Ok(row.get(0)?)
-    );
-    
-    match artist_id {
-        Ok(id) => Ok(Some(id)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e),
-    }
+pub async fn get_artist_id_from_user_id(user_id: i32) -> DbResult<Option<i32>> {
+    let pool = crate::db::pool::get_pool();
+
+    let result = sqlx::query(
+        "SELECT artist_id FROM artist_users WHERE id = $1"
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(result.map(|row| row.get("artist_id")))
 }
 
 #[cfg(feature = "ssr")]
-pub fn delete_artist_question(
+pub async fn delete_artist_question(
     artist_id: i32,
     question_id: i32
-) -> SqliteResult<()> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    
-    // Delete the specific question from artist's configuration
-    conn.execute(
-        "DELETE FROM artist_questionnaires WHERE artist_id = ?1 AND question_id = ?2",
-        params![artist_id, question_id],
-    )?;
-    
+) -> DbResult<()> {
+    let pool = crate::db::pool::get_pool();
+
+    sqlx::query("DELETE FROM artist_questionnaires WHERE artist_id = $1 AND question_id = $2")
+        .bind(artist_id)
+        .bind(question_id)
+        .execute(pool)
+        .await?;
+
     Ok(())
 }
 
 #[cfg(feature = "ssr")]
-pub fn save_questionnaire_responses(
+pub async fn save_questionnaire_responses(
     booking_request_id: i32,
     responses: Vec<BookingQuestionnaireResponse>
-) -> SqliteResult<()> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    
+) -> DbResult<()> {
+    let pool = crate::db::pool::get_pool();
+
     for response in responses {
-        conn.execute(
-            "INSERT INTO booking_questionnaire_responses 
+        sqlx::query(
+            "INSERT INTO booking_questionnaire_responses
              (booking_request_id, question_id, response_text, response_data)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![
-                booking_request_id,
-                response.question_id,
-                response.response_text,
-                response.response_data
-            ],
-        )?;
+             VALUES ($1, $2, $3, $4)"
+        )
+        .bind(booking_request_id)
+        .bind(response.question_id)
+        .bind(response.response_text)
+        .bind(response.response_data)
+        .execute(pool)
+        .await?;
     }
-    
+
     Ok(())
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_booking_questionnaire_responses(
+pub async fn get_booking_questionnaire_responses(
     booking_request_id: i32
-) -> SqliteResult<Vec<BookingQuestionnaireResponse>> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<Vec<BookingQuestionnaireResponse>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare("
-        SELECT id, booking_request_id, question_id, response_text, response_data, created_at
+    let rows = sqlx::query(
+        "SELECT id, booking_request_id, question_id, response_text, response_data, created_at
         FROM booking_questionnaire_responses
-        WHERE booking_request_id = ?1
-        ORDER BY id
-    ")?;
+        WHERE booking_request_id = $1
+        ORDER BY id"
+    )
+    .bind(booking_request_id)
+    .fetch_all(pool)
+    .await?;
 
-    let response_rows = stmt.query_map(params![booking_request_id], |row| {
-        Ok(BookingQuestionnaireResponse {
-            id: row.get(0)?,
-            booking_request_id: row.get(1)?,
-            question_id: row.get(2)?,
-            response_text: row.get(3)?,
-            response_data: row.get(4)?,
-            created_at: row.get(5)?,
+    let responses = rows
+        .into_iter()
+        .map(|row| BookingQuestionnaireResponse {
+            id: row.get("id"),
+            booking_request_id: row.get("booking_request_id"),
+            question_id: row.get("question_id"),
+            response_text: row.try_get("response_text").ok(),
+            response_data: row.try_get("response_data").ok(),
+            created_at: row.get("created_at"),
         })
-    })?;
+        .collect();
 
-    response_rows.collect()
+    Ok(responses)
 }
 
 // Error Logging Functions
 #[cfg(feature = "ssr")]
-pub fn log_error(error_data: CreateErrorLog) -> SqliteResult<i64> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
-    
-    conn.execute(
-        "INSERT INTO error_logs 
-         (error_type, error_level, error_message, error_stack, url_path, 
+pub async fn log_error(error_data: CreateErrorLog) -> DbResult<i64> {
+    let pool = crate::db::pool::get_pool();
+
+    let row = sqlx::query(
+        "INSERT INTO error_logs
+         (error_type, error_level, error_message, error_stack, url_path,
           user_agent, user_id, session_id, request_headers, additional_context)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![
-            error_data.error_type,
-            error_data.error_level,
-            error_data.error_message,
-            error_data.error_stack,
-            error_data.url_path,
-            error_data.user_agent,
-            error_data.user_id,
-            error_data.session_id,
-            error_data.request_headers,
-            error_data.additional_context
-        ],
-    )?;
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id"
+    )
+    .bind(error_data.error_type)
+    .bind(error_data.error_level)
+    .bind(error_data.error_message)
+    .bind(error_data.error_stack)
+    .bind(error_data.url_path)
+    .bind(error_data.user_agent)
+    .bind(error_data.user_id)
+    .bind(error_data.session_id)
+    .bind(error_data.request_headers)
+    .bind(error_data.additional_context)
+    .fetch_one(pool)
+    .await?;
 
-    Ok(conn.last_insert_rowid())
+    Ok(row.get("id"))
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_recent_errors(limit: i32) -> SqliteResult<Vec<ErrorLog>> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_recent_errors(limit: i32) -> DbResult<Vec<ErrorLog>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare("
-        SELECT id, error_type, error_level, error_message, error_stack, 
+    let rows = sqlx::query(
+        "SELECT id, error_type, error_level, error_message, error_stack,
                url_path, user_agent, user_id, session_id, timestamp,
                request_headers, additional_context
         FROM error_logs
         ORDER BY timestamp DESC
-        LIMIT ?1
-    ")?;
+        LIMIT $1"
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
 
-    let error_rows = stmt.query_map(params![limit], |row| {
-        Ok(ErrorLog {
-            id: row.get(0)?,
-            error_type: row.get(1)?,
-            error_level: row.get(2)?,
-            error_message: row.get(3)?,
-            error_stack: row.get(4)?,
-            url_path: row.get(5)?,
-            user_agent: row.get(6)?,
-            user_id: row.get(7)?,
-            session_id: row.get(8)?,
-            timestamp: row.get(9)?,
-            request_headers: row.get(10)?,
-            additional_context: row.get(11)?,
+    let errors = rows
+        .into_iter()
+        .map(|row| ErrorLog {
+            id: row.get("id"),
+            error_type: row.get("error_type"),
+            error_level: row.get("error_level"),
+            error_message: row.get("error_message"),
+            error_stack: row.try_get("error_stack").ok(),
+            url_path: row.try_get("url_path").ok(),
+            user_agent: row.try_get("user_agent").ok(),
+            user_id: row.try_get("user_id").ok(),
+            session_id: row.try_get("session_id").ok(),
+            timestamp: row.get("timestamp"),
+            request_headers: row.try_get("request_headers").ok(),
+            additional_context: row.try_get("additional_context").ok(),
         })
-    })?;
+        .collect();
 
-    error_rows.collect()
+    Ok(errors)
 }
 
 #[cfg(feature = "ssr")]
-pub fn get_errors_by_type(error_type: String, limit: i32) -> SqliteResult<Vec<ErrorLog>> {
-    use rusqlite::params;
-    
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+pub async fn get_errors_by_type(error_type: String, limit: i32) -> DbResult<Vec<ErrorLog>> {
+    let pool = crate::db::pool::get_pool();
 
-    let mut stmt = conn.prepare("
-        SELECT id, error_type, error_level, error_message, error_stack, 
+    let rows = sqlx::query(
+        "SELECT id, error_type, error_level, error_message, error_stack,
                url_path, user_agent, user_id, session_id, timestamp,
                request_headers, additional_context
         FROM error_logs
-        WHERE error_type = ?1
+        WHERE error_type = $1
         ORDER BY timestamp DESC
-        LIMIT ?2
-    ")?;
+        LIMIT $2"
+    )
+    .bind(error_type)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
 
-    let error_rows = stmt.query_map(params![error_type, limit], |row| {
-        Ok(ErrorLog {
-            id: row.get(0)?,
-            error_type: row.get(1)?,
-            error_level: row.get(2)?,
-            error_message: row.get(3)?,
-            error_stack: row.get(4)?,
-            url_path: row.get(5)?,
-            user_agent: row.get(6)?,
-            user_id: row.get(7)?,
-            session_id: row.get(8)?,
-            timestamp: row.get(9)?,
-            request_headers: row.get(10)?,
-            additional_context: row.get(11)?,
+    let errors = rows
+        .into_iter()
+        .map(|row| ErrorLog {
+            id: row.get("id"),
+            error_type: row.get("error_type"),
+            error_level: row.get("error_level"),
+            error_message: row.get("error_message"),
+            error_stack: row.try_get("error_stack").ok(),
+            url_path: row.try_get("url_path").ok(),
+            user_agent: row.try_get("user_agent").ok(),
+            user_id: row.try_get("user_id").ok(),
+            session_id: row.try_get("session_id").ok(),
+            timestamp: row.get("timestamp"),
+            request_headers: row.try_get("request_headers").ok(),
+            additional_context: row.try_get("additional_context").ok(),
         })
-    })?;
+        .collect();
 
-    error_rows.collect()
+    Ok(errors)
 }
 
 // Paginated and filtered image queries for shop pages
 #[cfg(feature = "ssr")]
-pub fn get_shop_images_paginated(
+pub async fn get_shop_images_paginated(
     location_id: i32,
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-) -> SqliteResult<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32)> {
-    use rusqlite::params;
-
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32)> {
+    let pool = crate::db::pool::get_pool();
 
     // Build the WHERE clause for style filtering
-    let style_filter = if let Some(ref ids) = style_ids {
+    let (count_query, data_query) = if let Some(ref ids) = style_ids {
         if !ids.is_empty() {
-            let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            format!("AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id IN ({}))", placeholders)
+            (
+                format!(
+                    "SELECT COUNT(DISTINCT ai.id)
+                     FROM artists_images ai
+                     JOIN artists a ON ai.artist_id = a.id
+                     JOIN locations l ON a.location_id = l.id
+                     WHERE a.location_id = $1
+                     AND (l.is_person IS NULL OR l.is_person != 1)
+                     AND a.name IS NOT NULL
+                     AND a.name != ''
+                     AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
+                ),
+                format!(
+                    "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+                     FROM artists_images ai
+                     JOIN artists a ON ai.artist_id = a.id
+                     JOIN locations l ON a.location_id = l.id
+                     WHERE a.location_id = $1
+                     AND (l.is_person IS NULL OR l.is_person != 1)
+                     AND a.name IS NOT NULL
+                     AND a.name != ''
+                     AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))
+                     ORDER BY ai.id DESC
+                     LIMIT $3 OFFSET $4"
+                )
+            )
         } else {
-            String::new()
+            (
+                "SELECT COUNT(DISTINCT ai.id)
+                 FROM artists_images ai
+                 JOIN artists a ON ai.artist_id = a.id
+                 JOIN locations l ON a.location_id = l.id
+                 WHERE a.location_id = $1
+                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND a.name IS NOT NULL
+                 AND a.name != ''".to_string(),
+                "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+                 FROM artists_images ai
+                 JOIN artists a ON ai.artist_id = a.id
+                 JOIN locations l ON a.location_id = l.id
+                 WHERE a.location_id = $1
+                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND a.name IS NOT NULL
+                 AND a.name != ''
+                 ORDER BY ai.id DESC
+                 LIMIT $2 OFFSET $3".to_string()
+            )
         }
     } else {
-        String::new()
+        (
+            "SELECT COUNT(DISTINCT ai.id)
+             FROM artists_images ai
+             JOIN artists a ON ai.artist_id = a.id
+             JOIN locations l ON a.location_id = l.id
+             WHERE a.location_id = $1
+             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND a.name IS NOT NULL
+             AND a.name != ''".to_string(),
+            "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+             FROM artists_images ai
+             JOIN artists a ON ai.artist_id = a.id
+             JOIN locations l ON a.location_id = l.id
+             WHERE a.location_id = $1
+             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND a.name IS NOT NULL
+             AND a.name != ''
+             ORDER BY ai.id DESC
+             LIMIT $2 OFFSET $3".to_string()
+        )
     };
 
     // Get total count
-    let count_query = format!(
-        "SELECT COUNT(DISTINCT ai.id)
-         FROM artists_images ai
-         JOIN artists a ON ai.artist_id = a.id
-         JOIN locations l ON a.location_id = l.id
-         WHERE a.location_id = ?1
-         AND (l.is_person IS NULL OR l.is_person != 1)
-         AND a.name IS NOT NULL
-         AND a.name != ''
-         {}",
-        style_filter
-    );
-
-    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(location_id)];
-    if let Some(ref ids) = style_ids {
-        for id in ids {
-            params_vec.push(Box::new(*id));
+    let total_count: i64 = if let Some(ref ids) = style_ids {
+        if !ids.is_empty() {
+            sqlx::query(&count_query)
+                .bind(location_id)
+                .bind(ids)
+                .fetch_one(pool)
+                .await?
+                .try_get(0)?
+        } else {
+            sqlx::query(&count_query)
+                .bind(location_id)
+                .fetch_one(pool)
+                .await?
+                .try_get(0)?
         }
-    }
-
-    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
-
-    let total_count: i32 = conn.query_row(&count_query, params_refs.as_slice(), |row| row.get(0))?;
+    } else {
+        sqlx::query(&count_query)
+            .bind(location_id)
+            .fetch_one(pool)
+            .await?
+            .try_get(0)?
+    };
 
     // Get paginated images
     let offset = page * per_page;
-    let query = format!(
-        "SELECT ai.id, ai.short_code, ai.artist_id, a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
-         FROM artists_images ai
-         JOIN artists a ON ai.artist_id = a.id
-         JOIN locations l ON a.location_id = l.id
-         WHERE a.location_id = ?1
-         AND (l.is_person IS NULL OR l.is_person != 1)
-         AND a.name IS NOT NULL
-         AND a.name != ''
-         {}
-         ORDER BY ai.id DESC
-         LIMIT ?{} OFFSET ?{}",
-        style_filter,
-        params_vec.len() + 1,
-        params_vec.len() + 2
-    );
+    let image_rows = if let Some(ref ids) = style_ids {
+        if !ids.is_empty() {
+            sqlx::query(&data_query)
+                .bind(location_id)
+                .bind(ids)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(pool)
+                .await?
+        } else {
+            sqlx::query(&data_query)
+                .bind(location_id)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(pool)
+                .await?
+        }
+    } else {
+        sqlx::query(&data_query)
+            .bind(location_id)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?
+    };
 
-    params_vec.push(Box::new(per_page));
-    params_vec.push(Box::new(offset));
-    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+    let mut result: Vec<(ArtistImage, Vec<Style>, Artist)> = vec![];
 
-    let mut stmt = conn.prepare(&query)?;
-    let images = stmt.query_map(params_refs.as_slice(), |row| {
+    for image_row in image_rows {
         let image = ArtistImage {
-            id: row.get(0)?,
-            short_code: row.get(1)?,
-            artist_id: row.get(2)?,
+            id: image_row.get("id"),
+            short_code: image_row.get("short_code"),
+            artist_id: image_row.get("artist_id"),
         };
 
         let artist = Artist {
-            id: row.get(3)?,
-            name: row.get(4)?,
-            location_id: row.get(5)?,
-            social_links: row.get(6)?,
-            email: row.get(7)?,
-            phone: row.get(8)?,
-            years_experience: row.get(9)?,
-            styles_extracted: row.get(10)?,
+            id: image_row.get("a_id"),
+            name: image_row.get("name"),
+            location_id: image_row.get("location_id"),
+            social_links: image_row.get("social_links"),
+            email: image_row.get("email"),
+            phone: image_row.get("phone"),
+            years_experience: image_row.get("years_experience"),
+            styles_extracted: image_row.get("styles_extracted"),
         };
 
-        Ok((image, artist))
-    })?;
-
-    let mut result: Vec<(ArtistImage, Vec<Style>, Artist)> = vec![];
-    for image_result in images {
-        let (image, artist) = image_result?;
         let img_id = image.id;
 
         // Get styles for this image
-        let mut styles_stmt = conn.prepare(
+        let style_rows = sqlx::query(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = ?1",
-        )?;
+             WHERE ais.artists_images_id = $1"
+        )
+        .bind(img_id)
+        .fetch_all(pool)
+        .await?;
 
-        let styles = styles_stmt.query_map(params![img_id], |row| {
-            Ok(Style {
-                id: row.get(0)?,
-                name: row.get(1)?,
+        let styles: Vec<Style> = style_rows
+            .into_iter()
+            .map(|row| Style {
+                id: row.get("id"),
+                name: row.get("name"),
             })
-        })?;
+            .collect();
 
-        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
-        result.push((image, styles_vec?, artist));
+        result.push((image, styles, artist));
     }
 
-    Ok((result, total_count))
+    Ok((result, total_count as i32))
 }
 
 // Paginated and filtered image queries for artist pages
 #[cfg(feature = "ssr")]
-pub fn get_artist_images_paginated(
+pub async fn get_artist_images_paginated(
     artist_id: i32,
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-) -> SqliteResult<(Vec<(ArtistImage, Vec<Style>)>, i32)> {
-    use rusqlite::params;
-
-    let db_path = get_db_path();
-    let conn = Connection::open(db_path)?;
+) -> DbResult<(Vec<(ArtistImage, Vec<Style>)>, i32)> {
+    let pool = crate::db::pool::get_pool();
 
     // Build the WHERE clause for style filtering
-    let style_filter = if let Some(ref ids) = style_ids {
+    let (count_query, data_query) = if let Some(ref ids) = style_ids {
         if !ids.is_empty() {
-            let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            format!("AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id IN ({}))", placeholders)
+            (
+                format!(
+                    "SELECT COUNT(DISTINCT ai.id)
+                     FROM artists_images ai
+                     WHERE ai.artist_id = $1
+                     AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
+                ),
+                format!(
+                    "SELECT ai.id, ai.short_code, ai.artist_id
+                     FROM artists_images ai
+                     WHERE ai.artist_id = $1
+                     AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))
+                     ORDER BY ai.id DESC
+                     LIMIT $3 OFFSET $4"
+                )
+            )
         } else {
-            String::new()
+            (
+                "SELECT COUNT(DISTINCT ai.id)
+                 FROM artists_images ai
+                 WHERE ai.artist_id = $1".to_string(),
+                "SELECT ai.id, ai.short_code, ai.artist_id
+                 FROM artists_images ai
+                 WHERE ai.artist_id = $1
+                 ORDER BY ai.id DESC
+                 LIMIT $2 OFFSET $3".to_string()
+            )
         }
     } else {
-        String::new()
+        (
+            "SELECT COUNT(DISTINCT ai.id)
+             FROM artists_images ai
+             WHERE ai.artist_id = $1".to_string(),
+            "SELECT ai.id, ai.short_code, ai.artist_id
+             FROM artists_images ai
+             WHERE ai.artist_id = $1
+             ORDER BY ai.id DESC
+             LIMIT $2 OFFSET $3".to_string()
+        )
     };
 
     // Get total count
-    let count_query = format!(
-        "SELECT COUNT(DISTINCT ai.id)
-         FROM artists_images ai
-         WHERE ai.artist_id = ?1
-         {}",
-        style_filter
-    );
-
-    let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(artist_id)];
-    if let Some(ref ids) = style_ids {
-        for id in ids {
-            params_vec.push(Box::new(*id));
+    let total_count: i64 = if let Some(ref ids) = style_ids {
+        if !ids.is_empty() {
+            sqlx::query(&count_query)
+                .bind(artist_id)
+                .bind(ids)
+                .fetch_one(pool)
+                .await?
+                .try_get(0)?
+        } else {
+            sqlx::query(&count_query)
+                .bind(artist_id)
+                .fetch_one(pool)
+                .await?
+                .try_get(0)?
         }
-    }
-
-    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
-
-    let total_count: i32 = conn.query_row(&count_query, params_refs.as_slice(), |row| row.get(0))?;
+    } else {
+        sqlx::query(&count_query)
+            .bind(artist_id)
+            .fetch_one(pool)
+            .await?
+            .try_get(0)?
+    };
 
     // Get paginated images
     let offset = page * per_page;
-    let query = format!(
-        "SELECT ai.id, ai.short_code, ai.artist_id
-         FROM artists_images ai
-         WHERE ai.artist_id = ?1
-         {}
-         ORDER BY ai.id DESC
-         LIMIT ?{} OFFSET ?{}",
-        style_filter,
-        params_vec.len() + 1,
-        params_vec.len() + 2
-    );
-
-    params_vec.push(Box::new(per_page));
-    params_vec.push(Box::new(offset));
-    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
-
-    let mut stmt = conn.prepare(&query)?;
-    let images = stmt.query_map(params_refs.as_slice(), |row| {
-        Ok(ArtistImage {
-            id: row.get(0)?,
-            short_code: row.get(1)?,
-            artist_id: row.get(2)?,
-        })
-    })?;
+    let image_rows = if let Some(ref ids) = style_ids {
+        if !ids.is_empty() {
+            sqlx::query(&data_query)
+                .bind(artist_id)
+                .bind(ids)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(pool)
+                .await?
+        } else {
+            sqlx::query(&data_query)
+                .bind(artist_id)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(pool)
+                .await?
+        }
+    } else {
+        sqlx::query(&data_query)
+            .bind(artist_id)
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?
+    };
 
     let mut result: Vec<(ArtistImage, Vec<Style>)> = vec![];
-    for image_result in images {
-        let image = image_result?;
+
+    for image_row in image_rows {
+        let image = ArtistImage {
+            id: image_row.get("id"),
+            short_code: image_row.get("short_code"),
+            artist_id: image_row.get("artist_id"),
+        };
+
         let img_id = image.id;
 
         // Get styles for this image
-        let mut styles_stmt = conn.prepare(
+        let style_rows = sqlx::query(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = ?1",
-        )?;
+             WHERE ais.artists_images_id = $1"
+        )
+        .bind(img_id)
+        .fetch_all(pool)
+        .await?;
 
-        let styles = styles_stmt.query_map(params![img_id], |row| {
-            Ok(Style {
-                id: row.get(0)?,
-                name: row.get(1)?,
+        let styles: Vec<Style> = style_rows
+            .into_iter()
+            .map(|row| Style {
+                id: row.get("id"),
+                name: row.get("name"),
             })
-        })?;
+            .collect();
 
-        let styles_vec: SqliteResult<Vec<Style>> = styles.collect();
-        result.push((image, styles_vec?));
+        result.push((image, styles));
     }
 
-    Ok((result, total_count))
+    Ok((result, total_count as i32))
 }

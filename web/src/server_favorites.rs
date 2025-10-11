@@ -40,6 +40,7 @@ pub async fn toggle_favorite(
         let user_id = extract_user_id_from_token(&token)?;
 
         favorites_repository::toggle_favorite(user_id, artists_images_id)
+            .await
             .map_err(|e| ServerFnError::new(format!("Failed to toggle favorite: {}", e)))
     }
     #[cfg(not(feature = "ssr"))]
@@ -68,6 +69,7 @@ pub async fn check_is_favorited(
         };
 
         favorites_repository::is_favorited(user_id, artists_images_id)
+            .await
             .map_err(|e| ServerFnError::new(format!("Failed to check favorite status: {}", e)))
     }
     #[cfg(not(feature = "ssr"))]
@@ -85,6 +87,7 @@ pub async fn get_user_favorites_list(token: String) -> Result<Vec<i32>, ServerFn
         let user_id = extract_user_id_from_token(&token)?;
 
         favorites_repository::get_user_favorites(user_id)
+            .await
             .map_err(|e| ServerFnError::new(format!("Failed to get favorites: {}", e)))
     }
     #[cfg(not(feature = "ssr"))]
@@ -102,6 +105,7 @@ pub async fn get_favorites_count(token: String) -> Result<i32, ServerFnError> {
         let user_id = extract_user_id_from_token(&token)?;
 
         favorites_repository::get_user_favorite_count(user_id)
+            .await
             .map_err(|e| ServerFnError::new(format!("Failed to get favorites count: {}", e)))
     }
     #[cfg(not(feature = "ssr"))]
@@ -121,6 +125,7 @@ pub async fn get_user_favorites_with_details(
         let user_id = extract_user_id_from_token(&token)?;
 
         favorites_repository::get_user_favorites_with_details(user_id)
+            .await
             .map_err(|e| ServerFnError::new(format!("Failed to get favorites with details: {}", e)))
     }
     #[cfg(not(feature = "ssr"))]

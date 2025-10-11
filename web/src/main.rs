@@ -8,6 +8,12 @@ async fn main() {
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
+    // Initialize database pool
+    web::db::pool::init_pool()
+        .await
+        .expect("Failed to initialize database pool");
+    log!("Database pool initialized successfully");
+
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
     let leptos_options = conf.leptos_options;
