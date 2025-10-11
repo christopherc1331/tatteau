@@ -220,7 +220,7 @@ pub async fn get_artist_location(location_id: i32) -> DbResult<Location> {
     .await?;
 
     Ok(Location {
-        id: row.get("id"),
+        id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
         name: row.get("name"),
         lat: row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
         long: row.try_get::<f32, _>("long").ok().map(|v| v as f64),
@@ -321,7 +321,7 @@ pub async fn get_location_by_id(location_id: i32) -> DbResult<Location> {
     .await?;
 
     Ok(Location {
-        id: row.get("id"),
+        id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
         name: row.get("name"),
         lat: row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
         long: row.try_get::<f32, _>("long").ok().map(|v| v as f64),
@@ -423,7 +423,7 @@ pub async fn get_all_images_with_styles_by_location(
     // For each image, get its styles
     for image_row in image_rows {
         let image = ArtistImage {
-            id: image_row.get("id"),
+            id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.get("artist_id"),
         };
@@ -1704,7 +1704,7 @@ pub async fn get_shop_images_paginated(
 
     for image_row in image_rows {
         let image = ArtistImage {
-            id: image_row.get("id"),
+            id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.get("artist_id"),
         };
@@ -1857,7 +1857,7 @@ pub async fn get_artist_images_paginated(
 
     for image_row in image_rows {
         let image = ArtistImage {
-            id: image_row.get("id"),
+            id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.get("artist_id"),
         };
