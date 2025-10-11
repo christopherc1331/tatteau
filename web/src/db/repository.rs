@@ -1055,7 +1055,7 @@ pub async fn get_location_with_artist_details(
     .await?;
 
     let location = shared_types::LocationInfo {
-        id: location_row.get("id"),
+        id: location_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
         name: location_row.get("name"),
         lat: location_row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
         long: location_row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
