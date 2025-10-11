@@ -100,8 +100,8 @@ pub async fn query_locations(
             LocationInfo {
                 id: row.get("id"),
                 name: row.get("name"),
-                lat: row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
-                long: row.try_get::<f32, _>("long").ok().map(|v| v as f64),
+                lat: row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
+                long: row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
                 city: row.get("city"),
                 county: row.get("county"),
                 state: row.get("state"),
@@ -790,8 +790,8 @@ pub async fn query_locations_with_details(
         let location_info = LocationInfo {
             id: location_id,
             name: location_row.get("name"),
-            lat: location_row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
-            long: location_row.try_get::<f32, _>("long").ok().map(|v| v as f64),
+            lat: location_row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
+            long: location_row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
             city: location_row.get("city"),
             county: location_row.get("county"),
             state: location_row.get("state"),
@@ -1057,8 +1057,8 @@ pub async fn get_location_with_artist_details(
     let location = shared_types::LocationInfo {
         id: location_row.get("id"),
         name: location_row.get("name"),
-        lat: location_row.try_get::<f32, _>("lat").ok().map(|v| v as f64),
-        long: location_row.try_get::<f32, _>("long").ok().map(|v| v as f64),
+        lat: location_row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
+        long: location_row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
         city: location_row.get("city"),
         county: location_row.get("county"),
         state: location_row.get("state"),
