@@ -352,7 +352,7 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
     let artists = rows
         .into_iter()
         .map(|row| Artist {
-            id: row.get("id"),
+            id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             name: row.get("name"),
             location_id: row.get("location_id"),
             social_links: row.get("social_links"),
@@ -1706,11 +1706,11 @@ pub async fn get_shop_images_paginated(
         let image = ArtistImage {
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
-            artist_id: image_row.get("artist_id"),
+            artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
         };
 
         let artist = Artist {
-            id: image_row.get("a_id"),
+            id: image_row.try_get::<i64, _>("a_id").unwrap_or(0) as i32,
             name: image_row.get("name"),
             location_id: image_row.get("location_id"),
             social_links: image_row.get("social_links"),
