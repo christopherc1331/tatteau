@@ -201,8 +201,8 @@ pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
         social_links: row.get("social_links"),
         email: row.get("email"),
         phone: row.get("phone"),
-        years_experience: row.get("years_experience"),
-        styles_extracted: row.get("styles_extracted"),
+        years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
+        styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
     })
 }
 
@@ -358,8 +358,8 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
             social_links: row.get("social_links"),
             email: row.get("email"),
             phone: row.get("phone"),
-            years_experience: row.get("years_experience"),
-            styles_extracted: row.get("styles_extracted"),
+            years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
+            styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
         })
         .collect();
 
@@ -435,8 +435,8 @@ pub async fn get_all_images_with_styles_by_location(
             social_links: image_row.get("social_links"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
-            years_experience: image_row.get("years_experience"),
-            styles_extracted: image_row.get("styles_extracted"),
+            years_experience: image_row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
+            styles_extracted: image_row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
         };
 
         let img_id = image.id;
@@ -1716,8 +1716,8 @@ pub async fn get_shop_images_paginated(
             social_links: image_row.get("social_links"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
-            years_experience: image_row.get("years_experience"),
-            styles_extracted: image_row.get("styles_extracted"),
+            years_experience: image_row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
+            styles_extracted: image_row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
         };
 
         let img_id = image.id;
