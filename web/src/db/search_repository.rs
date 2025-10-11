@@ -1,3 +1,4 @@
+#[cfg(feature = "ssr")]
 use sqlx::{PgPool, Row};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
