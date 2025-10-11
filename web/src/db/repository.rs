@@ -27,7 +27,7 @@ pub async fn get_cities_and_coords(state: String) -> DbResult<Vec<CityCoords>> {
             WHERE
                 state = $1
             AND (is_person IS NULL OR is_person != 1)
-            GROUP BY city
+            GROUP BY city, state, lat, long
         ",
     )
     .bind(&state)
@@ -518,9 +518,9 @@ pub async fn get_location_stats_for_city(
     .await?;
 
     Ok(crate::server::LocationStats {
-        shop_count: row.get("shop_count"),
-        artist_count: row.get("artist_count"),
-        styles_available: row.get("styles_available"),
+        shop_count: row.try_get::<i64, _>("shop_count").unwrap_or(0) as i32,
+        artist_count: row.try_get::<i64, _>("artist_count").unwrap_or(0) as i32,
+        styles_available: row.try_get::<i64, _>("styles_available").unwrap_or(0) as i32,
     })
 }
 
@@ -544,10 +544,10 @@ pub async fn get_all_styles_with_counts() -> DbResult<Vec<crate::server::StyleWi
     let styles = rows
         .into_iter()
         .map(|row| crate::server::StyleWithCount {
-            id: row.get("id"),
+            id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             name: row.get("name"),
             description: None,
-            artist_count: row.get("artist_count"),
+            artist_count: row.try_get::<i64, _>("artist_count").unwrap_or(0) as i32,
             sample_images: None,
         })
         .collect();
@@ -586,10 +586,10 @@ pub async fn get_styles_with_counts_in_bounds(
     let styles = rows
         .into_iter()
         .map(|row| crate::server::StyleWithCount {
-            id: row.get("id"),
+            id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             name: row.get("name"),
             description: None,
-            artist_count: row.get("artist_count"),
+            artist_count: row.try_get::<i64, _>("artist_count").unwrap_or(0) as i32,
             sample_images: None,
         })
         .collect();
@@ -679,10 +679,10 @@ pub async fn get_styles_by_location(
     let styles = rows
         .into_iter()
         .map(|row| crate::server::StyleWithCount {
-            id: row.get("id"),
+            id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             name: row.get("name"),
             description: None,
-            artist_count: row.get("image_count"),
+            artist_count: row.try_get::<i64, _>("image_count").unwrap_or(0) as i32,
             sample_images: None,
         })
         .collect();
@@ -783,7 +783,7 @@ pub async fn query_locations_with_details(
 
     let mut result = Vec::new();
     for location_row in location_rows {
-        let location_id: i32 = location_row.get("id");
+        let location_id: i32 = location_row.try_get::<i64, _>("id").unwrap_or(0) as i32;
         let has_artists_val: i64 = location_row.get("has_artists");
         let artist_images_count: i64 = location_row.get("artist_images_count");
 

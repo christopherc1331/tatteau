@@ -3892,6 +3892,7 @@ dependencies = [
  "bcrypt",
  "chrono",
  "console_error_panic_hook",
+ "dotenvy",
  "http 1.3.1",
  "jsonwebtoken",
  "leptos",

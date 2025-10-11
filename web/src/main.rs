@@ -8,6 +8,9 @@ async fn main() {
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
+    // Load .env file for local development
+    dotenvy::dotenv().ok();
+
     // Initialize database pool
     web::db::pool::init_pool()
         .await
