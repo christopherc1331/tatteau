@@ -784,7 +784,7 @@ pub async fn query_locations_with_details(
     let mut result = Vec::new();
     for location_row in location_rows {
         let location_id: i32 = location_row.try_get::<i64, _>("id").unwrap_or(0) as i32;
-        let has_artists_val: i64 = location_row.get("has_artists");
+        let has_artists_val: i32 = location_row.get("has_artists");
         let artist_images_count: i64 = location_row.get("artist_images_count");
 
         let location_info = LocationInfo {
