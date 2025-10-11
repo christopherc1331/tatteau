@@ -1064,7 +1064,7 @@ pub async fn get_location_with_artist_details(
         state: location_row.get("state"),
         country_code: location_row.get("country_code"),
         postal_code: location_row.get("postal_code"),
-        is_open: location_row.try_get::<i16, _>("is_open").ok().map(|v| v != 0),
+        is_open: location_row.try_get::<i16, _>("is_open").ok().map(|v| v != 0).unwrap_or(false),
         address: location_row.get("address"),
         category: location_row.get("category"),
         website_uri: location_row.get("website_uri"),
