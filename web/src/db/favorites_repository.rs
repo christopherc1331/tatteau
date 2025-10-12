@@ -96,7 +96,7 @@ pub async fn get_user_favorites(user_id: i32) -> DbResult<Vec<i32>> {
 
     let favorites = rows
         .into_iter()
-        .map(|row| row.get::<i32, _>("artists_images_id"))
+        .map(|row| row.try_get::<i64, _>("artists_images_id").unwrap_or(0) as i32)
         .collect();
 
     Ok(favorites)
@@ -152,9 +152,9 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
 
         if let Some(image_row) = image_row {
             let image = ArtistImage {
-                id: image_row.get("id"),
+                id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 short_code: image_row.get("short_code"),
-                artist_id: image_row.get("artist_id"),
+                artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
             };
 
             // Get artist details
@@ -167,14 +167,14 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
             .await?;
 
             let artist = artist_row.map(|row| Artist {
-                id: row.get("id"),
+                id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 name: row.get("name"),
-                location_id: row.get("location_id"),
+                location_id: row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
                 social_links: row.get("social_links"),
                 email: row.get("email"),
                 phone: row.get("phone"),
-                years_experience: row.get("years_experience"),
-                styles_extracted: row.get("styles_extracted"),
+                years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
+                styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
             });
 
             // Get styles for this image
@@ -191,7 +191,7 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
             let styles: Vec<Style> = style_rows
                 .into_iter()
                 .map(|row| Style {
-                    id: row.get("id"),
+                    id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                     name: row.get("name"),
                 })
                 .collect();
