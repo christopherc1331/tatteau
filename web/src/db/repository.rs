@@ -277,9 +277,9 @@ pub async fn get_artist_images_with_styles(
     // For each image, get its styles
     for image_row in image_rows {
         let img = ArtistImage {
-            id: image_row.get("id"),
+            id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
-            artist_id: image_row.get("artist_id"),
+            artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
         };
         let img_id = img.id;
 
@@ -425,13 +425,13 @@ pub async fn get_all_images_with_styles_by_location(
         let image = ArtistImage {
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
-            artist_id: image_row.get("artist_id"),
+            artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
         };
 
         let artist = Artist {
-            id: image_row.get("a_id"),
+            id: image_row.try_get::<i64, _>("a_id").unwrap_or(0) as i32,
             name: image_row.get("name"),
-            location_id: image_row.get("location_id"),
+            location_id: image_row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
             social_links: image_row.get("social_links"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
@@ -1859,7 +1859,7 @@ pub async fn get_artist_images_paginated(
         let image = ArtistImage {
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
-            artist_id: image_row.get("artist_id"),
+            artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
         };
 
         let img_id = image.id;
