@@ -248,7 +248,7 @@ pub async fn get_artist_styles(artist_id: i32) -> DbResult<Vec<Style>> {
     let styles = rows
         .into_iter()
         .map(|row| Style {
-            id: row.get("id"),
+            id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             name: row.get("name"),
         })
         .collect();
@@ -296,7 +296,7 @@ pub async fn get_artist_images_with_styles(
         let styles: Vec<Style> = style_rows
             .into_iter()
             .map(|row| Style {
-                id: row.get("id"),
+                id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 name: row.get("name"),
             })
             .collect();
@@ -389,7 +389,7 @@ pub async fn get_all_styles_by_location(location_id: i32) -> DbResult<Vec<Style>
     let styles = rows
         .into_iter()
         .map(|row| Style {
-            id: row.get("id"),
+            id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             name: row.get("name"),
         })
         .collect();
@@ -454,7 +454,7 @@ pub async fn get_all_images_with_styles_by_location(
         let styles: Vec<Style> = style_rows
             .into_iter()
             .map(|row| Style {
-                id: row.get("id"),
+                id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 name: row.get("name"),
             })
             .collect();
@@ -1736,7 +1736,7 @@ pub async fn get_shop_images_paginated(
         let styles: Vec<Style> = style_rows
             .into_iter()
             .map(|row| Style {
-                id: row.get("id"),
+                id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 name: row.get("name"),
             })
             .collect();
@@ -1878,7 +1878,7 @@ pub async fn get_artist_images_paginated(
         let styles: Vec<Style> = style_rows
             .into_iter()
             .map(|row| Style {
-                id: row.get("id"),
+                id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 name: row.get("name"),
             })
             .collect();
