@@ -195,9 +195,9 @@ pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
     .await?;
 
     Ok(Artist {
-        id: row.get("id"),
+        id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
         name: row.get("name"),
-        location_id: row.get("location_id"),
+        location_id: row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
         social_links: row.get("social_links"),
         email: row.get("email"),
         phone: row.get("phone"),
