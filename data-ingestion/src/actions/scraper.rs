@@ -10,14 +10,14 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
 use reqwest::Client as HttpClient;
-use rusqlite::{params, Connection};
+use sqlx::{PgPool, Row};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::env;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc, Mutex,
+    Arc,
 };
 use tokio;
 use url::Url;
@@ -72,28 +72,35 @@ fn get_domain(url_str: &str) -> anyhow::Result<String> {
     Ok(url.host_str().unwrap_or("").to_string())
 }
 
-fn log_scrape_action(conn: &Connection, location_id: i64, action: &str) -> anyhow::Result<()> {
+async fn log_scrape_action(pool: &PgPool, location_id: i64, action: &str) -> anyhow::Result<()> {
     let timestamp = Utc::now().to_rfc3339();
-    conn.execute(
-        "INSERT INTO scrape_actions (location_id, action, timestamp) VALUES (?, ?, ?)",
-        params![location_id, action, timestamp],
-    )?;
+    sqlx::query(
+        "INSERT INTO scrape_actions (location_id, action, timestamp) VALUES ($1, $2, $3)"
+    )
+    .bind(location_id)
+    .bind(action)
+    .bind(timestamp)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
-fn get_existing_artists(conn: &Connection, location_id: i64) -> anyhow::Result<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT name FROM artists WHERE location_id = ?")?;
-    let rows = stmt.query_map(params![location_id], |row| Ok(row.get::<_, String>(0)?))?;
+async fn get_existing_artists(pool: &PgPool, location_id: i64) -> anyhow::Result<Vec<String>> {
+    let rows = sqlx::query("SELECT name FROM artists WHERE location_id = $1")
+        .bind(location_id)
+        .fetch_all(pool)
+        .await?;
 
-    let mut artists = Vec::new();
-    for row in rows {
-        artists.push(row?);
-    }
+    let artists: Vec<String> = rows
+        .into_iter()
+        .map(|row| row.get("name"))
+        .collect();
+
     Ok(artists)
 }
 
-fn persist_artist_and_styles(
-    conn: &Connection,
+async fn persist_artist_and_styles(
+    pool: &PgPool,
     artist: &Artist,
     location_id: i64,
 ) -> anyhow::Result<()> {
@@ -101,33 +108,53 @@ fn persist_artist_and_styles(
         let socials = artist.social_links.clone().unwrap_or_default();
         let email = artist.email.clone().unwrap_or_default();
         let phone = artist.phone.clone().unwrap_or_default();
-        let years_experience = artist.years_experience.unwrap_or(0);
+        let years_experience = artist.years_experience.unwrap_or(0) as i64;
 
-        conn.execute(
-            "INSERT INTO artists (name, social_links, email, phone, years_experience, location_id) VALUES (?, ?, ?, ?, ?, ?)",
-            params![name, socials, email, phone, years_experience, location_id],
-        )?;
-        let artist_id = conn.last_insert_rowid();
+        let row = sqlx::query(
+            "INSERT INTO artists (name, social_links, email, phone, years_experience, location_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id"
+        )
+        .bind(name)
+        .bind(socials)
+        .bind(email)
+        .bind(phone)
+        .bind(years_experience)
+        .bind(location_id)
+        .fetch_one(pool)
+        .await?;
+
+        let artist_id: i64 = row.get("id");
 
         if let Some(styles) = &artist.styles {
             for raw_style in styles {
                 let style_name = normalize_style(raw_style);
-                let style_id = match conn.query_row(
-                    "SELECT id FROM styles WHERE LOWER(name) = LOWER(?)",
-                    params![style_name],
-                    |row| row.get(0),
-                ) {
-                    Ok(id) => id,
-                    Err(_) => {
-                        conn.execute("INSERT INTO styles (name) VALUES (?)", params![style_name])?;
-                        conn.last_insert_rowid()
+
+                // Try to get existing style_id, or insert new style
+                let style_id = match sqlx::query(
+                    "SELECT id FROM styles WHERE LOWER(name) = LOWER($1)"
+                )
+                .bind(&style_name)
+                .fetch_optional(pool)
+                .await?
+                {
+                    Some(row) => row.get::<i64, _>("id"),
+                    None => {
+                        let row = sqlx::query(
+                            "INSERT INTO styles (name) VALUES ($1) RETURNING id"
+                        )
+                        .bind(&style_name)
+                        .fetch_one(pool)
+                        .await?;
+                        row.get("id")
                     }
                 };
 
-                conn.execute(
-                    "INSERT INTO artists_styles (artist_id, style_id) VALUES (?, ?)",
-                    params![artist_id, style_id],
-                )?;
+                sqlx::query(
+                    "INSERT INTO artists_styles (artist_id, style_id) VALUES ($1, $2)"
+                )
+                .bind(artist_id)
+                .bind(style_id)
+                .execute(pool)
+                .await?;
             }
         }
     }
@@ -136,7 +163,7 @@ fn persist_artist_and_styles(
 
 async fn handle_gpt_decision(
     decision: &GptAction,
-    conn: &Arc<Mutex<Connection>>,
+    pool: &PgPool,
     gpt_client: &Client<OpenAIConfig>,
     cleaned_html: &str,
     location_id: i64,
@@ -157,35 +184,28 @@ async fn handle_gpt_decision(
             }
 
             println!("Navigating to: {}", url);
-            let conn_guard = conn.lock().unwrap();
-            let _ = log_scrape_action(&conn_guard, location_id, &format!("navigate:{}", url));
+            let _ = log_scrape_action(pool, location_id, &format!("navigate:{}", url)).await;
             return Ok((false, Some(url.clone())));
         }
         GptAction::Extract => {
-            let existing_artists = {
-                let conn_guard = conn.lock().unwrap();
-                get_existing_artists(&conn_guard, location_id).unwrap_or_default()
-            };
+            let existing_artists = get_existing_artists(pool, location_id).await.unwrap_or_default();
 
             let artists =
                 call_gpt_extract(gpt_client, base_url, cleaned_html, &existing_artists).await?;
             if artists.is_empty() {
                 println!("⚠️  No new artists found on this page");
-                let conn_guard = conn.lock().unwrap();
-                let _ = log_scrape_action(&conn_guard, location_id, "extract:no_new_artists");
+                let _ = log_scrape_action(pool, location_id, "extract:no_new_artists").await;
             } else {
                 println!("💾 Saving {} new artist(s) to database", artists.len());
                 artists_counter.fetch_add(artists.len(), Ordering::SeqCst);
                 for artist in &artists {
-                    let conn_guard = conn.lock().unwrap();
-                    persist_artist_and_styles(&conn_guard, artist, location_id)?;
+                    persist_artist_and_styles(pool, artist, location_id).await?;
                 }
-                let conn_guard = conn.lock().unwrap();
                 let _ = log_scrape_action(
-                    &conn_guard,
+                    pool,
                     location_id,
                     &format!("extract:new_artists_found:{}", artists.len()),
-                );
+                ).await;
             }
         }
         GptAction::Done => {
@@ -193,12 +213,11 @@ async fn handle_gpt_decision(
                 "✅ Completed processing location ID: {} (marked as done)",
                 location_id
             );
-            let conn_guard = conn.lock().unwrap();
-            let _ = log_scrape_action(&conn_guard, location_id, "done");
-            conn_guard.execute(
-                "UPDATE locations SET is_scraped = 1 WHERE id = ?",
-                params![location_id],
-            )?;
+            let _ = log_scrape_action(pool, location_id, "done").await;
+            sqlx::query("UPDATE locations SET is_scraped = 1 WHERE id = $1")
+                .bind(location_id)
+                .execute(pool)
+                .await?;
             return Ok((true, None));
         }
     }
@@ -360,9 +379,7 @@ async fn call_gpt_extract(
     Ok(artists)
 }
 
-pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
-    let conn = Arc::new(Mutex::new(conn));
-
+pub async fn scrape(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let openai_key = env::var("OPENAI_API_KEY")?;
     let num_threads: usize = env::var("NUM_THREADS").unwrap_or("12".into()).parse()?;
     let max_scrapes: usize = env::var("MAX_SCRAPES").unwrap_or("100".into()).parse()?;
@@ -391,27 +408,24 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
     );
 
     let locations: Vec<(i64, String)> = {
-        let conn_guard = conn.lock().unwrap();
-        let mut stmt = conn_guard
-            .prepare(
-                "UPDATE locations SET is_scraped = -2 WHERE id IN (
-                    SELECT id FROM locations 
-                    WHERE is_scraped = 0 
-                    AND website_uri IS NOT NULL 
-                    AND website_uri != '' 
-                    AND website_uri NOT LIKE '%facebook%' 
-                    AND website_uri NOT LIKE '%instagram%' 
-                    LIMIT ?
-                ) RETURNING id, website_uri",
-            )
-            .unwrap();
-        let rows = stmt
-            .query_map([max_scrapes], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-            })
-            .unwrap();
+        let rows = sqlx::query(
+            "UPDATE locations SET is_scraped = -2 WHERE id IN (
+                SELECT id FROM locations
+                WHERE is_scraped = 0
+                AND website_uri IS NOT NULL
+                AND website_uri != ''
+                AND website_uri NOT LIKE '%facebook%'
+                AND website_uri NOT LIKE '%instagram%'
+                LIMIT $1
+            ) RETURNING id, website_uri"
+        )
+        .bind(max_scrapes as i32)
+        .fetch_all(pool)
+        .await?;
 
-        rows.collect::<Result<Vec<_>, _>>().unwrap()
+        rows.into_iter()
+            .map(|row| (row.get::<i64, _>("id"), row.get::<String, _>("website_uri")))
+            .collect()
     };
 
     println!("📍 Claimed {} locations for processing", locations.len());
@@ -426,7 +440,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
 
     let mut tasks = FuturesUnordered::new();
     for thread_id in 0..num_threads {
-        let conn = Arc::clone(&conn);
+        let pool = pool.clone();
         let client = Arc::clone(&client);
         let http_client = Arc::clone(&http_client);
         let scrape_counter = Arc::clone(&scrape_limit);
@@ -446,10 +460,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                     thread_id, id, url
                 );
 
-                {
-                    let conn_guard = conn.lock().unwrap();
-                    let _ = log_scrape_action(&conn_guard, id, &format!("start:{}", url));
-                }
+                let _ = log_scrape_action(&pool, id, &format!("start:{}", url)).await;
 
                 let url = if !url.starts_with("http://") && !url.starts_with("https://") {
                     format!("https://{}", url)
@@ -473,7 +484,7 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                 Ok(decision) => {
                                     match handle_gpt_decision(
                                         &decision,
-                                        &conn,
+                                        &pool,
                                         &client,
                                         &cleaned_html,
                                         id,
@@ -495,24 +506,22 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                         }
                                         Err(e) => {
                                             println!("Error handling decision: {:?}", e);
-                                            let conn_guard = conn.lock().unwrap();
                                             let _ = log_scrape_action(
-                                                &conn_guard,
+                                                &pool,
                                                 id,
                                                 &format!("error:decision_handling:{}", e),
-                                            );
+                                            ).await;
                                             break;
                                         }
                                     }
                                 }
                                 Err(e) => {
                                     println!("Error calling GPT: {:?}", e);
-                                    let conn_guard = conn.lock().unwrap();
                                     let _ = log_scrape_action(
-                                        &conn_guard,
+                                        &pool,
                                         id,
                                         &format!("error:gpt_call:{}", e),
-                                    );
+                                    ).await;
                                     break;
                                 }
                             }
@@ -522,18 +531,15 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                                 "❌ Failed to fetch '{}' (ID: {}): {:?}",
                                 current_url, id, err
                             );
-                            let conn_guard = conn.lock().unwrap();
                             let _ = log_scrape_action(
-                                &conn_guard,
+                                &pool,
                                 id,
                                 &format!("error:fetch_failed:{}", err),
-                            );
-                            conn_guard
-                                .execute(
-                                    "UPDATE locations SET is_scraped = -1 WHERE id = ?",
-                                    params![id],
-                                )
-                                .unwrap();
+                            ).await;
+                            let _ = sqlx::query("UPDATE locations SET is_scraped = -1 WHERE id = $1")
+                                .bind(id)
+                                .execute(&pool)
+                                .await;
                             break;
                         }
                     }
@@ -544,14 +550,11 @@ pub async fn scrape(conn: Connection) -> Result<(), Box<dyn std::error::Error>> 
                         "⏰ Max page visits reached for location ID: {} - marking as complete",
                         id
                     );
-                    let conn_guard = conn.lock().unwrap();
-                    let _ = log_scrape_action(&conn_guard, id, "done:max_visits_reached");
-                    conn_guard
-                        .execute(
-                            "UPDATE locations SET is_scraped = 1 WHERE id = ?",
-                            params![id],
-                        )
-                        .unwrap();
+                    let _ = log_scrape_action(&pool, id, "done:max_visits_reached").await;
+                    let _ = sqlx::query("UPDATE locations SET is_scraped = 1 WHERE id = $1")
+                        .bind(id)
+                        .execute(&pool)
+                        .await;
                 }
 
                 let current = scrape_counter.fetch_add(1, Ordering::SeqCst);

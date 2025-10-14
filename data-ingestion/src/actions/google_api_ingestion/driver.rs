@@ -1,18 +1,19 @@
 use super::fetcher::fetch_data;
 use super::parser::{parse_data, ParsedLocationData};
 use crate::repository::{fetch_county_boundaries, mark_county_ingested, upsert_locations};
-use rusqlite::Connection;
+use sqlx::PgPool;
 use serde_json::Value;
 use shared_types::CountyBoundary;
 
-pub async fn ingest_google(conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn ingest_google(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let limit_results_to: i8 = 20;
     let max_iter: i8 = 10;
 
     let county_limit: i16 = 3500;
     let days_till_refetch: i16 = 160;
     let county_boundaries: Vec<CountyBoundary> =
-        fetch_county_boundaries(conn, county_limit, days_till_refetch)
+        fetch_county_boundaries(pool, county_limit, days_till_refetch)
+            .await
             .expect("County boundaries should be fetched");
 
     if county_boundaries.is_empty() {
@@ -23,17 +24,17 @@ pub async fn ingest_google(conn: &Connection) -> Result<(), Box<dyn std::error::
     for county_boundary in county_boundaries {
         println!("Processing county: {}", county_boundary.name);
 
-        if let Err(e) = process_county(conn, &county_boundary, limit_results_to, max_iter).await {
+        if let Err(e) = process_county(pool, &county_boundary, limit_results_to, max_iter).await {
             println!("Error processing county {}: {}", county_boundary.name, e);
         }
 
-        mark_county_ingested(conn, &county_boundary)?;
+        mark_county_ingested(pool, &county_boundary).await?;
     }
     Ok(())
 }
 
 async fn process_county(
-    conn: &Connection,
+    pool: &PgPool,
     county_boundary: &CountyBoundary,
     limit_results_to: i8,
     max_iter: i8,
@@ -59,7 +60,7 @@ async fn process_county(
             );
 
             current_token = next_token.map(|s| s.to_string());
-            let _ = upsert_locations(conn, &location_info);
+            let _ = upsert_locations(pool, &location_info).await;
             println!("Inserted {} locations", location_info.len());
         }
 

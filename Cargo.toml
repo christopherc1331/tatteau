@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    # "data-ingestion",  # Temporarily excluded due to rusqlite conflict with web's sqlx
+    "data-ingestion",
     "web",
     "shared-types"
 ]

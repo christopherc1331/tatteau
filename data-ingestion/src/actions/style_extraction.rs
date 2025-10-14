@@ -1,6 +1,6 @@
 use base64::Engine;
 use indicatif::{ProgressBar, ProgressStyle};
-use rusqlite::Connection;
+use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, env, sync::Arc};
@@ -102,7 +102,7 @@ fn calculate_gpt4o_cost(prompt_tokens: u32, completion_tokens: u32) -> f64 {
     input_cost + output_cost
 }
 
-pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY environment variable must be set");
 
     let confidence_threshold: f64 = env::var("STYLE_CONFIDENCE_THRESHOLD")
@@ -132,14 +132,14 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         .parse()
         .expect("MAX_POSTS_PER_ARTIST must be a valid number");
 
-    let artists = get_artists_for_style_extraction(&conn, artist_limit)?;
+    let artists = get_artists_for_style_extraction(pool, artist_limit).await?;
 
     if artists.is_empty() {
         println!("🔍 No artists found that need style extraction.");
         return Ok(());
     }
 
-    let available_styles = get_all_styles(&conn)?;
+    let available_styles = get_all_styles(pool).await?;
     if available_styles.is_empty() {
         println!("❌ No styles found in database. Please populate the styles table first.");
         return Ok(());
@@ -178,11 +178,12 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
         let progress_clone = progress.clone();
         let artist_name = artist.name.clone();
         let styles_clone = available_styles.clone();
+        let pool_clone = pool.clone();
 
         join_set.spawn(async move {
             progress_clone.set_message(format!("Processing {}", artist_name));
             let result =
-                process_single_artist(artist, max_posts, batch_size, confidence_threshold, &styles_clone).await;
+                process_single_artist(&pool_clone, artist, max_posts, batch_size, confidence_threshold, &styles_clone).await;
             drop(permit);
             progress_clone.inc(1);
             result
@@ -228,6 +229,7 @@ pub async fn extract_styles(conn: Connection) -> Result<(), Box<dyn std::error::
 }
 
 async fn process_single_artist(
+    pool: &PgPool,
     artist: Artist,
     max_posts: i32,
     batch_size: usize,
@@ -250,46 +252,44 @@ async fn process_single_artist(
         artist.name, artist.id, ig_username
     );
 
-    let apify_posts = match scrape_instagram_profile(&ig_username, max_posts).await {
+    let apify_result = scrape_instagram_profile(&ig_username, max_posts)
+        .await
+        .map_err(|e| e.to_string());
+
+    let apify_posts = match apify_result {
         Ok(posts) => posts,
-        Err(e) => {
+        Err(error_msg) => {
             println!(
                 "❌ Apify scraper failed for {} (@{}):",
                 artist.name, ig_username
             );
-            println!("   {}", e);
+            println!("   {}", error_msg);
 
             if ig_username.contains("?") || ig_username.contains("&") || ig_username.contains("=") {
                 println!("   💡 Hint: Username '{}' looks malformed. Check social_links format in database.", ig_username);
             }
-            
+
             // Mark as failed in database before returning error
-            let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set")).ok();
-            if let Some(conn) = conn {
-                if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
-                    println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
-                } else {
-                    println!("❌ [{} - ID: {}] Marked as extraction failed", artist.name, artist.id);
-                }
+            if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
+                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+            } else {
+                println!("❌ [{} - ID: {}] Marked as extraction failed", artist.name, artist.id);
             }
-            
-            return Err(Box::from(e.to_string()) as Box<dyn std::error::Error + Send + Sync>);
+
+            return Err(Box::from(error_msg) as Box<dyn std::error::Error + Send + Sync>);
         }
     };
 
     if apify_posts.is_empty() {
         println!("⚠️  No posts retrieved from Instagram for {}", artist.name);
-        
+
         // Mark as failed in database
-        let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set")).ok();
-        if let Some(conn) = conn {
-            if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
-                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
-            } else {
-                println!("❌ [{} - ID: {}] Marked as extraction failed (no posts)", artist.name, artist.id);
-            }
+        if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
+            println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+        } else {
+            println!("❌ [{} - ID: {}] Marked as extraction failed (no posts)", artist.name, artist.id);
         }
-        
+
         return Ok((artist, 0, 0, 0.0));
     }
 
@@ -316,17 +316,14 @@ async fn process_single_artist(
 
     if processable_posts.is_empty() {
         println!("⚠️  No images could be downloaded for {}", artist.name);
-        
-        // Mark as failed in database  
-        let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set")).ok();
-        if let Some(conn) = conn {
-            if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
-                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
-            } else {
-                println!("❌ [{} - ID: {}] Marked as extraction failed (no images)", artist.name, artist.id);
-            }
+
+        // Mark as failed in database
+        if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
+            println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+        } else {
+            println!("❌ [{} - ID: {}] Marked as extraction failed (no images)", artist.name, artist.id);
         }
-        
+
         return Ok((artist, 0, 0, 0.0));
     }
 
@@ -345,9 +342,8 @@ async fn process_single_artist(
         processable_posts.len()
     );
 
-    let conn = Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set"))?;
-
     match process_artist_posts(
+        pool,
         &artist,
         &processable_posts,
         batch_size,
@@ -355,6 +351,7 @@ async fn process_single_artist(
         available_styles,
     )
     .await
+    .map_err(|e| e.to_string())
     {
         Ok((style_results, api_cost)) => {
             println!(
@@ -365,7 +362,7 @@ async fn process_single_artist(
             let mut all_artist_styles = HashMap::new();
 
             for result in style_results {
-                let artist_image_id = insert_artist_image(&conn, &result.shortcode, artist.id);
+                let artist_image_id = insert_artist_image(pool, &result.shortcode, artist.id).await;
 
                 match artist_image_id {
                     Ok(artist_image_id) => {
@@ -378,16 +375,16 @@ async fn process_single_artist(
                             .collect();
 
                         if !style_names.is_empty() {
-                            let style_ids = get_style_ids(&conn, &style_names);
+                            let style_ids = get_style_ids(pool, &style_names).await;
 
                             match style_ids {
                                 Ok(style_ids) => {
                                     if !style_ids.is_empty() {
                                         if let Err(e) = insert_artist_image_styles(
-                                            &conn,
+                                            pool,
                                             artist_image_id,
                                             &style_ids,
-                                        ) {
+                                        ).await {
                                             println!(
                                                 "Error saving styles for image {}: {}",
                                                 result.shortcode, e
@@ -419,7 +416,7 @@ async fn process_single_artist(
 
             let styles_found = if !all_artist_styles.is_empty() {
                 let artist_style_ids: Vec<i64> = all_artist_styles.values().copied().collect();
-                if let Err(e) = upsert_artist_styles(&conn, artist.id, &artist_style_ids) {
+                if let Err(e) = upsert_artist_styles(pool, artist.id, &artist_style_ids).await {
                     println!(
                         "❌ Error saving artist-level styles for {}: {}",
                         artist.name, e
@@ -442,7 +439,7 @@ async fn process_single_artist(
                 0
             };
 
-            if let Err(e) = mark_artist_styles_extracted(&conn, artist.id) {
+            if let Err(e) = mark_artist_styles_extracted(pool, artist.id).await {
                 println!(
                     "⚠️  Error marking artist {} as processed: {}",
                     artist.name, e
@@ -456,10 +453,10 @@ async fn process_single_artist(
 
             Ok((artist, posts_processed, styles_found, api_cost))
         }
-        Err(e) => {
-            println!("❌ Error processing posts for {}: {}", artist.name, e);
+        Err(error_msg) => {
+            println!("❌ Error processing posts for {}: {}", artist.name, error_msg);
 
-            if let Err(db_err) = mark_artist_styles_extraction_failed(&conn, artist.id) {
+            if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
                 println!(
                     "⚠️  Error marking artist {} as failed: {}",
                     artist.name, db_err
@@ -468,12 +465,13 @@ async fn process_single_artist(
                 println!("❌ [{} - ID: {}] Marked as extraction failed (OpenAI error)", artist.name, artist.id);
             }
 
-            Err(Box::from(e.to_string()) as Box<dyn std::error::Error + Send + Sync>)
+            Err(Box::from(error_msg) as Box<dyn std::error::Error + Send + Sync>)
         }
     }
 }
 
 async fn process_artist_posts(
+    pool: &PgPool,
     artist: &Artist,
     posts: &[ProcessablePost],
     batch_size: usize,
@@ -758,16 +756,12 @@ async fn process_artist_posts(
     if api_calls > 0 {
         let avg_cost = total_cost / api_calls as f64;
 
-        // Open a connection for updating costs
-        if let Ok(conn) =
-            Connection::open(env::var("DATABASE_URL").expect("DATABASE_URL must be set"))
-        {
-            for _ in 0..api_calls {
-                if let Err(e) =
-                    update_openai_api_costs(&conn, "style_extraction", "gpt-4o", avg_cost)
-                {
-                    println!("  Warning: Failed to update API cost tracking: {}", e);
-                }
+        // Update API costs
+        for _ in 0..api_calls {
+            if let Err(e) =
+                update_openai_api_costs(pool, "style_extraction", "gpt-4o", avg_cost).await
+            {
+                println!("  Warning: Failed to update API cost tracking: {}", e);
             }
         }
 
