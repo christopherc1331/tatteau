@@ -358,7 +358,7 @@ pub async fn update_openai_api_costs(
     match existing {
         Some(row) => {
             let existing_count: i64 = row.get("count");
-            let existing_total: f64 = row.get("total_cost");
+            let existing_total: f64 = row.try_get::<f32, _>("total_cost").unwrap_or(0.0) as f64;
             let new_total = existing_total + cost;
             let new_count = existing_count + 1;
             let new_avg = new_total / new_count as f64;
