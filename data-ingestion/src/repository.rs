@@ -217,6 +217,7 @@ pub async fn get_artists_for_style_extraction(
               AND TRIM(social_links) != ''
               AND (LOWER(social_links) LIKE '%instagram.com%')
               AND (styles_extracted IS NULL OR styles_extracted = 0)
+            ORDER BY id
             LIMIT $1
         ",
     )
@@ -275,25 +276,14 @@ pub async fn upsert_artist_styles(
     style_ids: &[i64],
 ) -> Result<(), sqlx::Error> {
     for style_id in style_ids {
-        // Try to insert, ignore duplicate key errors
-        let result = sqlx::query(
-            "INSERT INTO artists_styles (artist_id, style_id) VALUES ($1, $2)"
+        sqlx::query(
+            "INSERT INTO artists_styles (artist_id, style_id) VALUES ($1, $2)
+             ON CONFLICT (artist_id, style_id) DO NOTHING"
         )
         .bind(artist_id)
         .bind(style_id)
         .execute(pool)
-        .await;
-
-        // Ignore duplicate key errors (23505 is PostgreSQL's unique violation error code)
-        if let Err(e) = result {
-            if let sqlx::Error::Database(db_err) = &e {
-                if db_err.code().as_deref() == Some("23505") {
-                    // Duplicate key, ignore
-                    continue;
-                }
-            }
-            return Err(e);
-        }
+        .await?;
     }
 
     Ok(())
@@ -340,25 +330,14 @@ pub async fn insert_artist_image_styles(
     style_ids: &[i64],
 ) -> Result<(), sqlx::Error> {
     for style_id in style_ids {
-        // Try to insert, ignore duplicate key errors
-        let result = sqlx::query(
-            "INSERT INTO artists_images_styles (artists_images_id, style_id) VALUES ($1, $2)"
+        sqlx::query(
+            "INSERT INTO artists_images_styles (artists_images_id, style_id) VALUES ($1, $2)
+             ON CONFLICT (artists_images_id, style_id) DO NOTHING"
         )
         .bind(artist_image_id)
         .bind(style_id)
         .execute(pool)
-        .await;
-
-        // Ignore duplicate key errors (23505 is PostgreSQL's unique violation error code)
-        if let Err(e) = result {
-            if let sqlx::Error::Database(db_err) = &e {
-                if db_err.code().as_deref() == Some("23505") {
-                    // Duplicate key, ignore
-                    continue;
-                }
-            }
-            return Err(e);
-        }
+        .await?;
     }
     Ok(())
 }

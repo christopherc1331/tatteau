@@ -243,6 +243,14 @@ async fn process_single_artist(
                 "⚠️  No valid Instagram username found for artist: {} - skipping",
                 artist.name
             );
+
+            // Mark as failed in database
+            if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
+                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+            } else {
+                println!("❌ [{} - ID: {}] Marked as extraction failed (invalid username)", artist.name, artist.id);
+            }
+
             return Ok((artist, 0, 0, 0.0));
         }
     };
