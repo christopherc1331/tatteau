@@ -21,13 +21,13 @@ pub async fn get_cities_and_coords(state: String) -> DbResult<Vec<CityCoords>> {
             SELECT
                 city,
                 state,
-                lat,
-                long
+                AVG(lat) as lat,
+                AVG(long) as long
             FROM locations
             WHERE
                 state = $1
             AND (is_person IS NULL OR is_person != 1)
-            GROUP BY city, state, lat, long
+            GROUP BY city, state
         ",
     )
     .bind(&state)
