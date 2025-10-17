@@ -7,15 +7,14 @@ use thaw::*;
 pub fn FavoriteButton(
     /// The artist image ID to favorite
     artists_images_id: i32,
-    /// Optional user ID from authentication context
-    #[prop(optional)]
-    _user_id: Option<i32>,
+    /// Whether the image is currently favorited
+    is_favorited_initial: bool,
 ) -> impl IntoView {
     let navigate = use_navigate();
     let query_map = use_query_map();
 
-    // Track if the image is favorited
-    let is_favorited = RwSignal::new(false);
+    // Track if the image is favorited (initialize with prop value)
+    let is_favorited = RwSignal::new(is_favorited_initial);
     let is_loading = RwSignal::new(false);
 
     // Get the auth token from localStorage
@@ -37,25 +36,6 @@ pub fn FavoriteButton(
             None
         }
     };
-
-    // Check initial favorite status on mount
-    Effect::new(move |_| {
-        let token = get_auth_token();
-
-        spawn_local(async move {
-            use crate::server_favorites::check_is_favorited;
-
-            match check_is_favorited(token, artists_images_id).await {
-                Ok(is_fav) => {
-                    is_favorited.set(is_fav);
-                }
-                Err(e) => {
-                    leptos::logging::error!("Failed to check favorite status: {:?}", e);
-                    is_favorited.set(false);
-                }
-            }
-        });
-    });
 
     // Check if this image should be auto-favorited after login redirect
     Effect::new(move |_| {

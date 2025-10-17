@@ -8,6 +8,7 @@ pub struct ShopInstagramPost {
     pub image: ArtistImage,
     pub styles: Vec<Style>,
     pub artist: Artist,
+    pub is_favorited: bool,
 }
 
 #[component]
@@ -39,6 +40,7 @@ pub fn ShopMasonryGallery(
                     let short_code = post.image.short_code.clone();
                     let artist_name = post.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
                     let image_id = post.image.id;
+                    let is_favorited = post.is_favorited;
 
                     view! {
                         <div class="shop-masonry-gallery__post">
@@ -58,7 +60,7 @@ pub fn ShopMasonryGallery(
                                             }
                                         }).collect_view()}
 
-                                        <FavoriteButton artists_images_id=image_id />
+                                        <FavoriteButton artists_images_id=image_id is_favorited_initial=is_favorited />
                                     </div>
                                 </div>
 

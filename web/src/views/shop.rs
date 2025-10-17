@@ -24,6 +24,26 @@ pub fn Shop() -> impl IntoView {
             .unwrap_or(0)
     });
 
+    // Get auth token from localStorage
+    let get_auth_token = move || -> Option<String> {
+        #[cfg(feature = "hydrate")]
+        {
+            use wasm_bindgen::prelude::*;
+
+            #[wasm_bindgen]
+            extern "C" {
+                #[wasm_bindgen(js_namespace = localStorage)]
+                fn getItem(key: &str) -> Option<String>;
+            }
+
+            getItem("tatteau_auth_token")
+        }
+        #[cfg(not(feature = "hydrate"))]
+        {
+            None
+        }
+    };
+
     // Parse style IDs and page from query params
     let selected_styles = RwSignal::new(Vec::<i32>::new());
     let current_page = RwSignal::new(0);
@@ -60,7 +80,8 @@ pub fn Shop() -> impl IntoView {
         move || shop_id.get(),
         move |id| async move {
             if id > 0 {
-                fetch_shop_data(id).await.ok()
+                let token = get_auth_token();
+                fetch_shop_data(id, token).await.ok()
             } else {
                 None
             }
@@ -77,7 +98,8 @@ pub fn Shop() -> impl IntoView {
                 } else {
                     Some(styles)
                 };
-                fetch_shop_images_paginated(id, style_filter, page, per_page)
+                let token = get_auth_token();
+                fetch_shop_images_paginated(id, style_filter, page, per_page, token)
                     .await
                     .ok()
             } else {
@@ -106,10 +128,11 @@ pub fn Shop() -> impl IntoView {
                             let shop_posts: Vec<ShopInstagramPost> = shop_data.all_images_with_styles
                                 .clone()
                                 .into_iter()
-                                .map(|(image, styles, artist)| ShopInstagramPost {
+                                .map(|(image, styles, artist, is_favorited)| ShopInstagramPost {
                                     image,
                                     styles,
                                     artist,
+                                    is_favorited,
                                 })
                                 .collect();
 
@@ -266,10 +289,11 @@ pub fn Shop() -> impl IntoView {
 
                                                             let shop_posts: Vec<ShopInstagramPost> = images
                                                                 .into_iter()
-                                                                .map(|(image, styles, artist)| ShopInstagramPost {
+                                                                .map(|(image, styles, artist, is_favorited)| ShopInstagramPost {
                                                                     image,
                                                                     styles,
                                                                     artist,
+                                                                    is_favorited,
                                                                 })
                                                                 .collect();
 

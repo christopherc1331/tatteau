@@ -400,23 +400,44 @@ pub async fn get_all_styles_by_location(location_id: i32) -> DbResult<Vec<Style>
 #[cfg(feature = "ssr")]
 pub async fn get_all_images_with_styles_by_location(
     location_id: i32,
-) -> DbResult<Vec<(ArtistImage, Vec<Style>, Artist)>> {
+    user_id: Option<i32>,
+) -> DbResult<Vec<(ArtistImage, Vec<Style>, Artist, bool)>> {
     let pool = crate::db::pool::get_pool();
 
-    // First get all images for artists at this location, filtering out person locations
-    let image_rows = sqlx::query(
-        "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
-         FROM artists_images ai
-         JOIN artists a ON ai.artist_id = a.id
-         JOIN locations l ON a.location_id = l.id
-         WHERE a.location_id = $1
-         AND (l.is_person IS NULL OR l.is_person != 1)
-         AND a.name IS NOT NULL
-         AND a.name != ''"
-    )
-    .bind(location_id)
-    .fetch_all(pool)
-    .await?;
+    // Build query with conditional LEFT JOIN for user favorites
+    let (query, has_user_id) = if let Some(uid) = user_id {
+        (
+            format!("SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                    CASE WHEN uf.id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited
+             FROM artists_images ai
+             JOIN artists a ON ai.artist_id = a.id
+             JOIN locations l ON a.location_id = l.id
+             LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}
+             WHERE a.location_id = $1
+             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND a.name IS NOT NULL
+             AND a.name != ''", uid),
+            true
+        )
+    } else {
+        (
+            "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                    FALSE as is_favorited
+             FROM artists_images ai
+             JOIN artists a ON ai.artist_id = a.id
+             JOIN locations l ON a.location_id = l.id
+             WHERE a.location_id = $1
+             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND a.name IS NOT NULL
+             AND a.name != ''".to_string(),
+            false
+        )
+    };
+
+    let image_rows = sqlx::query(&query)
+        .bind(location_id)
+        .fetch_all(pool)
+        .await?;
 
     let mut result = Vec::new();
 
@@ -439,6 +460,7 @@ pub async fn get_all_images_with_styles_by_location(
             styles_extracted: image_row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
         };
 
+        let is_favorited: bool = image_row.get("is_favorited");
         let img_id = image.id;
 
         let style_rows = sqlx::query(
@@ -459,7 +481,7 @@ pub async fn get_all_images_with_styles_by_location(
             })
             .collect();
 
-        result.push((image, styles, artist));
+        result.push((image, styles, artist, is_favorited));
     }
 
     Ok(result)
@@ -1571,10 +1593,24 @@ pub async fn get_shop_images_paginated(
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-) -> DbResult<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32)> {
+    user_id: Option<i32>,
+) -> DbResult<(Vec<(ArtistImage, Vec<Style>, Artist, bool)>, i32)> {
     let pool = crate::db::pool::get_pool();
 
     // Build the WHERE clause for style filtering
+    // Build the favorites JOIN clause based on user_id
+    let favorites_join = if let Some(uid) = user_id {
+        format!("LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}", uid)
+    } else {
+        String::new()
+    };
+
+    let is_favorited_select = if user_id.is_some() {
+        "CASE WHEN uf.id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited"
+    } else {
+        "FALSE as is_favorited"
+    };
+
     let (count_query, data_query) = if let Some(ref ids) = style_ids {
         if !ids.is_empty() {
             (
@@ -1590,17 +1626,21 @@ pub async fn get_shop_images_paginated(
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
                 ),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+                    "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                            {}
                      FROM artists_images ai
                      JOIN artists a ON ai.artist_id = a.id
                      JOIN locations l ON a.location_id = l.id
+                     {}
                      WHERE a.location_id = $1
                      AND (l.is_person IS NULL OR l.is_person != 1)
                      AND a.name IS NOT NULL
                      AND a.name != ''
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))
                      ORDER BY ai.id DESC
-                     LIMIT $3 OFFSET $4"
+                     LIMIT $3 OFFSET $4",
+                     is_favorited_select,
+                     favorites_join
                 )
             )
         } else {
@@ -1613,16 +1653,22 @@ pub async fn get_shop_images_paginated(
                  AND (l.is_person IS NULL OR l.is_person != 1)
                  AND a.name IS NOT NULL
                  AND a.name != ''".to_string(),
-                "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
-                 FROM artists_images ai
-                 JOIN artists a ON ai.artist_id = a.id
-                 JOIN locations l ON a.location_id = l.id
-                 WHERE a.location_id = $1
-                 AND (l.is_person IS NULL OR l.is_person != 1)
-                 AND a.name IS NOT NULL
-                 AND a.name != ''
-                 ORDER BY ai.id DESC
-                 LIMIT $2 OFFSET $3".to_string()
+                format!(
+                    "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                            {}
+                     FROM artists_images ai
+                     JOIN artists a ON ai.artist_id = a.id
+                     JOIN locations l ON a.location_id = l.id
+                     {}
+                     WHERE a.location_id = $1
+                     AND (l.is_person IS NULL OR l.is_person != 1)
+                     AND a.name IS NOT NULL
+                     AND a.name != ''
+                     ORDER BY ai.id DESC
+                     LIMIT $2 OFFSET $3",
+                     is_favorited_select,
+                     favorites_join
+                )
             )
         }
     } else {
@@ -1635,16 +1681,22 @@ pub async fn get_shop_images_paginated(
              AND (l.is_person IS NULL OR l.is_person != 1)
              AND a.name IS NOT NULL
              AND a.name != ''".to_string(),
-            "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
-             FROM artists_images ai
-             JOIN artists a ON ai.artist_id = a.id
-             JOIN locations l ON a.location_id = l.id
-             WHERE a.location_id = $1
-             AND (l.is_person IS NULL OR l.is_person != 1)
-             AND a.name IS NOT NULL
-             AND a.name != ''
-             ORDER BY ai.id DESC
-             LIMIT $2 OFFSET $3".to_string()
+            format!(
+                "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                        {}
+                 FROM artists_images ai
+                 JOIN artists a ON ai.artist_id = a.id
+                 JOIN locations l ON a.location_id = l.id
+                 {}
+                 WHERE a.location_id = $1
+                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND a.name IS NOT NULL
+                 AND a.name != ''
+                 ORDER BY ai.id DESC
+                 LIMIT $2 OFFSET $3",
+                 is_favorited_select,
+                 favorites_join
+            )
         )
     };
 
@@ -1700,7 +1752,7 @@ pub async fn get_shop_images_paginated(
             .await?
     };
 
-    let mut result: Vec<(ArtistImage, Vec<Style>, Artist)> = vec![];
+    let mut result: Vec<(ArtistImage, Vec<Style>, Artist, bool)> = vec![];
 
     for image_row in image_rows {
         let image = ArtistImage {
@@ -1720,6 +1772,7 @@ pub async fn get_shop_images_paginated(
             styles_extracted: image_row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
         };
 
+        let is_favorited: bool = image_row.get("is_favorited");
         let img_id = image.id;
 
         // Get styles for this image
@@ -1741,7 +1794,7 @@ pub async fn get_shop_images_paginated(
             })
             .collect();
 
-        result.push((image, styles, artist));
+        result.push((image, styles, artist, is_favorited));
     }
 
     Ok((result, total_count as i32))
@@ -1754,8 +1807,22 @@ pub async fn get_artist_images_paginated(
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-) -> DbResult<(Vec<(ArtistImage, Vec<Style>)>, i32)> {
+    user_id: Option<i32>,
+) -> DbResult<(Vec<(ArtistImage, Vec<Style>, bool)>, i32)> {
     let pool = crate::db::pool::get_pool();
+
+    // Build the favorites JOIN clause based on user_id
+    let favorites_join = if let Some(uid) = user_id {
+        format!("LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}", uid)
+    } else {
+        String::new()
+    };
+
+    let is_favorited_select = if user_id.is_some() {
+        "CASE WHEN uf.id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited"
+    } else {
+        "FALSE as is_favorited"
+    };
 
     // Build the WHERE clause for style filtering
     let (count_query, data_query) = if let Some(ref ids) = style_ids {
@@ -1768,12 +1835,16 @@ pub async fn get_artist_images_paginated(
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
                 ),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id
+                    "SELECT ai.id, ai.short_code, ai.artist_id,
+                            {}
                      FROM artists_images ai
+                     {}
                      WHERE ai.artist_id = $1
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))
                      ORDER BY ai.id DESC
-                     LIMIT $3 OFFSET $4"
+                     LIMIT $3 OFFSET $4",
+                     is_favorited_select,
+                     favorites_join
                 )
             )
         } else {
@@ -1781,11 +1852,17 @@ pub async fn get_artist_images_paginated(
                 "SELECT COUNT(DISTINCT ai.id)
                  FROM artists_images ai
                  WHERE ai.artist_id = $1".to_string(),
-                "SELECT ai.id, ai.short_code, ai.artist_id
-                 FROM artists_images ai
-                 WHERE ai.artist_id = $1
-                 ORDER BY ai.id DESC
-                 LIMIT $2 OFFSET $3".to_string()
+                format!(
+                    "SELECT ai.id, ai.short_code, ai.artist_id,
+                            {}
+                     FROM artists_images ai
+                     {}
+                     WHERE ai.artist_id = $1
+                     ORDER BY ai.id DESC
+                     LIMIT $2 OFFSET $3",
+                     is_favorited_select,
+                     favorites_join
+                )
             )
         }
     } else {
@@ -1793,11 +1870,17 @@ pub async fn get_artist_images_paginated(
             "SELECT COUNT(DISTINCT ai.id)
              FROM artists_images ai
              WHERE ai.artist_id = $1".to_string(),
-            "SELECT ai.id, ai.short_code, ai.artist_id
-             FROM artists_images ai
-             WHERE ai.artist_id = $1
-             ORDER BY ai.id DESC
-             LIMIT $2 OFFSET $3".to_string()
+            format!(
+                "SELECT ai.id, ai.short_code, ai.artist_id,
+                        {}
+                 FROM artists_images ai
+                 {}
+                 WHERE ai.artist_id = $1
+                 ORDER BY ai.id DESC
+                 LIMIT $2 OFFSET $3",
+                 is_favorited_select,
+                 favorites_join
+            )
         )
     };
 
@@ -1853,7 +1936,7 @@ pub async fn get_artist_images_paginated(
             .await?
     };
 
-    let mut result: Vec<(ArtistImage, Vec<Style>)> = vec![];
+    let mut result: Vec<(ArtistImage, Vec<Style>, bool)> = vec![];
 
     for image_row in image_rows {
         let image = ArtistImage {
@@ -1862,6 +1945,7 @@ pub async fn get_artist_images_paginated(
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
         };
 
+        let is_favorited: bool = image_row.get("is_favorited");
         let img_id = image.id;
 
         // Get styles for this image
@@ -1883,7 +1967,7 @@ pub async fn get_artist_images_paginated(
             })
             .collect();
 
-        result.push((image, styles));
+        result.push((image, styles, is_favorited));
     }
 
     Ok((result, total_count as i32))

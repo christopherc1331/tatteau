@@ -73,6 +73,7 @@ pub fn FavoritesPage() -> impl IntoView {
                                                 image: fav.image,
                                                 styles: fav.styles,
                                                 artist,
+                                                is_favorited: true,
                                             })
                                         })
                                         .collect();

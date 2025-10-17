@@ -8,6 +8,7 @@ pub struct PostWithArtist {
     pub image: ArtistImage,
     pub styles: Vec<Style>,
     pub artist: Option<Artist>,
+    pub is_favorited: bool,
 }
 
 #[component]
@@ -22,6 +23,7 @@ pub fn InstagramPostsGrid(
                 let short_code = post.image.short_code.clone();
 
                 let image_id = post.image.id;
+                let is_favorited = post.is_favorited;
 
                 view! {
                     <div class="instagram-posts-grid-post-container">
@@ -48,7 +50,7 @@ pub fn InstagramPostsGrid(
                                             </span>
                                         }
                                     }).collect_view()}
-                                    <FavoriteButton artists_images_id=image_id />
+                                    <FavoriteButton artists_images_id=image_id is_favorited_initial=is_favorited />
                                 </div>
                             </div>
                             <div class="instagram-posts-grid-embed-container">

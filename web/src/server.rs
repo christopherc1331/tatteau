@@ -38,6 +38,29 @@ use crate::db::repository::{
     update_artist_questionnaire_config,
 };
 
+// Helper function to extract user_id from JWT token
+#[cfg(feature = "ssr")]
+fn extract_user_id_from_token(token: &str) -> Option<i32> {
+    use jsonwebtoken::{decode, DecodingKey, Validation};
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct Claims {
+        sub: String,
+        exp: usize,
+        user_type: String,
+        user_id: i32,
+    }
+
+    let secret = "tatteau-jwt-secret-key-change-in-production";
+    let token_data = decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(secret.as_ref()),
+        &Validation::default(),
+    ).ok()?;
+
+    Some(token_data.claims.user_id)
+}
+
 #[server]
 pub async fn fetch_locations(
     state: String,
@@ -132,7 +155,7 @@ pub struct ShopData {
     pub location: Location,
     pub artists: Vec<Artist>,
     pub all_styles: Vec<Style>,
-    pub all_images_with_styles: Vec<(ArtistImage, Vec<Style>, Artist)>,
+    pub all_images_with_styles: Vec<(ArtistImage, Vec<Style>, Artist, bool)>,
 }
 
 #[server]
@@ -162,29 +185,43 @@ pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnErr
 }
 
 #[server]
-pub async fn fetch_shop_data(location_id: i32) -> Result<ShopData, ServerFnError> {
-    let location = get_location_by_id(location_id)
-        .await
-        .map_err(|e| ServerFnError::new(format!("Failed to fetch location: {}", e)))?;
+pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<ShopData, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        let user_id = token.as_deref().and_then(extract_user_id_from_token);
 
-    let artists = get_artists_by_location(location_id)
-        .await
-        .map_err(|e| ServerFnError::new(format!("Failed to fetch artists: {}", e)))?;
+        let location = get_location_by_id(location_id)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch location: {}", e)))?;
 
-    let all_styles = get_all_styles_by_location(location_id)
-        .await
-        .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
+        let artists = get_artists_by_location(location_id)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch artists: {}", e)))?;
 
-    let all_images_with_styles = get_all_images_with_styles_by_location(location_id)
-        .await
-        .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
+        let all_styles = get_all_styles_by_location(location_id)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
 
-    Ok(ShopData {
-        location,
-        artists,
-        all_styles,
-        all_images_with_styles,
-    })
+        let all_images_with_styles = get_all_images_with_styles_by_location(location_id, user_id)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
+
+        Ok(ShopData {
+            location,
+            artists,
+            all_styles,
+            all_images_with_styles,
+        })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(ShopData {
+            location: Location::default(),
+            artists: vec![],
+            all_styles: vec![],
+            all_images_with_styles: vec![],
+        })
+    }
 }
 
 #[server]
@@ -193,11 +230,13 @@ pub async fn fetch_shop_images_paginated(
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-) -> Result<(Vec<(ArtistImage, Vec<Style>, Artist)>, i32), ServerFnError> {
+    token: Option<String>,
+) -> Result<(Vec<(ArtistImage, Vec<Style>, Artist, bool)>, i32), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::repository::get_shop_images_paginated;
-        match get_shop_images_paginated(location_id, style_ids, page, per_page).await {
+        let user_id = token.as_deref().and_then(extract_user_id_from_token);
+        match get_shop_images_paginated(location_id, style_ids, page, per_page, user_id).await {
             Ok(result) => Ok(result),
             Err(e) => Err(ServerFnError::new(format!(
                 "Failed to fetch paginated shop images: {}",
@@ -217,11 +256,13 @@ pub async fn fetch_artist_images_paginated(
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-) -> Result<(Vec<(ArtistImage, Vec<Style>)>, i32), ServerFnError> {
+    token: Option<String>,
+) -> Result<(Vec<(ArtistImage, Vec<Style>, bool)>, i32), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::repository::get_artist_images_paginated;
-        match get_artist_images_paginated(artist_id, style_ids, page, per_page).await {
+        let user_id = token.as_deref().and_then(extract_user_id_from_token);
+        match get_artist_images_paginated(artist_id, style_ids, page, per_page, user_id).await {
             Ok(result) => Ok(result),
             Err(e) => Err(ServerFnError::new(format!(
                 "Failed to fetch paginated artist images: {}",
@@ -231,6 +272,7 @@ pub async fn fetch_artist_images_paginated(
     }
     #[cfg(not(feature = "ssr"))]
     {
+        let _ = (artist_id, style_ids, page, per_page, token);
         Ok((Vec::new(), 0))
     }
 }
@@ -800,6 +842,7 @@ pub struct TattooPost {
     pub artist_name: String,
     pub artist_instagram: Option<String>,
     pub styles: Vec<String>,
+    pub is_favorited: bool,
 }
 
 #[server]
@@ -807,12 +850,14 @@ pub async fn get_tattoo_posts_by_style(
     style_names: Vec<String>,
     states: Option<Vec<String>>,
     cities: Option<Vec<String>>,
+    token: Option<String>,
 ) -> Result<Vec<TattooPost>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use sqlx::Row;
 
         let pool = crate::db::pool::get_pool();
+        let user_id = token.as_deref().and_then(extract_user_id_from_token);
 
         // Build WHERE clause based on filters
         let mut where_clauses = Vec::new();
@@ -867,6 +912,15 @@ pub async fn get_tattoo_posts_by_style(
             String::new()
         };
 
+        let (favorites_join, favorites_select) = if let Some(uid) = user_id {
+            (
+                format!("LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}", uid),
+                ", CASE WHEN uf.id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited"
+            )
+        } else {
+            (String::new(), ", FALSE as is_favorited")
+        };
+
         let query = format!(
             "
             SELECT DISTINCT
@@ -875,15 +929,17 @@ pub async fn get_tattoo_posts_by_style(
                 ai.artist_id,
                 a.name as artist_name,
                 a.instagram_handle as artist_instagram
+                {}
             FROM artists_images ai
             JOIN artists a ON ai.artist_id = a.id
             JOIN locations l ON a.location_id = l.id
             JOIN artists_images_styles ais ON ai.id = ais.artists_images_id
             JOIN styles s ON ais.style_id = s.id
             {}
+            {}
             ORDER BY ai.id DESC
         ",
-            where_clause
+            favorites_select, favorites_join, where_clause
         );
 
         let mut query_builder = sqlx::query(&query);
@@ -919,6 +975,7 @@ pub async fn get_tattoo_posts_by_style(
             let artist_id: i64 = row.get("artist_id");
             let artist_name: String = row.get("artist_name");
             let artist_instagram: Option<String> = row.get("artist_instagram");
+            let is_favorited: bool = row.get("is_favorited");
 
             // Get styles for this specific image
             let style_rows = sqlx::query(
@@ -943,6 +1000,7 @@ pub async fn get_tattoo_posts_by_style(
                 artist_name,
                 artist_instagram,
                 styles,
+                is_favorited,
             });
         }
 

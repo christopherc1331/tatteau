@@ -25,6 +25,27 @@ pub fn ArtistHighlight() -> impl IntoView {
     let current_page = RwSignal::new(0);
     let per_page = 10;
 
+    // Get the auth token from localStorage
+    let auth_token = RwSignal::new(None::<String>);
+
+    // Load token on mount
+    Effect::new(move |_| {
+        #[cfg(feature = "hydrate")]
+        {
+            use wasm_bindgen::prelude::*;
+
+            #[wasm_bindgen]
+            extern "C" {
+                #[wasm_bindgen(js_namespace = localStorage)]
+                fn getItem(key: &str) -> Option<String>;
+            }
+
+            if let Some(token) = getItem("tatteau_auth_token") {
+                auth_token.set(Some(token));
+            }
+        }
+    });
+
     let artist_data = Resource::new(
         move || artist_id.get(),
         move |id| async move {
@@ -38,15 +59,15 @@ pub fn ArtistHighlight() -> impl IntoView {
 
     // Paginated images resource
     let paginated_images = Resource::new(
-        move || (artist_id.get(), selected_styles.get(), current_page.get()),
-        move |(id, styles, page)| async move {
+        move || (artist_id.get(), selected_styles.get(), current_page.get(), auth_token.get()),
+        move |(id, styles, page, token)| async move {
             if id > 0 {
                 let style_filter = if styles.is_empty() {
                     None
                 } else {
                     Some(styles)
                 };
-                fetch_artist_images_paginated(id, style_filter, page, per_page)
+                fetch_artist_images_paginated(id, style_filter, page, per_page, token)
                     .await
                     .ok()
             } else {
@@ -117,13 +138,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                         data.map(|artist_data| {
                             let artist_styles_for_filter = artist_data.styles.clone();
                             
-                            let instagram_posts: Vec<InstagramPost> = artist_data.images_with_styles
-                                .into_iter()
-                                .map(|(image, styles)| InstagramPost {
-                                    image,
-                                    styles,
-                                })
-                                .collect();
+                            let _ = artist_data.images_with_styles; // Unused - only paginated data is rendered
 
                             let artist_name = artist_data.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
                             let shop_name = artist_data.location.name.unwrap_or_else(|| "Unknown Shop".to_string());
@@ -339,9 +354,10 @@ pub fn ArtistHighlight() -> impl IntoView {
 
                                                             let instagram_posts: Vec<InstagramPost> = images
                                                                 .into_iter()
-                                                                .map(|(image, styles)| InstagramPost {
+                                                                .map(|(image, styles, is_favorited)| InstagramPost {
                                                                     image,
                                                                     styles,
+                                                                    is_favorited,
                                                                 })
                                                                 .collect();
 

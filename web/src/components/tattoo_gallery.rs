@@ -72,6 +72,7 @@ pub fn TattooGallery(
                 image,
                 styles,
                 artist: Some(artist),
+                is_favorited: post.is_favorited,
             }
         })
         .collect();

@@ -7,6 +7,7 @@ use leptos::prelude::*;
 pub struct InstagramPost {
     pub image: ArtistImage,
     pub styles: Vec<Style>,
+    pub is_favorited: bool,
 }
 
 #[component]
@@ -28,6 +29,7 @@ pub fn ArtistMasonryGallery(
             image: post.image,
             styles: post.styles,
             artist: None, // Artist page doesn't need artist info
+            is_favorited: post.is_favorited,
         })
         .collect();
 

@@ -52,7 +52,23 @@ pub fn MatchResults() -> impl IntoView {
                 })
                 .filter(|v: &Vec<String>| !v.is_empty());
 
-            get_tattoo_posts_by_style(styles, states, cities).await
+            // Get auth token from localStorage
+            #[cfg(feature = "hydrate")]
+            let token = {
+                use wasm_bindgen::prelude::*;
+
+                #[wasm_bindgen]
+                extern "C" {
+                    #[wasm_bindgen(js_namespace = localStorage)]
+                    fn getItem(key: &str) -> Option<String>;
+                }
+
+                getItem("tatteau_auth_token")
+            };
+            #[cfg(not(feature = "hydrate"))]
+            let token = None;
+
+            get_tattoo_posts_by_style(styles, states, cities, token).await
         },
     );
 
