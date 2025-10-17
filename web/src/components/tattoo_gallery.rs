@@ -66,6 +66,7 @@ pub fn TattooGallery(
                 id: post.id as i32, // Use the actual artists_images.id
                 artist_id: post.artist_id as i32,
                 short_code: post.short_code,
+                post_date: None,
             };
 
             PostWithArtist {

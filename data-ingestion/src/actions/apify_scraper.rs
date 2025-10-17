@@ -24,6 +24,7 @@ pub struct ApifyPost {
     pub shortcode: String,
     #[serde(rename = "displayUrl")]
     pub display_url: Option<String>,
+    pub timestamp: Option<i64>,
 }
 
 pub async fn scrape_instagram_profile(

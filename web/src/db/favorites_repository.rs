@@ -143,7 +143,7 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
     for image_id in image_ids {
         // Get image details
         let image_row = sqlx::query(
-            "SELECT id, short_code, artist_id
+            "SELECT id, short_code, artist_id, post_date
              FROM artists_images WHERE id = $1",
         )
         .bind(image_id)
@@ -155,6 +155,7 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
                 id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
                 short_code: image_row.get("short_code"),
                 artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
+                post_date: image_row.try_get("post_date").ok(),
             };
 
             // Get artist details

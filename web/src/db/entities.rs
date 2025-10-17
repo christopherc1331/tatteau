@@ -35,6 +35,7 @@ pub struct ArtistImage {
     pub id: i32,
     pub short_code: String,
     pub artist_id: i32,
+    pub post_date: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

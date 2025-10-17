@@ -18,6 +18,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 1,
                 short_code: "DMNyOgCOe39".to_string(),
                 artist_id: 1,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -35,6 +36,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 2,
                 short_code: "DM3HnAKu2hB".to_string(),
                 artist_id: 1,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -52,6 +54,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 3,
                 short_code: "DF8HJprp4yu".to_string(),
                 artist_id: 2,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -69,6 +72,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 4,
                 short_code: "DNQodNBtvOv".to_string(),
                 artist_id: 3,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -90,6 +94,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 5,
                 short_code: "DLiEi_9OPpv".to_string(),
                 artist_id: 4,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -103,6 +108,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 6,
                 short_code: "DC2JM-6yCV4".to_string(),
                 artist_id: 5,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -120,6 +126,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 7,
                 short_code: "DNOFP6Ctf7C".to_string(),
                 artist_id: 6,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -141,6 +148,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 8,
                 short_code: "DMQeBWNOGvR".to_string(),
                 artist_id: 7,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -158,6 +166,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 9,
                 short_code: "DKkJ0B3OVhg".to_string(),
                 artist_id: 8,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -183,6 +192,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 10,
                 short_code: "DJZc9iKu0kv".to_string(),
                 artist_id: 9,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -200,6 +210,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 11,
                 short_code: "DKE4I8nOtWj".to_string(),
                 artist_id: 10,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -221,6 +232,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 12,
                 short_code: "DLaTX99O18N".to_string(),
                 artist_id: 11,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -242,6 +254,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 13,
                 short_code: "DKAHf9VNML6".to_string(),
                 artist_id: 12,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -259,6 +272,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 14,
                 short_code: "DJrVzvSOOZy".to_string(),
                 artist_id: 13,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -276,6 +290,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 15,
                 short_code: "DLIN_xquVMh".to_string(),
                 artist_id: 14,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -297,6 +312,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 16,
                 short_code: "DKhthd1OVJ-".to_string(),
                 artist_id: 15,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -310,6 +326,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 17,
                 short_code: "DJKQa9Oy2Z3".to_string(),
                 artist_id: 16,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -331,6 +348,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 18,
                 short_code: "DKCywApuCYa".to_string(),
                 artist_id: 17,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -348,6 +366,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 19,
                 short_code: "DL5KRdQOSiB".to_string(),
                 artist_id: 18,
+                post_date: None,
             },
             styles: vec![
                 Style {
@@ -369,6 +388,7 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 id: 20,
                 short_code: "DNVw2GpNviS".to_string(),
                 artist_id: 19,
+                post_date: None,
             },
             styles: vec![
                 Style {

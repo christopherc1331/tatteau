@@ -240,17 +240,26 @@ pub async fn get_artists_for_style_extraction(
     Ok(artists)
 }
 
-pub async fn get_all_styles(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
-    let rows = sqlx::query("SELECT name FROM styles ORDER BY name")
+pub async fn get_all_styles(pool: &PgPool) -> Result<std::collections::HashMap<String, Vec<String>>, sqlx::Error> {
+    let rows = sqlx::query("SELECT name, type FROM styles ORDER BY type, name")
         .fetch_all(pool)
         .await?;
 
-    let styles: Vec<String> = rows
-        .into_iter()
-        .map(|row| row.get("name"))
-        .collect();
+    let mut styles_by_type: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
 
-    Ok(styles)
+    for row in rows {
+        let name: String = row.get("name");
+        let style_type: Option<String> = row.get("type");
+
+        if let Some(type_name) = style_type {
+            styles_by_type
+                .entry(type_name)
+                .or_insert_with(Vec::new)
+                .push(name);
+        }
+    }
+
+    Ok(styles_by_type)
 }
 
 pub async fn get_style_ids(pool: &PgPool, style_names: &[String]) -> Result<Vec<i64>, sqlx::Error> {
@@ -312,12 +321,14 @@ pub async fn insert_artist_image(
     pool: &PgPool,
     short_code: &str,
     artist_id: i64,
+    post_date: Option<i64>,
 ) -> Result<i64, sqlx::Error> {
     let row = sqlx::query(
-        "INSERT INTO artists_images (short_code, artist_id) VALUES ($1, $2) RETURNING id"
+        "INSERT INTO artists_images (short_code, artist_id, post_date) VALUES ($1, $2, $3) RETURNING id"
     )
     .bind(short_code)
     .bind(artist_id)
+    .bind(post_date)
     .fetch_one(pool)
     .await?;
 

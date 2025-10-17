@@ -264,7 +264,7 @@ pub async fn get_artist_images_with_styles(
 
     // First get all images for the artist
     let image_rows = sqlx::query(
-        "SELECT id, short_code, artist_id
+        "SELECT id, short_code, artist_id, post_date
          FROM artists_images
          WHERE artist_id = $1",
     )
@@ -280,6 +280,7 @@ pub async fn get_artist_images_with_styles(
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
+            post_date: image_row.try_get("post_date").ok(),
         };
         let img_id = img.id;
 
@@ -407,7 +408,7 @@ pub async fn get_all_images_with_styles_by_location(
     // Build query with conditional LEFT JOIN for user favorites
     let (query, has_user_id) = if let Some(uid) = user_id {
         (
-            format!("SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+            format!("SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
                     CASE WHEN uf.id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited
              FROM artists_images ai
              JOIN artists a ON ai.artist_id = a.id
@@ -421,7 +422,7 @@ pub async fn get_all_images_with_styles_by_location(
         )
     } else {
         (
-            "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+            "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
                     FALSE as is_favorited
              FROM artists_images ai
              JOIN artists a ON ai.artist_id = a.id
@@ -447,6 +448,7 @@ pub async fn get_all_images_with_styles_by_location(
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
+            post_date: image_row.try_get("post_date").ok(),
         };
 
         let artist = Artist {
@@ -1626,7 +1628,7 @@ pub async fn get_shop_images_paginated(
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
                 ),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
                             {}
                      FROM artists_images ai
                      JOIN artists a ON ai.artist_id = a.id
@@ -1654,7 +1656,7 @@ pub async fn get_shop_images_paginated(
                  AND a.name IS NOT NULL
                  AND a.name != ''".to_string(),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
                             {}
                      FROM artists_images ai
                      JOIN artists a ON ai.artist_id = a.id
@@ -1682,7 +1684,7 @@ pub async fn get_shop_images_paginated(
              AND a.name IS NOT NULL
              AND a.name != ''".to_string(),
             format!(
-                "SELECT ai.id, ai.short_code, ai.artist_id, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
                         {}
                  FROM artists_images ai
                  JOIN artists a ON ai.artist_id = a.id
@@ -1759,6 +1761,7 @@ pub async fn get_shop_images_paginated(
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
+            post_date: image_row.try_get("post_date").ok(),
         };
 
         let artist = Artist {
@@ -1835,7 +1838,7 @@ pub async fn get_artist_images_paginated(
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
                 ),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id,
+                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date,
                             {}
                      FROM artists_images ai
                      {}
@@ -1853,7 +1856,7 @@ pub async fn get_artist_images_paginated(
                  FROM artists_images ai
                  WHERE ai.artist_id = $1".to_string(),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id,
+                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date,
                             {}
                      FROM artists_images ai
                      {}
@@ -1871,7 +1874,7 @@ pub async fn get_artist_images_paginated(
              FROM artists_images ai
              WHERE ai.artist_id = $1".to_string(),
             format!(
-                "SELECT ai.id, ai.short_code, ai.artist_id,
+                "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date,
                         {}
                  FROM artists_images ai
                  {}
@@ -1943,6 +1946,7 @@ pub async fn get_artist_images_paginated(
             id: image_row.try_get::<i64, _>("id").unwrap_or(0) as i32,
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
+            post_date: image_row.try_get("post_date").ok(),
         };
 
         let is_favorited: bool = image_row.get("is_favorited");

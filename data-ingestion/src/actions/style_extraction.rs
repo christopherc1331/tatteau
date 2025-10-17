@@ -29,12 +29,14 @@ use super::apify_scraper::{download_image, scrape_instagram_profile};
 struct ProcessablePost {
     shortcode: String,
     image_data: Vec<u8>,
+    timestamp: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct StyleResult {
     shortcode: String,
     styles: Vec<StyleConfidence>,
+    timestamp: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -145,6 +147,8 @@ pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
         return Ok(());
     }
 
+    let total_styles: usize = available_styles.values().map(|v| v.len()).sum();
+
     println!("🎯 Instagram Style Extraction Started");
     println!("📊 Configuration:");
     println!("   • Artists to process: {}", artists.len());
@@ -152,7 +156,7 @@ pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
     println!("   • Confidence threshold: {}", confidence_threshold);
     println!("   • Vision batch size: {}", batch_size);
     println!("   • Max posts per artist: {}", max_posts);
-    println!("   • Available styles: {}", available_styles.len());
+    println!("   • Available styles: {} across {} categories", total_styles, available_styles.len());
     println!("   • Using Apify Instagram scraper");
 
     let progress = Arc::new(ProgressBar::new(artists.len() as u64));
@@ -234,7 +238,7 @@ async fn process_single_artist(
     max_posts: i32,
     batch_size: usize,
     confidence_threshold: f64,
-    available_styles: &[String],
+    available_styles: &HashMap<String, Vec<String>>,
 ) -> Result<(Artist, usize, usize, f64), Box<dyn std::error::Error + Send + Sync>> {
     let ig_username = match &artist.ig_username {
         Some(username) => username.clone(),
@@ -307,9 +311,11 @@ async fn process_single_artist(
             match download_image(display_url).await {
                 Ok(image_data) => {
                     let shortcode = post.shortcode.clone();
+                    let timestamp = post.timestamp;
                     processable_posts.push(ProcessablePost {
                         shortcode,
                         image_data,
+                        timestamp,
                     });
                 }
                 Err(e) => {
@@ -370,7 +376,7 @@ async fn process_single_artist(
             let mut all_artist_styles = HashMap::new();
 
             for result in style_results {
-                let artist_image_id = insert_artist_image(pool, &result.shortcode, artist.id).await;
+                let artist_image_id = insert_artist_image(pool, &result.shortcode, artist.id, result.timestamp).await;
 
                 match artist_image_id {
                     Ok(artist_image_id) => {
@@ -484,7 +490,7 @@ async fn process_artist_posts(
     posts: &[ProcessablePost],
     batch_size: usize,
     confidence_threshold: f64,
-    available_styles: &[String],
+    available_styles: &HashMap<String, Vec<String>>,
 ) -> Result<(Vec<StyleResult>, f64), Box<dyn std::error::Error>> {
     let client = Client::new();
     println!(
@@ -496,7 +502,23 @@ async fn process_artist_posts(
     let semaphore = Arc::new(Semaphore::new(3));
     let mut handles = Vec::new();
 
-    let styles_list = available_styles.join(", ");
+    // Build categorized styles string
+    let mut categorized_sections = Vec::new();
+    let mut sorted_types: Vec<&String> = available_styles.keys().collect();
+    sorted_types.sort();
+
+    for style_type in sorted_types {
+        if let Some(styles) = available_styles.get(style_type) {
+            let lowercase_styles: Vec<String> = styles.iter().map(|s| s.to_lowercase()).collect();
+            categorized_sections.push(format!(
+                "{}:\n• {}",
+                style_type,
+                lowercase_styles.join(", ")
+            ));
+        }
+    }
+
+    let categorized_styles = categorized_sections.join("\n\n");
 
     for (batch_idx, batch) in posts.chunks(batch_size).enumerate() {
         let client = Arc::new(client.clone());
@@ -504,7 +526,7 @@ async fn process_artist_posts(
         let threshold = confidence_threshold;
         let batch_posts: Vec<ProcessablePost> = batch.to_vec();
         let total_batches = posts.len().div_ceil(batch_size);
-        let styles_list_clone = styles_list.clone();
+        let categorized_styles_clone = categorized_styles.clone();
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
@@ -519,34 +541,42 @@ async fn process_artist_posts(
                 ChatCompletionRequestUserMessageContentPart::Text(
                     ChatCompletionRequestMessageContentPartText {
                         text: format!(
-                            "Analyze these {} images. For each image, first determine if it shows a tattoo, then identify artistic styles present from the ALLOWED STYLES LIST ONLY.
+                            "You are an expert tattoo style classifier. Analyze these {} tattoo images and identify ALL visible artistic styles.
 
-                            ALLOWED STYLES LIST (you MUST only use styles from this exact list):
-                            {}
+STYLE VOCABULARY (120 approved styles - use lowercase, match spelling exactly):
+{}
 
-                            Format your response as a JSON array with one object per image (in the EXACT order provided):
-                            [
-                              {{\"is_tattoo\": true, \"styles\": [{{\"style\": \"blackwork\", \"confidence\": 0.95}}, {{\"style\": \"geometric\", \"confidence\": 0.87}}]}},
-                              {{\"is_tattoo\": true, \"styles\": [{{\"style\": \"traditional\", \"confidence\": 0.92}}]}},
-                              {{\"is_tattoo\": false, \"styles\": []}},
-                              {{\"is_tattoo\": true, \"styles\": []}}
-                            ]
+RESPONSE FORMAT:
+Return a JSON array with one object per image (in exact order):
+[
+  {{\"is_tattoo\": true, \"styles\": [{{\"style\": \"japanese\", \"confidence\": 0.95}}, {{\"style\": \"color\", \"confidence\": 0.90}}, {{\"style\": \"large scale\", \"confidence\": 0.85}}]}},
+  {{\"is_tattoo\": false, \"styles\": []}}
+]
 
-                            CRITICAL INSTRUCTIONS:
-                            • FIRST: Determine if the image shows a tattoo (set \"is_tattoo\": true/false)
-                            • If \"is_tattoo\": false, set \"styles\": [] and move to next image
-                            • If \"is_tattoo\": true, identify ANY and ALL tattoo styles you can see from the ALLOWED STYLES LIST
-                            • ONLY use style names that appear in the ALLOWED STYLES LIST above
-                            • DO NOT create new style names or use styles not in the list
-                            • Match styles from the list as closely as possible to what you see
-                            • Use exact spelling and capitalization from the allowed list
-                            • If you see a style not in the list, use the closest matching style from the list
-                            • Include all matching styles you can identify, even with lower confidence scores
-                            • Be comprehensive and thorough in your style identification for tattoo images
+CLASSIFICATION RULES:
+1. First determine: Is this image a tattoo? (set is_tattoo true/false)
+2. If NOT a tattoo (is_tattoo: false), set styles: [] and move to next image
+3. If IS a tattoo (is_tattoo: true):
+   - Identify ALL applicable styles you can see from the vocabulary above
+   - Use ONLY styles from the vocabulary (no invented styles)
+   - Use lowercase, exact spelling (e.g., \"black & grey\" not \"Black and Gray\")
+   - Include multiple styles if present (tattoos often have 2-5 styles)
+   - Set confidence 0.0-1.0 based on how clearly the style is visible
+   - Include styles with confidence >= {} (our quality threshold)
+   - Be comprehensive - identify all visible styles, not just the most obvious one
+4. Return exactly {} objects (one per image, in order)
 
-                            IMPORTANT: Return exactly {} objects in the array, one for each image in order.",
+EXAMPLES:
+✓ GOOD: \"japanese\", \"color\", \"large scale\" (lowercase, exact match)
+✗ BAD: \"Japanese style\", \"colored\", \"big tattoo\" (wrong format)
+✓ GOOD: \"black & grey\", \"realism\", \"portraiture\" (multiple styles)
+✗ BAD: \"black and grey realistic portrait\" (should be separate)
+
+Analyze all {} images now:",
                             batch_posts.len(),
-                            styles_list_clone,
+                            categorized_styles_clone,
+                            threshold,
+                            batch_posts.len(),
                             batch_posts.len()
                         ),
                     }
@@ -661,6 +691,7 @@ async fn process_artist_posts(
                                         }
 
                                         let shortcode = batch_posts[idx].shortcode.clone();
+                                        let timestamp = batch_posts[idx].timestamp;
 
                                         let is_tattoo = result
                                             .get("is_tattoo")
@@ -704,7 +735,7 @@ async fn process_artist_posts(
                                             }
                                         }
 
-                                        batch_results.push(StyleResult { shortcode, styles });
+                                        batch_results.push(StyleResult { shortcode, styles, timestamp });
                                     }
 
                                     return BatchResult {
