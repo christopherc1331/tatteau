@@ -52,7 +52,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
              FROM locations l
              LEFT JOIN artists a ON l.id = a.location_id
              WHERE l.postal_code = $1
-             AND (l.is_person IS NULL OR l.is_person != true)
+             AND (l.is_person IS NULL OR l.is_person = 0)
              GROUP BY l.city, l.state, l.county, l.postal_code"
         )
         .bind(&normalized_query)
@@ -91,11 +91,11 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
              LEFT JOIN artists a ON l.id = a.location_id
              WHERE LOWER(l.city) LIKE $1
              AND (LOWER(l.state) = $2 OR LOWER(l.state) LIKE $3 OR LOWER(l.state) LIKE $4)
-             AND (l.is_person IS NULL OR l.is_person != true)
-             GROUP BY l.city, l.state
+             AND (l.is_person IS NULL OR l.is_person = 0)
+             GROUP BY l.city, l.state, l.county, l.postal_code
              ORDER BY
                 CASE WHEN LOWER(l.city) = $5 THEN 0 ELSE 1 END,
-                artist_count DESC
+                COUNT(DISTINCT a.id) DESC
              LIMIT 10"
         )
         .bind(format!("%{}%", city_search))
@@ -116,11 +116,11 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
              FROM locations l
              LEFT JOIN artists a ON l.id = a.location_id
              WHERE LOWER(l.city) LIKE $1
-             AND (l.is_person IS NULL OR l.is_person != true)
-             GROUP BY l.city, l.state
+             AND (l.is_person IS NULL OR l.is_person = 0)
+             GROUP BY l.city, l.state, l.county, l.postal_code
              ORDER BY
                 CASE WHEN LOWER(l.city) = $2 THEN 0 ELSE 1 END,
-                artist_count DESC
+                COUNT(DISTINCT a.id) DESC
              LIMIT 10"
         )
         .bind(format!("%{}%", city_search))
@@ -161,9 +161,9 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
          FROM locations l
          LEFT JOIN artists a ON l.id = a.location_id
          WHERE LOWER(l.county) LIKE $1
-         AND (l.is_person IS NULL OR l.is_person != true)
-         GROUP BY l.county, l.state
-         ORDER BY artist_count DESC
+         AND (l.is_person IS NULL OR l.is_person = 0)
+         GROUP BY l.city, l.state, l.county, l.postal_code
+         ORDER BY COUNT(DISTINCT a.id) DESC
          LIMIT 5"
     )
     .bind(format!("%{}%", normalized_query))
@@ -213,7 +213,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
         "SELECT DISTINCT city || ', ' || state as suggestion
          FROM locations
          WHERE LOWER(city) LIKE $1
-         AND (is_person IS NULL OR is_person != true)
+         AND (is_person IS NULL OR is_person = 0)
          ORDER BY
             CASE WHEN LOWER(city) = $2 THEN 0 ELSE 1 END,
             LENGTH(city)
@@ -243,7 +243,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
             "SELECT DISTINCT state || ' (State)' as suggestion
              FROM locations
              WHERE (LOWER(state) LIKE $1 OR LOWER(state) LIKE $2)
-             AND (is_person IS NULL OR is_person != true)
+             AND (is_person IS NULL OR is_person = 0)
              ORDER BY LENGTH(state)
              LIMIT $3"
         )
@@ -272,7 +272,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
              FROM locations
              WHERE LOWER(county) LIKE $1
              AND county IS NOT NULL
-             AND (is_person IS NULL OR is_person != true)
+             AND (is_person IS NULL OR is_person = 0)
              ORDER BY LENGTH(county)
              LIMIT $2"
         )
@@ -305,7 +305,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
              FROM locations
              WHERE {}
              AND postal_code IS NOT NULL
-             AND (is_person IS NULL OR is_person != true)
+             AND (is_person IS NULL OR is_person = 0)
              ORDER BY postal_code
              LIMIT $2", postal_condition
         );

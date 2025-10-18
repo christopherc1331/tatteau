@@ -26,7 +26,7 @@ pub async fn get_cities_and_coords(state: String) -> DbResult<Vec<CityCoords>> {
             FROM locations
             WHERE
                 state = $1
-            AND (is_person IS NULL OR is_person != 1)
+            AND (is_person IS NULL OR is_person = 0)
             GROUP BY city, state
         ",
     )
@@ -81,7 +81,7 @@ pub async fn query_locations(
         WHERE
             l.lat BETWEEN $1 AND $2
             AND l.long BETWEEN $3 AND $4
-            AND (l.is_person IS NULL OR l.is_person != 1)
+            AND (l.is_person IS NULL OR l.is_person = 0)
         GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id
     ",
     )
@@ -342,7 +342,7 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
          FROM artists a
          JOIN locations l ON a.location_id = l.id
          WHERE a.location_id = $1
-         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND (l.is_person IS NULL OR l.is_person = 0)
          AND a.name IS NOT NULL
          AND a.name != ''"
     )
@@ -378,7 +378,7 @@ pub async fn get_all_styles_by_location(location_id: i32) -> DbResult<Vec<Style>
          JOIN artists a ON ast.artist_id = a.id
          JOIN locations l ON a.location_id = l.id
          WHERE a.location_id = $1
-         AND (l.is_person IS NULL OR l.is_person != 1)
+         AND (l.is_person IS NULL OR l.is_person = 0)
          AND a.name IS NOT NULL
          AND a.name != ''
          ORDER BY s.name",
@@ -415,7 +415,7 @@ pub async fn get_all_images_with_styles_by_location(
              JOIN locations l ON a.location_id = l.id
              LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}
              WHERE a.location_id = $1
-             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND (l.is_person IS NULL OR l.is_person = 0)
              AND a.name IS NOT NULL
              AND a.name != ''", uid),
             true
@@ -428,7 +428,7 @@ pub async fn get_all_images_with_styles_by_location(
              JOIN artists a ON ai.artist_id = a.id
              JOIN locations l ON a.location_id = l.id
              WHERE a.location_id = $1
-             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND (l.is_person IS NULL OR l.is_person = 0)
              AND a.name IS NOT NULL
              AND a.name != ''".to_string(),
             false
@@ -534,7 +534,7 @@ pub async fn get_location_stats_for_city(
          LEFT JOIN artists_styles ast ON a.id = ast.artist_id
          LEFT JOIN styles s ON ast.style_id = s.id
          WHERE l.city = $1 AND l.state = $2
-         AND (l.is_person IS NULL OR l.is_person != 1)",
+         AND (l.is_person IS NULL OR l.is_person = 0)",
     )
     .bind(city)
     .bind(state)
@@ -741,7 +741,7 @@ pub async fn query_locations_with_details(
                  LEFT JOIN artists_styles ast ON a.id = ast.artist_id
                  WHERE l.lat BETWEEN $1 AND $2
                  AND l.long BETWEEN $3 AND $4
-                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND (l.is_person IS NULL OR l.is_person = 0)
                  AND ast.style_id = ANY($5::int[])
                  GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id",
                 Some(json)
@@ -760,7 +760,7 @@ pub async fn query_locations_with_details(
                  LEFT JOIN artists_images ai ON a.id = ai.artist_id
                  WHERE l.lat BETWEEN $1 AND $2
                  AND l.long BETWEEN $3 AND $4
-                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND (l.is_person IS NULL OR l.is_person = 0)
                  GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id",
                 None
             )
@@ -779,7 +779,7 @@ pub async fn query_locations_with_details(
              LEFT JOIN artists_images ai ON a.id = ai.artist_id
              WHERE l.lat BETWEEN $1 AND $2
              AND l.long BETWEEN $3 AND $4
-             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND (l.is_person IS NULL OR l.is_person = 0)
              GROUP BY l.id, l.name, l.lat, l.long, l.city, l.county, l.state, l.country_code, l.postal_code, l.is_open, l.address, l.category, l.website_uri, l._id",
             None
         )
@@ -896,7 +896,7 @@ pub async fn query_matched_artists(
         FROM artists a
         LEFT JOIN locations l ON a.location_id = l.id
         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-        WHERE (l.is_person IS NULL OR l.is_person != 1)
+        WHERE (l.is_person IS NULL OR l.is_person = 0)
         AND a.name IS NOT NULL
         AND a.name != ''
         GROUP BY a.id, a.name, l.city, l.state, l.name, a.years_experience
@@ -1044,7 +1044,7 @@ pub async fn get_coords_by_postal_code(postal_code: String) -> DbResult<CityCoor
         "SELECT DISTINCT city, state, lat, long
          FROM locations
          WHERE postal_code = $1
-         AND (is_person IS NULL OR is_person != 1)
+         AND (is_person IS NULL OR is_person = 0)
          LIMIT 1",
     )
     .bind(postal_code)
@@ -1622,7 +1622,7 @@ pub async fn get_shop_images_paginated(
                      JOIN artists a ON ai.artist_id = a.id
                      JOIN locations l ON a.location_id = l.id
                      WHERE a.location_id = $1
-                     AND (l.is_person IS NULL OR l.is_person != 1)
+                     AND (l.is_person IS NULL OR l.is_person = 0)
                      AND a.name IS NOT NULL
                      AND a.name != ''
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
@@ -1635,7 +1635,7 @@ pub async fn get_shop_images_paginated(
                      JOIN locations l ON a.location_id = l.id
                      {}
                      WHERE a.location_id = $1
-                     AND (l.is_person IS NULL OR l.is_person != 1)
+                     AND (l.is_person IS NULL OR l.is_person = 0)
                      AND a.name IS NOT NULL
                      AND a.name != ''
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))
@@ -1652,7 +1652,7 @@ pub async fn get_shop_images_paginated(
                  JOIN artists a ON ai.artist_id = a.id
                  JOIN locations l ON a.location_id = l.id
                  WHERE a.location_id = $1
-                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND (l.is_person IS NULL OR l.is_person = 0)
                  AND a.name IS NOT NULL
                  AND a.name != ''".to_string(),
                 format!(
@@ -1663,7 +1663,7 @@ pub async fn get_shop_images_paginated(
                      JOIN locations l ON a.location_id = l.id
                      {}
                      WHERE a.location_id = $1
-                     AND (l.is_person IS NULL OR l.is_person != 1)
+                     AND (l.is_person IS NULL OR l.is_person = 0)
                      AND a.name IS NOT NULL
                      AND a.name != ''
                      ORDER BY ai.id DESC
@@ -1680,7 +1680,7 @@ pub async fn get_shop_images_paginated(
              JOIN artists a ON ai.artist_id = a.id
              JOIN locations l ON a.location_id = l.id
              WHERE a.location_id = $1
-             AND (l.is_person IS NULL OR l.is_person != 1)
+             AND (l.is_person IS NULL OR l.is_person = 0)
              AND a.name IS NOT NULL
              AND a.name != ''".to_string(),
             format!(
@@ -1691,7 +1691,7 @@ pub async fn get_shop_images_paginated(
                  JOIN locations l ON a.location_id = l.id
                  {}
                  WHERE a.location_id = $1
-                 AND (l.is_person IS NULL OR l.is_person != 1)
+                 AND (l.is_person IS NULL OR l.is_person = 0)
                  AND a.name IS NOT NULL
                  AND a.name != ''
                  ORDER BY ai.id DESC

@@ -211,9 +211,9 @@ pub fn DiscoveryMap() -> impl IntoView {
                                                                 on:click=move |_| {
                                                                     selected_styles.update(|styles| {
                                                                         if styles.contains(&style_id) {
-                                                                            styles.retain(|&id| id != style_id);
+                                                                            styles.clear();
                                                                         } else {
-                                                                            styles.push(style_id);
+                                                                            *styles = vec![style_id];
                                                                         }
                                                                     });
                                                                 }

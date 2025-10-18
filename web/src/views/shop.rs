@@ -243,14 +243,12 @@ pub fn Shop() -> impl IntoView {
                                                         view! {
                                                             <button
                                                                 on:click=move |_| {
-                                                                    // Calculate new styles based on current URL state
+                                                                    // Calculate new styles based on current URL state (single-select)
                                                                     let current_styles = selected_styles.get();
                                                                     let new_styles: Vec<i32> = if current_styles.contains(&style_id) {
-                                                                        current_styles.into_iter().filter(|&id| id != style_id).collect()
+                                                                        Vec::new()
                                                                     } else {
-                                                                        let mut styles = current_styles;
-                                                                        styles.push(style_id);
-                                                                        styles
+                                                                        vec![style_id]
                                                                     };
 
                                                                     let nav_options = leptos_router::NavigateOptions {
