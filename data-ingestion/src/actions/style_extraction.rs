@@ -210,7 +210,7 @@ pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
         .expect("STYLE_CONFIDENCE_THRESHOLD must be a valid number between 0 and 1");
 
     let batch_size: usize = env::var("VISION_BATCH_SIZE")
-        .unwrap_or_else(|_| "16".to_string())
+        .unwrap_or_else(|_| "8".to_string())
         .parse()
         .expect("VISION_BATCH_SIZE must be a valid number between 1 and 16");
 
@@ -747,7 +747,7 @@ Return exactly {} objects (one per image, in order). Analyze all {} images now:"
 
             let request = match CreateChatCompletionRequestArgs::default()
                 .model("gpt-4o")
-                .max_tokens(1000u32)
+                .max_tokens(2000u32)
                 .messages([user_message])
                 .build()
             {
@@ -873,6 +873,18 @@ Return exactly {} objects (one per image, in order). Analyze all {} images now:"
                                         "  Failed to parse JSON response for batch {}: {}",
                                         batch_idx + 1,
                                         e
+                                    );
+                                    // Log the actual content to help debug
+                                    let preview_len = std::cmp::min(json_content.len(), 200);
+                                    println!(
+                                        "  Content preview (first {} chars): '{}'",
+                                        preview_len,
+                                        &json_content[..preview_len]
+                                    );
+                                    println!(
+                                        "  Content length: {} chars, is_empty: {}",
+                                        json_content.len(),
+                                        json_content.is_empty()
                                     );
                                 }
                             }

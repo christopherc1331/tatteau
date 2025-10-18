@@ -1,6 +1,100 @@
 use reqwest;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::env;
+use chrono::DateTime;
+
+// Custom deserializer for timestamp that handles both ISO 8601 strings and i64 Unix timestamps
+mod timestamp_deserializer {
+    use super::*;
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<i64>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TimestampVisitor;
+
+        impl<'de> Visitor<'de> for TimestampVisitor {
+            type Value = Option<i64>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("an ISO 8601 string, Unix timestamp, or null")
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(None)
+            }
+
+            fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                deserializer.deserialize_any(TimestampValueVisitor)
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(None)
+            }
+        }
+
+        struct TimestampValueVisitor;
+
+        impl<'de> Visitor<'de> for TimestampValueVisitor {
+            type Value = Option<i64>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("an ISO 8601 string or Unix timestamp")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                // Parse ISO 8601 string
+                DateTime::parse_from_rfc3339(value)
+                    .map(|dt| Some(dt.timestamp()))
+                    .map_err(|_| de::Error::custom(format!("invalid ISO 8601 timestamp: {}", value)))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Some(value))
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Some(value as i64))
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(None)
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(None)
+            }
+        }
+
+        deserializer.deserialize_option(TimestampVisitor)
+    }
+}
 
 #[derive(Debug, Serialize)]
 struct ApifyInput {
@@ -24,6 +118,7 @@ pub struct ApifyPost {
     pub shortcode: String,
     #[serde(rename = "displayUrl")]
     pub display_url: Option<String>,
+    #[serde(deserialize_with = "timestamp_deserializer::deserialize")]
     pub timestamp: Option<i64>,
 }
 
