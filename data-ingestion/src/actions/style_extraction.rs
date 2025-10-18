@@ -7,6 +7,103 @@ use std::{collections::HashMap, env, sync::Arc};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
+/// Metadata defining how the LLM should classify each style type
+#[derive(Debug, Clone)]
+struct StyleTypeMetadata {
+    /// Human-readable description of what this type represents
+    description: &'static str,
+    /// How many styles from this type the LLM should typically select
+    cardinality: &'static str,
+    /// Recommended confidence threshold for this type
+    threshold_hint: &'static str,
+    /// Additional guidance for the LLM
+    guidance: &'static str,
+}
+
+/// Get classification metadata for a style type
+fn get_type_metadata(type_name: &str) -> StyleTypeMetadata {
+    match type_name {
+        "Traditional & Classic" => StyleTypeMetadata {
+            description: "Cultural/regional foundation styles",
+            cardinality: "ONE",
+            threshold_hint: "≥ 0.95",
+            guidance: "Pick ONE primary foundation (e.g., 'japanese' OR 'american traditional', not both). These define the cultural/artistic origin.",
+        },
+        "Technique-Based" => StyleTypeMetadata {
+            description: "How the tattoo is executed",
+            cardinality: "MULTIPLE (2-4 typical)",
+            threshold_hint: "≥ 0.85",
+            guidance: "Select ALL applicable techniques. Multiple techniques often coexist (e.g., 'dotwork' + 'geometric' + 'black & grey').",
+        },
+        "Subject Matter" => StyleTypeMetadata {
+            description: "What is depicted in the tattoo",
+            cardinality: "MULTIPLE (1-4 typical)",
+            threshold_hint: "≥ 0.88",
+            guidance: "Identify ALL visible subjects. Tattoos commonly combine multiple subjects (e.g., 'floral' + 'animal' + 'nature').",
+        },
+        "Color" => StyleTypeMetadata {
+            description: "Color palette approach",
+            cardinality: "ONE (occasionally TWO if specialty ink)",
+            threshold_hint: "≥ 0.92",
+            guidance: "Pick ONE primary color approach (e.g., 'color' OR 'monochromatic', not both). Add specialty inks like 'uv' or 'glow' only if clearly visible.",
+        },
+        "Aesthetic" => StyleTypeMetadata {
+            description: "Artistic philosophy or movement",
+            cardinality: "ONE (or ZERO if not applicable)",
+            threshold_hint: "≥ 0.88",
+            guidance: "Optional category. Select ONE dominant aesthetic if clearly present (e.g., 'illustrative', 'surrealism', 'abstract').",
+        },
+        "Thematic" => StyleTypeMetadata {
+            description: "Conceptual themes",
+            cardinality: "MULTIPLE (0-3 when applicable)",
+            threshold_hint: "≥ 0.87",
+            guidance: "Optional category. Select thematic elements if relevant (e.g., 'religious' + 'cultural', 'memorial', 'vintage').",
+        },
+        "Scale & Application" => StyleTypeMetadata {
+            description: "Size and placement context",
+            cardinality: "ONE size + optional application context",
+            threshold_hint: "≥ 0.85",
+            guidance: "Pick ONE scale (e.g., 'large scale' OR 'micro scale'). Optionally add placement context like 'sleeve', 'cover-up', or 'minimalist'.",
+        },
+        "Modern & Specialty" => StyleTypeMetadata {
+            description: "Contemporary hybrid styles",
+            cardinality: "FEW (0-2, these are distinctive)",
+            threshold_hint: "≥ 0.90",
+            guidance: "Only select if clearly distinctive hybrid styles (e.g., 'biomechanical', 'trash polka', '3d'). Avoid over-tagging.",
+        },
+        "Pop Culture" => StyleTypeMetadata {
+            description: "Pop culture references",
+            cardinality: "MULTIPLE (0-3 when applicable)",
+            threshold_hint: "≥ 0.88",
+            guidance: "Optional category. Tag pop culture elements if present (e.g., 'anime' + 'kawaii', 'comic', 'video games').",
+        },
+        "Artistic Techniques" => StyleTypeMetadata {
+            description: "Specialized artistic methods",
+            cardinality: "FEW (0-2, very specific)",
+            threshold_hint: "≥ 0.92",
+            guidance: "Only select if using a very specific artistic technique (e.g., 'stippling', 'woodcut', 'pointillism'). High confidence required.",
+        },
+        "Typography" => StyleTypeMetadata {
+            description: "Text-based elements",
+            cardinality: "ZERO or ONE (or BOTH if mixed)",
+            threshold_hint: "≥ 0.93",
+            guidance: "Binary category. Tag 'lettering' and/or 'script' only if text is clearly visible.",
+        },
+        "Specialized/Medical" => StyleTypeMetadata {
+            description: "PMU/cosmetic/paramedical work",
+            cardinality: "Usually ZERO (ONE if PMU/cosmetic)",
+            threshold_hint: "≥ 0.98",
+            guidance: "SKIP this category for traditional tattoos. Only tag if this is clearly permanent makeup, cosmetic tattooing, or paramedical work.",
+        },
+        _ => StyleTypeMetadata {
+            description: "Unknown category",
+            cardinality: "VARIABLE",
+            threshold_hint: "≥ 0.90",
+            guidance: "Use judgment based on style visibility.",
+        },
+    }
+}
+
 use async_openai::{
     types::{
         ChatCompletionRequestMessage, ChatCompletionRequestMessageContentPartImage,
@@ -502,23 +599,40 @@ async fn process_artist_posts(
     let semaphore = Arc::new(Semaphore::new(3));
     let mut handles = Vec::new();
 
-    // Build categorized styles string
+    // Build type-aware prompt sections dynamically from database styles
     let mut categorized_sections = Vec::new();
+    let mut classification_rules = Vec::new();
+
     let mut sorted_types: Vec<&String> = available_styles.keys().collect();
     sorted_types.sort();
 
     for style_type in sorted_types {
         if let Some(styles) = available_styles.get(style_type) {
+            let metadata = get_type_metadata(style_type);
             let lowercase_styles: Vec<String> = styles.iter().map(|s| s.to_lowercase()).collect();
+
+            // Build vocabulary section with type metadata
             categorized_sections.push(format!(
-                "{}:\n• {}",
+                "**{}** ({}) - {}:\n• {}",
                 style_type,
+                metadata.cardinality,
+                metadata.description,
                 lowercase_styles.join(", ")
+            ));
+
+            // Build classification rule for this type
+            classification_rules.push(format!(
+                "   {}: {}\n   Confidence: {} | Cardinality: {}",
+                style_type,
+                metadata.guidance,
+                metadata.threshold_hint,
+                metadata.cardinality
             ));
         }
     }
 
     let categorized_styles = categorized_sections.join("\n\n");
+    let type_specific_rules = classification_rules.join("\n\n");
 
     for (batch_idx, batch) in posts.chunks(batch_size).enumerate() {
         let client = Arc::new(client.clone());
@@ -527,6 +641,7 @@ async fn process_artist_posts(
         let batch_posts: Vec<ProcessablePost> = batch.to_vec();
         let total_batches = posts.len().div_ceil(batch_size);
         let categorized_styles_clone = categorized_styles.clone();
+        let type_rules_clone = type_specific_rules.clone();
 
         let handle = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
@@ -543,39 +658,49 @@ async fn process_artist_posts(
                         text: format!(
                             "You are an expert tattoo style classifier. Analyze these {} tattoo images and identify ALL visible artistic styles.
 
-STYLE VOCABULARY (120 approved styles - use lowercase, match spelling exactly):
+STYLE VOCABULARY (organized by type - use lowercase, match spelling exactly):
 {}
+
+CLASSIFICATION RULES:
+
+1. First determine: Is this image a tattoo? (set is_tattoo: true/false)
+2. If NOT a tattoo (is_tattoo: false) → set styles: [] and move to next image
+3. If IS a tattoo (is_tattoo: true) → classify across type categories:
+
+TYPE-SPECIFIC GUIDANCE:
+{}
+
+GENERAL RULES:
+• Use ONLY styles from vocabulary above (no invented styles)
+• Use lowercase, exact spelling (e.g., \"black & grey\" not \"Black and Gray\")
+• Set confidence 0.0-1.0 based on visibility
+• Apply type-specific thresholds and cardinality rules
+• Be comprehensive but respect cardinality limits
 
 RESPONSE FORMAT:
 Return a JSON array with one object per image (in exact order):
 [
-  {{\"is_tattoo\": true, \"styles\": [{{\"style\": \"japanese\", \"confidence\": 0.95}}, {{\"style\": \"color\", \"confidence\": 0.90}}, {{\"style\": \"large scale\", \"confidence\": 0.85}}]}},
+  {{\"is_tattoo\": true, \"styles\": [
+    {{\"style\": \"japanese\", \"confidence\": 0.96}},
+    {{\"style\": \"dotwork\", \"confidence\": 0.91}},
+    {{\"style\": \"geometric\", \"confidence\": 0.89}},
+    {{\"style\": \"floral\", \"confidence\": 0.93}},
+    {{\"style\": \"color\", \"confidence\": 0.94}},
+    {{\"style\": \"large scale\", \"confidence\": 0.87}}
+  ]}},
   {{\"is_tattoo\": false, \"styles\": []}}
 ]
 
-CLASSIFICATION RULES:
-1. First determine: Is this image a tattoo? (set is_tattoo true/false)
-2. If NOT a tattoo (is_tattoo: false), set styles: [] and move to next image
-3. If IS a tattoo (is_tattoo: true):
-   - Identify ALL applicable styles you can see from the vocabulary above
-   - Use ONLY styles from the vocabulary (no invented styles)
-   - Use lowercase, exact spelling (e.g., \"black & grey\" not \"Black and Gray\")
-   - Include multiple styles if present (tattoos often have 2-5 styles)
-   - Set confidence 0.0-1.0 based on how clearly the style is visible
-   - Include styles with confidence >= {} (our quality threshold)
-   - Be comprehensive - identify all visible styles, not just the most obvious one
-4. Return exactly {} objects (one per image, in order)
-
 EXAMPLES:
-✓ GOOD: \"japanese\", \"color\", \"large scale\" (lowercase, exact match)
-✗ BAD: \"Japanese style\", \"colored\", \"big tattoo\" (wrong format)
-✓ GOOD: \"black & grey\", \"realism\", \"portraiture\" (multiple styles)
-✗ BAD: \"black and grey realistic portrait\" (should be separate)
+✓ GOOD: \"japanese\" (Traditional), \"dotwork\" + \"geometric\" (Techniques), \"floral\" (Subject), \"color\" (Color), \"large scale\" (Scale)
+✗ BAD: \"japanese\" + \"polynesian\" (violates Traditional cardinality: ONE only)
+✓ GOOD: \"black & grey\", \"realism\", \"portraiture\" (proper multi-label)
+✗ BAD: \"black and grey realistic portrait\" (should be separate styles)
 
-Analyze all {} images now:",
+Return exactly {} objects (one per image, in order). Analyze all {} images now:",
                             batch_posts.len(),
                             categorized_styles_clone,
-                            threshold,
+                            type_rules_clone,
                             batch_posts.len(),
                             batch_posts.len()
                         ),
