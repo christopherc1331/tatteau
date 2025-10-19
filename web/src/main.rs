@@ -12,7 +12,11 @@ async fn main() {
     use tracing::Level;
 
     // Load .env file for local development
-    dotenvy::dotenv().ok();
+    // Try to load from parent directory first (for cargo leptos watch from web/)
+    // then fall back to current directory
+    dotenvy::from_filename("../.env")
+        .or_else(|_| dotenvy::dotenv())
+        .ok();
 
     // Initialize tracing
     tracing_subscriber::registry()

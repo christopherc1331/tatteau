@@ -210,13 +210,13 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
     // 1. Get city suggestions (highest priority)
     let city_pattern = format!("{}%", normalized_query);
     let city_suggestions = sqlx::query(
-        "SELECT DISTINCT city || ', ' || state as suggestion
+        "SELECT DISTINCT city || ', ' || state as suggestion,
+                CASE WHEN LOWER(city) = $2 THEN 0 ELSE 1 END as priority,
+                LENGTH(city) as city_length
          FROM locations
          WHERE LOWER(city) LIKE $1
          AND (is_person IS NULL OR is_person = 0)
-         ORDER BY
-            CASE WHEN LOWER(city) = $2 THEN 0 ELSE 1 END,
-            LENGTH(city)
+         ORDER BY priority, city_length
          LIMIT $3"
     )
     .bind(&city_pattern)
@@ -240,11 +240,12 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
         let remaining = (limit - suggestions.len()) as i32;
 
         let state_suggestions = sqlx::query(
-            "SELECT DISTINCT state || ' (State)' as suggestion
+            "SELECT DISTINCT state || ' (State)' as suggestion,
+                    LENGTH(state) as state_length
              FROM locations
              WHERE (LOWER(state) LIKE $1 OR LOWER(state) LIKE $2)
              AND (is_person IS NULL OR is_person = 0)
-             ORDER BY LENGTH(state)
+             ORDER BY state_length
              LIMIT $3"
         )
         .bind(&state_pattern)
@@ -268,12 +269,13 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
         let remaining = (limit - suggestions.len()) as i32;
 
         let county_suggestions = sqlx::query(
-            "SELECT DISTINCT county || ' County, ' || state as suggestion
+            "SELECT DISTINCT county || ' County, ' || state as suggestion,
+                    LENGTH(county) as county_length
              FROM locations
              WHERE LOWER(county) LIKE $1
              AND county IS NOT NULL
              AND (is_person IS NULL OR is_person = 0)
-             ORDER BY LENGTH(county)
+             ORDER BY county_length
              LIMIT $2"
         )
         .bind(&county_pattern)
@@ -301,12 +303,13 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
         };
 
         let postal_query = format!(
-            "SELECT DISTINCT postal_code || ' - ' || city || ', ' || state as suggestion
+            "SELECT DISTINCT postal_code || ' - ' || city || ', ' || state as suggestion,
+                    postal_code as postal_order
              FROM locations
              WHERE {}
              AND postal_code IS NOT NULL
              AND (is_person IS NULL OR is_person = 0)
-             ORDER BY postal_code
+             ORDER BY postal_order
              LIMIT $2", postal_condition
         );
 
