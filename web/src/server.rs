@@ -399,6 +399,7 @@ pub struct EnhancedLocationInfo {
     pub artist_count: i32,
     pub image_count: i32,
     pub styles: Vec<String>,
+    pub artists: Vec<ArtistThumbnail>,
     pub min_price: Option<f64>,
     pub max_price: Option<f64>,
 }

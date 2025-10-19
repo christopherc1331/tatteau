@@ -805,14 +805,104 @@ pub async fn query_locations_with_details(
             .await?
     };
 
+    // Extract location IDs for batch queries
+    let location_ids: Vec<i64> = location_rows
+        .iter()
+        .filter_map(|row| row.try_get::<i64, _>("id").ok())
+        .collect();
+
+    // If no locations found, return empty result
+    if location_ids.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Batch query: Get image counts for all locations
+    let image_count_rows = sqlx::query(
+        "SELECT a.location_id, COUNT(DISTINCT ai.id) as cnt
+         FROM artists a
+         LEFT JOIN artists_images ai ON a.id = ai.artist_id
+         WHERE a.location_id = ANY($1)
+         GROUP BY a.location_id",
+    )
+    .bind(&location_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut image_counts: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
+    for row in image_count_rows {
+        let loc_id: i64 = row.get("location_id");
+        let count: i64 = row.get("cnt");
+        image_counts.insert(loc_id, count);
+    }
+
+    // Batch query: Get styles for all locations
+    let style_rows = sqlx::query(
+        "SELECT DISTINCT a.location_id, s.name
+         FROM styles s
+         JOIN artists_styles ast ON s.id = ast.style_id
+         JOIN artists a ON ast.artist_id = a.id
+         WHERE a.location_id = ANY($1)
+         ORDER BY a.location_id, s.name",
+    )
+    .bind(&location_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut styles_map: std::collections::HashMap<i64, Vec<String>> = std::collections::HashMap::new();
+    for row in style_rows {
+        let loc_id: i64 = row.get("location_id");
+        let style_name: String = row.get("name");
+        styles_map.entry(loc_id).or_insert_with(Vec::new).push(style_name);
+    }
+
+    // Batch query: Get top 4 artists with their details for all locations
+    let artist_rows = sqlx::query(
+        "WITH ranked_artists AS (
+             SELECT a.id, a.name, a.location_id,
+                    (SELECT ai.short_code
+                     FROM artists_images ai
+                     WHERE ai.artist_id = a.id
+                     LIMIT 1) as image_url,
+                    (SELECT s.name
+                     FROM styles s
+                     JOIN artists_styles ast ON s.id = ast.style_id
+                     WHERE ast.artist_id = a.id
+                     LIMIT 1) as primary_style,
+                    ROW_NUMBER() OVER (PARTITION BY a.location_id ORDER BY a.name) as rn
+             FROM artists a
+             WHERE a.location_id = ANY($1)
+         )
+         SELECT id, name, location_id, image_url, primary_style
+         FROM ranked_artists
+         WHERE rn <= 4
+         ORDER BY location_id, rn",
+    )
+    .bind(&location_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut artists_map: std::collections::HashMap<i64, Vec<crate::server::ArtistThumbnail>> = std::collections::HashMap::new();
+    for row in artist_rows {
+        let loc_id: i64 = row.get("location_id");
+        let artist = crate::server::ArtistThumbnail {
+            artist_id: row.get("id"),
+            artist_name: row.get("name"),
+            image_url: row.try_get("image_url").ok().flatten(),
+            primary_style: row.try_get("primary_style").ok().flatten(),
+        };
+        artists_map.entry(loc_id).or_insert_with(Vec::new).push(artist);
+    }
+
+    // Build results from location rows and batch query results
     let mut result = Vec::new();
     for location_row in location_rows {
-        let location_id: i32 = location_row.try_get::<i64, _>("id").unwrap_or(0) as i32;
+        let location_id: i64 = location_row.try_get::<i64, _>("id").unwrap_or(0);
+        let location_id_i32 = location_id as i32;
         let has_artists_val: i32 = location_row.get("has_artists");
         let artist_images_count: i64 = location_row.get("artist_images_count");
 
         let location_info = LocationInfo {
-            id: location_id,
+            id: location_id_i32,
             name: location_row.get("name"),
             lat: location_row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
             long: location_row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
@@ -831,43 +921,19 @@ pub async fn query_locations_with_details(
         };
 
         let artist_count: i64 = location_row.get("artist_count");
+        let image_count = image_counts.get(&location_id).copied().unwrap_or(0);
+        let styles = styles_map.get(&location_id).cloned().unwrap_or_default();
+        let artists = artists_map.get(&location_id).cloned().unwrap_or_default();
 
-        // Get image count for this location
-        let image_count_row = sqlx::query(
-            "SELECT COUNT(DISTINCT ai.id) as cnt
-             FROM artists_images ai
-             JOIN artists a ON ai.artist_id = a.id
-             WHERE a.location_id = $1",
-        )
-        .bind(location_id)
-        .fetch_one(pool)
-        .await?;
-
-        let image_count: i64 = image_count_row.get("cnt");
-
-        // Get styles for this location
-        let style_rows = sqlx::query(
-            "SELECT DISTINCT s.name
-             FROM styles s
-             JOIN artists_styles ast ON s.id = ast.style_id
-             JOIN artists a ON ast.artist_id = a.id
-             WHERE a.location_id = $1
-             LIMIT 5",
-        )
-        .bind(location_id)
-        .fetch_all(pool)
-        .await?;
-
-        let styles: Vec<String> = style_rows
-            .into_iter()
-            .map(|row| row.get("name"))
-            .collect();
+        // Limit styles to 5
+        let styles: Vec<String> = styles.into_iter().take(5).collect();
 
         result.push(crate::server::EnhancedLocationInfo {
             location: location_info,
             artist_count: artist_count as i32,
             image_count: image_count as i32,
             styles,
+            artists,
             min_price: None,
             max_price: None,
         });

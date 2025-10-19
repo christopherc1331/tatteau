@@ -1,4 +1,4 @@
-use crate::server::{EnhancedLocationInfo, get_location_details};
+use crate::server::EnhancedLocationInfo;
 use leptos::prelude::*;
 use leptos_leaflet::prelude::*;
 
@@ -72,23 +72,7 @@ pub fn EnhancedMapPopup(
     location: EnhancedLocationInfo,
     #[prop(default = None)] selected_styles: Option<Vec<i32>>,
 ) -> impl IntoView {
-    let location_id = location.location.id;
-    
-    // Create a stable signal for the location ID to prevent Resource recreation
-    let stable_location_id = RwSignal::new(location_id);
-    
-    // Fetch detailed location data with artist thumbnails
-    let location_details = Resource::new(
-        move || stable_location_id.get(),
-        move |id| async move {
-            // Only fetch if the location_id is valid (positive integer)
-            if id > 0 {
-                get_location_details(id).await.ok()
-            } else {
-                None
-            }
-        },
-    );
+    // Artist details are now included in the location prop, no need to fetch
 
     view! {
         <div class="location-popup">
@@ -112,74 +96,56 @@ pub fn EnhancedMapPopup(
                 } else {
                     view! {}.into_any()
                 }}
-                
-                // Show price range if available from detailed data
-                <Suspense>
-                    {move || {
-                        location_details.get().and_then(|details_opt| {
-                            details_opt.and_then(|details| {
-                                if details.min_price.is_some() || details.max_price.is_some() {
-                                    Some(view! {
-                                        <div class="stat price-stat">
-                                            <span class="stat-label">"Price: "</span>
-                                            <span class="stat-value">
-                                                {match (details.min_price, details.max_price) {
-                                                    (Some(min), Some(max)) => format!("${}-${}", min as i32, max as i32),
-                                                    (Some(min), None) => format!("${min}+", min = min as i32),
-                                                    (None, Some(max)) => format!("Up to ${max}", max = max as i32),
-                                                    (None, None) => "Contact for pricing".to_string(),
-                                                }}
-                                            </span>
-                                        </div>
-                                    })
-                                } else {
-                                    None
-                                }
-                            })
-                        })
-                    }}
-                </Suspense>
+
+                // Show price range if available
+                {if location.min_price.is_some() || location.max_price.is_some() {
+                    view! {
+                        <div class="stat price-stat">
+                            <span class="stat-label">"Price: "</span>
+                            <span class="stat-value">
+                                {match (location.min_price, location.max_price) {
+                                    (Some(min), Some(max)) => format!("${}-${}", min as i32, max as i32),
+                                    (Some(min), None) => format!("${min}+", min = min as i32),
+                                    (None, Some(max)) => format!("Up to ${max}", max = max as i32),
+                                    (None, None) => "Contact for pricing".to_string(),
+                                }}
+                            </span>
+                        </div>
+                    }.into_any()
+                } else {
+                    view! {}.into_any()
+                }}
             </div>
             
             // Artist thumbnails section
-            <Suspense fallback=|| view! { <div class="loading">"Loading artists..."</div> }>
-                {move || {
-                    location_details.get().map(|details_opt| {
-                        if let Some(details) = details_opt {
-                            if !details.artists.is_empty() {
+            {if !location.artists.is_empty() {
+                view! {
+                    <div class="popup-artists">
+                        <h4>"Featured Artists"</h4>
+                        <div class="artist-list">
+                            {location.artists.into_iter().take(4).map(|artist| {
                                 view! {
-                                    <div class="popup-artists">
-                                        <h4>"Featured Artists"</h4>
-                                        <div class="artist-list">
-                                            {details.artists.into_iter().take(4).map(|artist| {
-                                                view! {
-                                                    <div class="artist-item">
-                                                        <div class="artist-initial">
-                                                            <span>{artist.artist_name.chars().next().unwrap_or('A')}</span>
-                                                        </div>
-                                                        <div class="artist-info">
-                                                            <span class="artist-name">{artist.artist_name}</span>
-                                                            {if let Some(style) = artist.primary_style {
-                                                                view! { <span class="artist-style">{style}</span> }.into_any()
-                                                            } else {
-                                                                view! { <span class="artist-style">"Tattoo Artist"</span> }.into_any()
-                                                            }}
-                                                        </div>
-                                                    </div>
-                                                }
-                                            }).collect_view()}
+                                    <div class="artist-item">
+                                        <div class="artist-initial">
+                                            <span>{artist.artist_name.chars().next().unwrap_or('A')}</span>
+                                        </div>
+                                        <div class="artist-info">
+                                            <span class="artist-name">{artist.artist_name}</span>
+                                            {if let Some(style) = artist.primary_style {
+                                                view! { <span class="artist-style">{style}</span> }.into_any()
+                                            } else {
+                                                view! { <span class="artist-style">"Tattoo Artist"</span> }.into_any()
+                                            }}
                                         </div>
                                     </div>
-                                }.into_any()
-                            } else {
-                                view! {}.into_any()
-                            }
-                        } else {
-                            view! {}.into_any()
-                        }
-                    })
-                }}
-            </Suspense>
+                                }
+                            }).collect_view()}
+                        </div>
+                    </div>
+                }.into_any()
+            } else {
+                view! {}.into_any()
+            }}
             
             {if !location.styles.is_empty() {
                 view! {
