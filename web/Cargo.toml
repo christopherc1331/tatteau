@@ -18,7 +18,7 @@ tokio = { version = "1", features = [
   "macros",
 ], optional = true }
 tower = { version = "0.4", optional = true }
-tower-http = { version = "0.5", features = ["fs"], optional = true }
+tower-http = { version = "0.5", features = ["fs", "trace"], optional = true }
 wasm-bindgen = { version = "=0.2.104", features = ["serde-serialize"] }
 serde = { version = "*", features = ["derive"] }
 serde_json = "1.0.140"
@@ -36,6 +36,8 @@ chrono = { version = "0.4", optional = true, features = ["serde"] }
 jsonwebtoken = { version = "9", optional = true }
 bcrypt = { version = "0.15", optional = true }
 dotenvy = { version = "0.15", optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 [features]
 default = []
@@ -52,6 +54,8 @@ ssr = [
   "dep:jsonwebtoken",
   "dep:bcrypt",
   "dep:dotenvy",
+  "dep:tracing",
+  "dep:tracing-subscriber",
   "leptos/ssr",
   "leptos_meta/ssr",
   "leptos_router/ssr",

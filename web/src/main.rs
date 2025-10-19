@@ -7,9 +7,23 @@ async fn main() {
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    use tower_http::trace::{TraceLayer, DefaultMakeSpan, DefaultOnResponse};
+    use tracing::Level;
 
     // Load .env file for local development
     dotenvy::dotenv().ok();
+
+    // Initialize tracing
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,web=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    tracing::info!("Tracing initialized");
 
     // Initialize database pool
     web::db::pool::init_pool()
@@ -29,7 +43,12 @@ async fn main() {
             move || shell(leptos_options.clone())
         })
         .fallback(leptos_axum::file_and_error_handler(shell))
-        .with_state(leptos_options);
+        .with_state(leptos_options)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        );
 
     // run our app with hyper
     // `axum::Server` is a re-export of `hyper::Server`

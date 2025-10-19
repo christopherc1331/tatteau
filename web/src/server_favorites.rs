@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use leptos::server_fn::error::ServerFnError;
 
+#[cfg(feature = "ssr")]
+use tracing::instrument;
+
 // Helper function to extract user_id from JWT token
 #[cfg(feature = "ssr")]
 fn extract_user_id_from_token(token: &str) -> Result<i32, ServerFnError> {
@@ -29,6 +32,7 @@ fn extract_user_id_from_token(token: &str) -> Result<i32, ServerFnError> {
 }
 
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 pub async fn toggle_favorite(
     token: String,
     artists_images_id: i32,
@@ -50,6 +54,7 @@ pub async fn toggle_favorite(
 }
 
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "debug"))]
 pub async fn check_is_favorited(
     token: Option<String>,
     artists_images_id: i32,
@@ -79,6 +84,7 @@ pub async fn check_is_favorited(
 }
 
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 pub async fn get_user_favorites_list(token: String) -> Result<Vec<i32>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -97,6 +103,7 @@ pub async fn get_user_favorites_list(token: String) -> Result<Vec<i32>, ServerFn
 }
 
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 pub async fn get_favorites_count(token: String) -> Result<i32, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -115,6 +122,7 @@ pub async fn get_favorites_count(token: String) -> Result<i32, ServerFnError> {
 }
 
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 pub async fn get_user_favorites_with_details(
     token: String,
 ) -> Result<Vec<crate::db::favorites_repository::FavoritePostWithDetails>, ServerFnError> {

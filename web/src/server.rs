@@ -3,6 +3,9 @@ use leptos::server;
 use shared_types::LocationInfo;
 use shared_types::MapBounds;
 
+#[cfg(feature = "ssr")]
+use tracing::instrument;
+
 use crate::db::entities::{
     Artist, ArtistImage, ArtistQuestionnaire, ArtistSubscription, AvailabilitySlot,
     AvailabilityUpdate, BookingMessage, BookingQuestionnaireResponse, BookingRequest, CityCoords,
@@ -61,7 +64,9 @@ fn extract_user_id_from_token(token: &str) -> Option<i32> {
     Some(token_data.claims.user_id)
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(bounds), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(bounds), err, level = "info"))]
 pub async fn fetch_locations(
     state: String,
     city: String,
@@ -73,7 +78,9 @@ pub async fn fetch_locations(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn get_cities(state: String) -> Result<Vec<CityCoords>, ServerFnError> {
     match get_cities_and_coords(state).await {
         Ok(cities) => Ok(cities),
@@ -81,7 +88,9 @@ pub async fn get_cities(state: String) -> Result<Vec<CityCoords>, ServerFnError>
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
     match get_states().await {
         Ok(states) => Ok(states.into_iter().map(|s| s.state).collect()),
@@ -94,7 +103,9 @@ pub async fn get_states_list() -> Result<Vec<String>, ServerFnError> {
     // ])
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(cities), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(cities), err, level = "info"))]
 pub async fn get_center_coordinates_for_cities(
     cities: Vec<CityCoords>,
 ) -> Result<CityCoords, ServerFnError> {
@@ -158,7 +169,9 @@ pub struct ShopData {
     pub all_images_with_styles: Vec<(ArtistImage, Vec<Style>, Artist, bool)>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnError> {
     let artist = get_artist_by_id(artist_id)
         .await
@@ -184,7 +197,9 @@ pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnErr
     })
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<ShopData, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -224,7 +239,9 @@ pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(token, style_ids), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(style_ids, token), err, level = "info"))]
 pub async fn fetch_shop_images_paginated(
     location_id: i32,
     style_ids: Option<Vec<i32>>,
@@ -250,7 +267,9 @@ pub async fn fetch_shop_images_paginated(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(token, style_ids), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(style_ids, token), err, level = "info"))]
 pub async fn fetch_artist_images_paginated(
     artist_id: i32,
     style_ids: Option<Vec<i32>>,
@@ -284,7 +303,9 @@ pub struct LocationStats {
     pub styles_available: i32,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn get_location_stats(
     city: String,
     state: String,
@@ -310,7 +331,9 @@ pub async fn get_location_stats(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn get_available_styles() -> Result<Vec<StyleWithCount>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -326,7 +349,9 @@ pub async fn get_available_styles() -> Result<Vec<StyleWithCount>, ServerFnError
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(bounds), err, level = "info"))]
 pub async fn get_styles_in_bounds(bounds: MapBounds) -> Result<Vec<StyleWithCount>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -345,7 +370,9 @@ pub async fn get_styles_in_bounds(bounds: MapBounds) -> Result<Vec<StyleWithCoun
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(cities, states), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(states, cities), err, level = "info"))]
 pub async fn get_styles_by_location_filter(
     states: Option<Vec<String>>,
     cities: Option<Vec<String>>,
@@ -396,7 +423,9 @@ pub struct LocationDetailInfo {
     pub average_rating: Option<f64>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(bounds, style_filter), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(bounds, style_filter), err, level = "info"))]
 pub async fn get_locations_with_details(
     state: String,
     city: String,
@@ -442,7 +471,9 @@ pub struct MatchedArtist {
     pub max_price: Option<f64>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(style_preferences), err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(skip(style_preferences), err, level = "info"))]
 pub async fn get_matched_artists(
     style_preferences: Vec<String>,
     location: String,
@@ -465,7 +496,9 @@ pub async fn get_matched_artists(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn get_location_details(location_id: i32) -> Result<LocationDetailInfo, ServerFnError> {
     use crate::db::repository::get_location_with_artist_details;
     match get_location_with_artist_details(location_id).await {
@@ -480,7 +513,9 @@ pub async fn get_location_details(location_id: i32) -> Result<LocationDetailInfo
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn search_by_postal_code(postal_code: String) -> Result<CityCoords, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -504,7 +539,9 @@ pub async fn search_by_postal_code(postal_code: String) -> Result<CityCoords, Se
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn universal_search(query: String) -> Result<Vec<SearchResult>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -520,7 +557,9 @@ pub async fn universal_search(query: String) -> Result<Vec<SearchResult>, Server
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "debug"))]
 pub async fn get_search_suggestions(query: String) -> Result<Vec<String>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -539,7 +578,9 @@ pub async fn get_search_suggestions(query: String) -> Result<Vec<String>, Server
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 pub async fn get_instagram_embed(short_code: String) -> Result<String, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -613,6 +654,7 @@ pub struct RecentBooking {
     pub created_at: String,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_dashboard_data(
     artist_id: i32,
@@ -710,6 +752,7 @@ pub async fn get_artist_dashboard_data(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn log_match_impression(
     session_id: Option<i32>,
@@ -754,6 +797,7 @@ pub struct StyleWithCount {
     pub sample_images: Option<Vec<String>>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_all_styles_with_counts() -> Result<Vec<StyleWithCount>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -845,6 +889,7 @@ pub struct TattooPost {
     pub is_favorited: bool,
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(token, cities, states), err, level = "info"))]
 #[server]
 pub async fn get_tattoo_posts_by_style(
     style_names: Vec<String>,
@@ -1021,6 +1066,7 @@ pub async fn get_tattoo_posts_by_style(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_availability(
     artist_id: i32,
@@ -1086,6 +1132,7 @@ pub async fn get_artist_availability(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn set_artist_availability(
     availability: AvailabilityUpdate,
@@ -1129,6 +1176,7 @@ pub async fn set_artist_availability(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_booking_requests(artist_id: i32) -> Result<Vec<BookingRequest>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -1205,6 +1253,7 @@ pub struct BookingResponse {
     pub decline_reason: Option<String>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn respond_to_booking(response: BookingResponse) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -1251,6 +1300,7 @@ pub struct NewBookingMessage {
     pub message: String,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn send_booking_message(message_data: NewBookingMessage) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -1284,6 +1334,7 @@ pub async fn send_booking_message(message_data: NewBookingMessage) -> Result<(),
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_booking_messages(
     booking_request_id: i32,
@@ -1334,6 +1385,7 @@ pub async fn get_booking_messages(
 
 // Recurring Rule Server Functions
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -1435,6 +1487,7 @@ pub async fn get_recurring_rules(artist_id: i32) -> Result<Vec<RecurringRule>, S
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn create_recurring_rule(
     artist_id: i32,
@@ -1524,6 +1577,7 @@ pub async fn create_recurring_rule(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn update_recurring_rule(
     id: i32,
@@ -1627,6 +1681,7 @@ pub async fn update_recurring_rule(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_effective_availability(
     artist_id: i32,
@@ -1738,6 +1793,7 @@ pub async fn get_effective_availability(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn delete_recurring_rule(rule_id: i32) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -1768,6 +1824,7 @@ pub async fn delete_recurring_rule(rule_id: i32) -> Result<(), ServerFnError> {
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -1824,6 +1881,7 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_business_hours(
     artist_id: i32,
@@ -1868,6 +1926,7 @@ pub async fn get_business_hours(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn update_business_hours(
     hours: Vec<crate::db::entities::UpdateBusinessHours>,
@@ -1911,6 +1970,7 @@ pub struct BookingHistoryEntry {
     pub created_at: String,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_client_booking_history(
     client_email: String,
@@ -1968,6 +2028,7 @@ pub struct BookingSuggestion {
     pub suggested_end_time: Option<String>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "debug"))]
 #[server]
 pub async fn suggest_booking_time(suggestion: BookingSuggestion) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2021,6 +2082,7 @@ pub struct NewBookingRequest {
     pub message_from_client: Option<String>,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2070,6 +2132,7 @@ pub async fn submit_booking_request(request: NewBookingRequest) -> Result<i32, S
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn check_availability(
     artist_id: i32,
@@ -2116,6 +2179,7 @@ pub struct UserInfo {
     pub user_type: String,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2257,6 +2321,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2405,6 +2470,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 #[server]
 pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2491,6 +2557,7 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
 
 // Subscription System Server Functions
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_subscription_tiers() -> Result<Vec<SubscriptionTier>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2528,6 +2595,7 @@ pub async fn get_subscription_tiers() -> Result<Vec<SubscriptionTier>, ServerFnE
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn create_artist_subscription(
     artist_id: i32,
@@ -2562,6 +2630,7 @@ pub async fn create_artist_subscription(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_subscription(
     artist_id: i32,
@@ -2601,6 +2670,7 @@ pub async fn get_artist_subscription(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn check_artist_has_active_subscription(artist_id: i32) -> Result<bool, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2629,6 +2699,7 @@ pub async fn check_artist_has_active_subscription(artist_id: i32) -> Result<bool
 // Questionnaire System Server Functions
 // ================================
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_questionnaire_form(
     artist_id: i32,
@@ -2646,6 +2717,7 @@ pub async fn get_artist_questionnaire_form(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_default_questions() -> Result<Vec<QuestionnaireQuestion>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2661,6 +2733,7 @@ pub async fn get_default_questions() -> Result<Vec<QuestionnaireQuestion>, Serve
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_questionnaire_configuration(
     artist_id: i32,
@@ -2678,6 +2751,7 @@ pub async fn get_artist_questionnaire_configuration(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_id_from_jwt_user_id(
     jwt_user_id: i32,
@@ -2695,6 +2769,7 @@ pub async fn get_artist_id_from_jwt_user_id(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn update_artist_questionnaire_configuration(
     artist_id: i32,
@@ -2713,6 +2788,7 @@ pub async fn update_artist_questionnaire_configuration(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn delete_artist_questionnaire_question(
     artist_id: i32,
@@ -2731,6 +2807,7 @@ pub async fn delete_artist_questionnaire_question(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn submit_questionnaire_responses(
     submission: ClientQuestionnaireSubmission,
@@ -2762,6 +2839,7 @@ pub async fn submit_questionnaire_responses(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_booking_responses(
     booking_request_id: i32,
@@ -2780,6 +2858,7 @@ pub async fn get_booking_responses(
 }
 
 // Error Logging Server Functions
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn log_client_error(
     error_type: String,
@@ -2817,6 +2896,7 @@ pub async fn log_client_error(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2839,6 +2919,7 @@ pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError>
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_styles_by_id(artist_id: i64) -> Result<Vec<String>, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -2867,6 +2948,7 @@ pub async fn get_artist_styles_by_id(artist_id: i64) -> Result<Vec<String>, Serv
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn log_server_error(
     error_message: String,
@@ -2903,6 +2985,7 @@ pub async fn log_server_error(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_error_logs(
     limit: Option<i32>,
@@ -2939,6 +3022,7 @@ pub struct TimeSlot {
     pub is_available: bool,
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_available_dates(
     artist_id: i32,
@@ -3077,6 +3161,7 @@ pub async fn get_available_dates(
     }
 }
 
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_available_time_slots(
     artist_id: i32,
