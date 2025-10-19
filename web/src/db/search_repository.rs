@@ -44,7 +44,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
     if normalized_query.chars().all(|c| c.is_numeric()) && normalized_query.len() == 5 {
         // Search by postal code
         let postal_results = sqlx::query(
-            "SELECT DISTINCT
+            "SELECT
                 l.city, l.state, l.county, l.postal_code,
                 AVG(l.lat) as lat, AVG(l.long) as long,
                 COUNT(DISTINCT a.id) as artist_count,
@@ -82,7 +82,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
         let state_fuzzy_pattern = format!("%{}%", state);
 
         sqlx::query(
-            "SELECT DISTINCT
+            "SELECT
                 l.city, l.state, l.county, l.postal_code,
                 AVG(l.lat) as lat, AVG(l.long) as long,
                 COUNT(DISTINCT a.id) as artist_count,
@@ -108,7 +108,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
     } else {
         // Search across all states
         sqlx::query(
-            "SELECT DISTINCT
+            "SELECT
                 l.city, l.state, l.county, l.postal_code,
                 AVG(l.lat) as lat, AVG(l.long) as long,
                 COUNT(DISTINCT a.id) as artist_count,
@@ -153,7 +153,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
 
     // Search by county name
     let county_results = sqlx::query(
-        "SELECT DISTINCT
+        "SELECT
             l.city, l.state, l.county, l.postal_code,
             AVG(l.lat) as lat, AVG(l.long) as long,
             COUNT(DISTINCT a.id) as artist_count,
