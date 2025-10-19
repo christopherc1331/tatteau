@@ -417,6 +417,19 @@
     height: 100%;
   }
 
+  // Ensure map tiles are visible
+  .map-renderer-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  .map-renderer-map-container {
+    width: 100%;
+    height: 100%;
+  }
+
   // Map legend
   .map-legend {
     position: absolute;

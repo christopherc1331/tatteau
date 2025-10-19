@@ -247,7 +247,7 @@ pub fn DiscoveryMap() -> impl IntoView {
                     <MapRenderer
                         state=state
                         city=city
-                        default_location=map_center.get()
+                        default_location=default_location.clone()
                         cities=cities
                         selected_styles=selected_styles
                         map_bounds=map_bounds

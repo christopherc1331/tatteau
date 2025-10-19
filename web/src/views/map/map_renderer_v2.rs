@@ -1,21 +1,21 @@
 use crate::{
-    components::{error::ErrorView, loading::LoadingView},
+    components::loading::LoadingView,
     db::entities::CityCoords,
-    server::{fetch_locations, get_locations_with_details},
-    views::map::{enhanced_map_marker::EnhancedMapMarker, map_marker::MapMarker},
+    server::get_locations_with_details,
+    views::map::enhanced_map_marker::EnhancedMapMarker,
 };
-use leptos::{leptos_dom::logging::console_log, prelude::*};
-use leptos_leaflet::{
-    leaflet::{LatLng, LatLngBounds, Map},
-    prelude::*,
-};
-use shared_types::{LatLong, MapBounds};
-use wasm_bindgen::prelude::*;
+use leptos::prelude::*;
+use leptos_leaflet::prelude::*;
+use shared_types::MapBounds;
+
+#[cfg(not(feature = "ssr"))]
+use leptos_leaflet::leaflet::Map;
+
+#[cfg(not(feature = "ssr"))]
 use wasm_bindgen::JsCast;
-use web_sys::{Event, EventTarget};
 
 #[component]
-pub fn MapRenderer(
+pub fn MapRendererV2(
     state: RwSignal<String>,
     city: RwSignal<String>,
     default_location: CityCoords,
@@ -23,61 +23,25 @@ pub fn MapRenderer(
     selected_styles: RwSignal<Vec<i32>>,
     map_bounds: RwSignal<MapBounds>,
 ) -> impl IntoView {
+    // Track selected city coordinates
     let selected_city_coords = RwSignal::new(default_location.clone());
 
+    // Create center memo
     let center: Memo<Position> = Memo::new(move |_| {
         let CityCoords { lat, long, .. } = selected_city_coords.get();
         Position::new(lat, long)
     });
 
-    // Map signal - only create on client side to avoid SendWrapper threading issues
+    // Map signal - only on client
     #[cfg(not(feature = "ssr"))]
     let map = JsRwSignal::new_local(None::<Map>);
 
-    let locations = LocalResource::new(move || async move {
-        let current_state = state.get();
-        let current_city = city.get();
-        let current_bounds = map_bounds.get();
-        let current_styles = selected_styles.get();
-
-        // Only fetch if we have valid bounds (not the default 0,0)
-        if current_bounds.north_east.lat == 0.0 && current_bounds.south_west.lat == 0.0 {
-            leptos::logging::log!("Map bounds not initialized yet, skipping location fetch");
-            return Ok(vec![]);
-        }
-
-        leptos::logging::log!("Fetching locations for bounds: NE({}, {}), SW({}, {})",
-            current_bounds.north_east.lat, current_bounds.north_east.long,
-            current_bounds.south_west.lat, current_bounds.south_west.long);
-
-        get_locations_with_details(
-            current_state,
-            current_city,
-            current_bounds,
-            if current_styles.is_empty() {
-                None
-            } else {
-                Some(current_styles)
-            },
-        )
-        .await
-    });
-
-    Effect::new(move |_| {
-        if let Some(Ok(city_coords_list)) = cities.get() {
-            let matching_city = city_coords_list.into_iter().find(|c| c.city == city.get());
-            if let Some(found_city) = matching_city {
-                selected_city_coords.set(found_city);
-            }
-        }
-    });
-
-    // Map starts as not ready to ensure hydration matches server-rendered state
+    // Track if map is ready to render (avoid hydration issues)
     let map_ready = RwSignal::new(false);
 
     #[cfg(not(feature = "ssr"))]
     {
-        // Use request_animation_frame to delay map initialization until after hydration
+        // Delay map rendering until after hydration
         Effect::new(move |_| {
             let window = web_sys::window().expect("no global `window` exists");
             let _ = window.request_animation_frame(
@@ -148,6 +112,47 @@ pub fn MapRenderer(
         });
     }
 
+    // Fetch locations based on current map bounds
+    let locations = LocalResource::new(move || async move {
+        let current_state = state.get();
+        let current_city = city.get();
+        let current_styles = selected_styles.get();
+        let current_bounds = map_bounds.get();
+
+        // Only fetch if we have valid bounds (not the default 0,0)
+        if current_bounds.north_east.lat == 0.0 && current_bounds.south_west.lat == 0.0 {
+            leptos::logging::log!("Map bounds not initialized yet, skipping location fetch");
+            return Ok(vec![]);
+        }
+
+        leptos::logging::log!("Fetching locations for bounds: NE({}, {}), SW({}, {})",
+            current_bounds.north_east.lat, current_bounds.north_east.long,
+            current_bounds.south_west.lat, current_bounds.south_west.long);
+
+        get_locations_with_details(
+            current_state,
+            current_city,
+            current_bounds,
+            if current_styles.is_empty() {
+                None
+            } else {
+                Some(current_styles)
+            },
+        )
+        .await
+    });
+
+    // Update city coordinates when cities resource changes
+    Effect::new(move |_| {
+        if let Some(Ok(city_coords_list)) = cities.get() {
+            let current_city = city.get();
+            let matching_city = city_coords_list.into_iter().find(|c| c.city == current_city);
+            if let Some(found_city) = matching_city {
+                selected_city_coords.set(found_city);
+            }
+        }
+    });
+
     view! {
         <div class="map-renderer-container">
             {move || {
@@ -167,7 +172,7 @@ pub fn MapRenderer(
                                     attribution="&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors"
                                 />
 
-                                {move ||
+                                {move || {
                                     match locations.get() {
                                         Some(result) => {
                                             match result.as_ref() {
@@ -198,7 +203,7 @@ pub fn MapRenderer(
                                             view! { <></> }.into_any()
                                         }
                                     }
-                                }
+                                }}
                             </MapContainer>
                         }.into_any()
                     } else {

@@ -39,8 +39,8 @@ pub async fn get_cities_and_coords(state: String) -> DbResult<Vec<CityCoords>> {
         .map(|row| CityCoords {
             city: row.get("city"),
             state: row.get("state"),
-            lat: row.try_get::<f32, _>("lat").unwrap_or(0.0) as f64,
-            long: row.try_get::<f32, _>("long").unwrap_or(0.0) as f64,
+            lat: row.try_get::<f64, _>("lat").unwrap_or(0.0),
+            long: row.try_get::<f64, _>("long").unwrap_or(0.0),
         })
         .filter(|c| c.city.parse::<f64>().is_err())
         .collect();
