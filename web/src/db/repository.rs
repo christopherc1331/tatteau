@@ -1470,13 +1470,13 @@ pub async fn get_artist_id_from_user_id(user_id: i64) -> DbResult<Option<i32>> {
     let pool = crate::db::pool::get_pool();
 
     let result = sqlx::query(
-        "SELECT artist_id FROM artist_users WHERE id = $1"
+        "SELECT artist_id FROM users WHERE id = $1 AND role = 'artist'"
     )
     .bind(user_id)
     .fetch_optional(pool)
     .await?;
 
-    Ok(result.map(|row| row.get("artist_id")))
+    Ok(result.and_then(|row| row.try_get("artist_id").ok()))
 }
 
 #[cfg(feature = "ssr")]

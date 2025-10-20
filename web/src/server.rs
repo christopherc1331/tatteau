@@ -2193,70 +2193,52 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
         struct Claims {
             sub: String,       // User ID
             exp: usize,        // Expiration time
-            user_type: String, // "client" or "artist"
+            user_type: String, // "client", "artist", or "admin" (for backwards compatibility)
             user_id: i64,
         }
 
         let pool = crate::db::pool::get_pool();
 
-        // Try to find user in appropriate table based on user_type
-        let (user_id, stored_password_hash, first_name, last_name) = if login_data.user_type == "client" {
-            // Query users table for clients
-            let result = sqlx::query(
-                "SELECT id, password_hash, first_name, last_name FROM users WHERE email = $1 AND is_active = true"
-            )
-            .bind(&login_data.email)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Database error: {}", e)))?;
+        // Query unified users table
+        let result = sqlx::query(
+            "SELECT id, password_hash, first_name, last_name, role::text as role
+             FROM users
+             WHERE email = $1 AND is_active = true"
+        )
+        .bind(&login_data.email)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Database error: {}", e)))?;
 
-            match result {
-                Some(row) => (
-                    row.get::<i64, _>("id"),
-                    row.get::<String, _>("password_hash"),
-                    row.get::<String, _>("first_name"),
-                    row.get::<String, _>("last_name"),
-                ),
-                None => {
-                    return Ok(AuthResponse {
-                        success: false,
-                        token: None,
-                        user_type: None,
-                        user_id: None,
-                        error: Some("Invalid email or password".to_string()),
-                    })
-                }
-            }
-        } else {
-            // Query artist_users table for artists
-            let result = sqlx::query(
-                "SELECT au.id, au.password_hash, a.name, '' as last_name FROM artist_users au
-                 JOIN artists a ON au.artist_id = a.id
-                 WHERE au.email = $1"
-            )
-            .bind(&login_data.email)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Database error: {}", e)))?;
-
-            match result {
-                Some(row) => (
-                    row.get::<i64, _>("id"),
-                    row.get::<String, _>("password_hash"),
-                    row.get::<String, _>("name"),
-                    "".to_string(),
-                ),
-                None => {
-                    return Ok(AuthResponse {
-                        success: false,
-                        token: None,
-                        user_type: None,
-                        user_id: None,
-                        error: Some("Invalid email or password".to_string()),
-                    })
-                }
+        let (user_id, stored_password_hash, _first_name, _last_name, role) = match result {
+            Some(row) => (
+                row.get::<i64, _>("id"),
+                row.get::<String, _>("password_hash"),
+                row.get::<String, _>("first_name"),
+                row.get::<String, _>("last_name"),
+                row.get::<String, _>("role"),
+            ),
+            None => {
+                return Ok(AuthResponse {
+                    success: false,
+                    token: None,
+                    user_type: None,
+                    user_id: None,
+                    error: Some("Invalid email or password".to_string()),
+                })
             }
         };
+
+        // Verify the user_type matches the role in database
+        if role != login_data.user_type {
+            return Ok(AuthResponse {
+                success: false,
+                token: None,
+                user_type: None,
+                user_id: None,
+                error: Some("Invalid email or password".to_string()),
+            });
+        }
 
         // Verify password
         let password_valid = verify(&login_data.password, &stored_password_hash)
@@ -2272,13 +2254,11 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
             });
         }
 
-        // Update last_login for artists
-        if login_data.user_type == "artist" {
-            let _ = sqlx::query("UPDATE artist_users SET last_login = CURRENT_TIMESTAMP WHERE id = $1")
-                .bind(user_id)
-                .execute(pool)
-                .await;
-        }
+        // Update last_login
+        let _ = sqlx::query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1")
+            .bind(user_id)
+            .execute(pool)
+            .await;
 
         // Create JWT token
         let expiration = chrono::Utc::now()
@@ -2289,7 +2269,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
         let claims = Claims {
             sub: user_id.to_string(),
             exp: expiration,
-            user_type: login_data.user_type.clone(),
+            user_type: role.clone(),
             user_id,
         };
 
@@ -2305,7 +2285,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
         Ok(AuthResponse {
             success: true,
             token: Some(token),
-            user_type: Some(login_data.user_type),
+            user_type: Some(role),
             user_id: Some(user_id),
             error: None,
         })
@@ -2341,7 +2321,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
 
         let pool = crate::db::pool::get_pool();
 
-        // Check if email already exists in either table
+        // Check if email already exists
         let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE email = $1")
             .bind(&signup_data.email)
             .fetch_one(pool)
@@ -2358,31 +2338,15 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             });
         }
 
-        let artist_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM artist_users WHERE email = $1")
-            .bind(&signup_data.email)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Database query error: {}", e)))?;
-
-        if artist_count > 0 {
-            return Ok(AuthResponse {
-                success: false,
-                token: None,
-                user_type: None,
-                user_id: None,
-                error: Some("Email already exists".to_string()),
-            });
-        }
-
         // Hash password
         let password_hash = hash(&signup_data.password, DEFAULT_COST)
             .map_err(|e| ServerFnError::new(format!("Password hashing error: {}", e)))?;
 
         let user_id = if signup_data.user_type == "client" {
-            // Insert into users table
+            // Insert into users table with client role
             let row = sqlx::query(
-                "INSERT INTO users (first_name, last_name, email, phone, password_hash)
-                 VALUES ($1, $2, $3, $4, $5)
+                "INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
+                 VALUES ($1, $2, $3, $4, $5, 'client')
                  RETURNING id"
             )
             .bind(&signup_data.first_name)
@@ -2396,7 +2360,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
 
             row.get::<i64, _>("id")
         } else {
-            // For artists, we need to create both artist record and artist_users record
+            // For artists, create artist record first, then user record with artist role
 
             // First create artist record - using placeholder location_id for now
             let artist_row = sqlx::query(
@@ -2414,15 +2378,18 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
 
             let artist_id: i64 = artist_row.get("id");
 
-            // Then create artist_users record
+            // Then create user record with artist role
             let user_row = sqlx::query(
-                "INSERT INTO artist_users (artist_id, email, password_hash)
-                 VALUES ($1, $2, $3)
+                "INSERT INTO users (first_name, last_name, email, phone, password_hash, role, artist_id)
+                 VALUES ($1, $2, $3, $4, $5, 'artist', $6)
                  RETURNING id"
             )
-            .bind(artist_id)
+            .bind(&signup_data.first_name)
+            .bind(&signup_data.last_name)
             .bind(&signup_data.email)
+            .bind(&signup_data.phone)
             .bind(&password_hash)
+            .bind(artist_id)
             .fetch_one(pool)
             .await
             .map_err(|e| ServerFnError::new(format!("Failed to create artist user account: {}", e)))?;
@@ -2499,51 +2466,23 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
                 let claims = data.claims;
                 let pool = crate::db::pool::get_pool();
 
-                let user_info = if claims.user_type == "client" {
-                    sqlx::query(
-                        "SELECT id, first_name, last_name, email FROM users WHERE id = $1 AND is_active = true"
-                    )
-                    .bind(claims.user_id)
-                    .fetch_optional(pool)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|row| UserInfo {
-                        id: row.get("id"),
-                        first_name: row.get("first_name"),
-                        last_name: row.get("last_name"),
-                        email: row.get("email"),
-                        user_type: "client".to_string(),
-                    })
-                } else {
-                    sqlx::query(
-                        "SELECT au.id, a.name, '' as last_name, au.email FROM artist_users au
-                         JOIN artists a ON au.artist_id = a.id
-                         WHERE au.id = $1"
-                    )
-                    .bind(claims.user_id)
-                    .fetch_optional(pool)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|row| {
-                        let name: String = row.get("name");
-                        let name_parts: Vec<&str> = name.split_whitespace().collect();
-                        let (first_name, last_name) = if name_parts.len() >= 2 {
-                            (name_parts[0].to_string(), name_parts[1..].join(" "))
-                        } else {
-                            (name, "".to_string())
-                        };
-
-                        UserInfo {
-                            id: row.get("id"),
-                            first_name,
-                            last_name,
-                            email: row.get("email"),
-                            user_type: "artist".to_string(),
-                        }
-                    })
-                };
+                let user_info = sqlx::query(
+                    "SELECT id, first_name, last_name, email, role::text as role
+                     FROM users
+                     WHERE id = $1 AND is_active = true"
+                )
+                .bind(claims.user_id)
+                .fetch_optional(pool)
+                .await
+                .ok()
+                .flatten()
+                .map(|row| UserInfo {
+                    id: row.get("id"),
+                    first_name: row.get("first_name"),
+                    last_name: row.get("last_name"),
+                    email: row.get("email"),
+                    user_type: row.get("role"),
+                });
 
                 Ok(user_info)
             }
@@ -2906,7 +2845,7 @@ pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError>
 
         let pool = crate::db::pool::get_pool();
 
-        let artist_id: i32 = sqlx::query_scalar("SELECT artist_id FROM artist_users WHERE id = $1")
+        let artist_id: i32 = sqlx::query_scalar("SELECT artist_id FROM users WHERE id = $1 AND role = 'artist'")
             .bind(user_id)
             .fetch_one(pool)
             .await
