@@ -5,15 +5,15 @@ use crate::server::get_artist_id_from_jwt_user_id;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Claims {
-    sub: String, // User ID  
+    sub: String, // User ID
     exp: usize,  // Expiration time
     user_type: String, // "client" or "artist"
-    user_id: i32,
+    user_id: i64,
 }
 
-/// Extracts the artist_id from the JWT token stored in localStorage
+/// Extracts the user_id from the JWT token stored in localStorage for artist users
 /// Returns None if token is invalid, missing, or user is not an artist
-pub fn get_authenticated_artist_id() -> Option<i32> {
+pub fn get_authenticated_artist_id() -> Option<i64> {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::prelude::*;
@@ -46,8 +46,8 @@ pub fn get_authenticated_artist_id() -> Option<i32> {
     None
 }
 
-/// Decodes JWT token and extracts artist_id if user_type is "artist"
-fn decode_jwt_artist_id(token: &str) -> Option<i32> {
+/// Decodes JWT token and extracts user_id if user_type is "artist"
+fn decode_jwt_artist_id(token: &str) -> Option<i64> {
     if let Some(claims) = decode_jwt_token(token) {
         if claims.user_type == "artist" {
             return Some(claims.user_id);
@@ -115,7 +115,7 @@ pub fn is_authenticated() -> bool {
 
 /// Gets the authenticated user data from JWT token
 /// Returns Some((user_id, user_type)) if valid, None if invalid or missing
-pub fn get_authenticated_user() -> Option<(i32, String)> {
+pub fn get_authenticated_user() -> Option<(i64, String)> {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::prelude::*;

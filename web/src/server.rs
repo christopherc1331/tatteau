@@ -43,7 +43,7 @@ use crate::db::repository::{
 
 // Helper function to extract user_id from JWT token
 #[cfg(feature = "ssr")]
-fn extract_user_id_from_token(token: &str) -> Option<i32> {
+fn extract_user_id_from_token(token: &str) -> Option<i64> {
     use jsonwebtoken::{decode, DecodingKey, Validation};
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -51,7 +51,7 @@ fn extract_user_id_from_token(token: &str) -> Option<i32> {
         sub: String,
         exp: usize,
         user_type: String,
-        user_id: i32,
+        user_id: i64,
     }
 
     let secret = "tatteau-jwt-secret-key-change-in-production";
@@ -2167,13 +2167,13 @@ pub struct AuthResponse {
     pub success: bool,
     pub token: Option<String>,
     pub user_type: Option<String>,
-    pub user_id: Option<i32>,
+    pub user_id: Option<i64>,
     pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
-    pub id: i32,
+    pub id: i64,
     pub first_name: String,
     pub last_name: String,
     pub email: String,
@@ -2194,7 +2194,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
             sub: String,       // User ID
             exp: usize,        // Expiration time
             user_type: String, // "client" or "artist"
-            user_id: i32,
+            user_id: i64,
         }
 
         let pool = crate::db::pool::get_pool();
@@ -2212,7 +2212,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
 
             match result {
                 Some(row) => (
-                    row.get::<i32, _>("id"),
+                    row.get::<i64, _>("id"),
                     row.get::<String, _>("password_hash"),
                     row.get::<String, _>("first_name"),
                     row.get::<String, _>("last_name"),
@@ -2241,7 +2241,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
 
             match result {
                 Some(row) => (
-                    row.get::<i32, _>("id"),
+                    row.get::<i64, _>("id"),
                     row.get::<String, _>("password_hash"),
                     row.get::<String, _>("name"),
                     "".to_string(),
@@ -2336,7 +2336,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             sub: String,
             exp: usize,
             user_type: String,
-            user_id: i32,
+            user_id: i64,
         }
 
         let pool = crate::db::pool::get_pool();
@@ -2394,7 +2394,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             .await
             .map_err(|e| ServerFnError::new(format!("Failed to create user account: {}", e)))?;
 
-            row.get::<i32, _>("id")
+            row.get::<i64, _>("id")
         } else {
             // For artists, we need to create both artist record and artist_users record
 
@@ -2412,7 +2412,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             .await
             .map_err(|e| ServerFnError::new(format!("Failed to create artist record: {}", e)))?;
 
-            let artist_id: i32 = artist_row.get("id");
+            let artist_id: i64 = artist_row.get("id");
 
             // Then create artist_users record
             let user_row = sqlx::query(
@@ -2427,7 +2427,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             .await
             .map_err(|e| ServerFnError::new(format!("Failed to create artist user account: {}", e)))?;
 
-            user_row.get::<i32, _>("id")
+            user_row.get::<i64, _>("id")
         };
 
         // Create JWT token
@@ -2484,7 +2484,7 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
             sub: String,
             exp: usize,
             user_type: String,
-            user_id: i32,
+            user_id: i64,
         }
 
         let secret = "tatteau-jwt-secret-key-change-in-production";
@@ -2755,7 +2755,7 @@ pub async fn get_artist_questionnaire_configuration(
 #[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
 #[server]
 pub async fn get_artist_id_from_jwt_user_id(
-    jwt_user_id: i32,
+    jwt_user_id: i64,
 ) -> Result<Option<i32>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {

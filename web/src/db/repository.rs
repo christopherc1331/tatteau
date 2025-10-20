@@ -401,7 +401,7 @@ pub async fn get_all_styles_by_location(location_id: i32) -> DbResult<Vec<Style>
 #[cfg(feature = "ssr")]
 pub async fn get_all_images_with_styles_by_location(
     location_id: i32,
-    user_id: Option<i32>,
+    user_id: Option<i64>,
 ) -> DbResult<Vec<(ArtistImage, Vec<Style>, Artist, bool)>> {
     let pool = crate::db::pool::get_pool();
 
@@ -1466,7 +1466,7 @@ pub async fn update_artist_questionnaire_config(
 }
 
 #[cfg(feature = "ssr")]
-pub async fn get_artist_id_from_user_id(user_id: i32) -> DbResult<Option<i32>> {
+pub async fn get_artist_id_from_user_id(user_id: i64) -> DbResult<Option<i32>> {
     let pool = crate::db::pool::get_pool();
 
     let result = sqlx::query(
@@ -1661,7 +1661,7 @@ pub async fn get_shop_images_paginated(
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-    user_id: Option<i32>,
+    user_id: Option<i64>,
 ) -> DbResult<(Vec<(ArtistImage, Vec<Style>, Artist, bool)>, i32)> {
     let pool = crate::db::pool::get_pool();
 
@@ -1876,7 +1876,7 @@ pub async fn get_artist_images_paginated(
     style_ids: Option<Vec<i32>>,
     page: i32,
     per_page: i32,
-    user_id: Option<i32>,
+    user_id: Option<i64>,
 ) -> DbResult<(Vec<(ArtistImage, Vec<Style>, bool)>, i32)> {
     let pool = crate::db::pool::get_pool();
 
