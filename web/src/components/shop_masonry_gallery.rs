@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
 use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::favorite_button::FavoriteButton;
+use crate::components::style_tag::StyleTag;
 use crate::components::style_tag_manager::StyleTagManager;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,9 +78,7 @@ pub fn ShopMasonryGallery(
                                                 {move || {
                                                     post_styles.get().into_iter().map(|style| {
                                                         view! {
-                                                            <span class="shop-masonry-gallery__style-tag">
-                                                                {style.name}
-                                                            </span>
+                                                            <StyleTag name={style.name} />
                                                         }
                                                     }).collect_view()
                                                 }}

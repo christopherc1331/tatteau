@@ -2,7 +2,12 @@ use leptos::prelude::*;
 use leptos_router::hooks::{use_params_map, use_query_map, use_navigate};
 
 use crate::{
-    components::{loading::LoadingView, artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost}, ClientBookingModal},
+    components::{
+        loading::LoadingView,
+        artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost},
+        ClientBookingModal,
+        StyleTag,
+    },
     server::{fetch_artist_data, fetch_artist_images_paginated},
     utils::auth::is_authenticated,
 };
@@ -224,9 +229,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                         <div class="artist-highlight-styles-container">
                                                             {artist_data.styles.into_iter().map(|style| {
                                                                 view! {
-                                                                    <span class="artist-highlight-style-tag">
-                                                                        {style.name}
-                                                                    </span>
+                                                                    <StyleTag name={style.name} />
                                                                 }
                                                             }).collect_view()}
                                                         </div>

@@ -1,6 +1,7 @@
 use crate::db::entities::{Artist, ArtistImage, Style};
 use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::favorite_button::FavoriteButton;
+use crate::components::style_tag::StyleTag;
 use crate::components::style_tag_manager::StyleTagManager;
 use leptos::prelude::*;
 
@@ -69,9 +70,7 @@ pub fn InstagramPostsGrid(
                                             {move || {
                                                 post_styles.get().into_iter().map(|style| {
                                                     view! {
-                                                        <span class="instagram-posts-grid-style-tag">
-                                                            {style.name}
-                                                        </span>
+                                                        <StyleTag name={style.name} />
                                                     }
                                                 }).collect_view()
                                             }}

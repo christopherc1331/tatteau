@@ -4,6 +4,7 @@ use web_sys::window;
 
 // Import the entities from the db module
 use crate::db::entities::{ArtistImage, Style};
+use crate::components::style_tag::StyleTag;
 use crate::components::style_tag_manager::StyleTagManager;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -603,7 +604,7 @@ pub fn MasonryGallery(
                                         {move || {
                                             post_styles.get().into_iter().map(|style| {
                                                 view! {
-                                                    <span class="masonry-gallery-style-chip">{style.name}</span>
+                                                    <StyleTag name={style.name} />
                                                 }
                                             }).collect_view()
                                         }}
