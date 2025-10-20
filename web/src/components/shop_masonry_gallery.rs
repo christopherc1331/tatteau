@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use crate::db::entities::{ArtistImage, Style, Artist};
 use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::favorite_button::FavoriteButton;
+use crate::components::style_tag_manager::StyleTagManager;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -16,6 +17,8 @@ pub fn ShopMasonryGallery(
     shop_posts: Vec<ShopInstagramPost>,
     all_styles: Vec<Style>,
 ) -> impl IntoView {
+    // Store posts in a signal so they can be updated when styles change
+    let posts_signal = RwSignal::new(shop_posts);
     // Process all Instagram embeds after component mounts
     Effect::new(move |_| {
         // Wait for all embeds to render, then process them all at once
@@ -36,39 +39,74 @@ pub fn ShopMasonryGallery(
     view! {
         <div class="shop-masonry-gallery__container">
             <div class="shop-masonry-gallery__masonry">
-                {shop_posts.into_iter().map(|post| {
-                    let short_code = post.image.short_code.clone();
-                    let artist_name = post.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
-                    let image_id = post.image.id;
-                    let is_favorited = post.is_favorited;
+                <For
+                    each=move || posts_signal.get().into_iter().enumerate()
+                    key=|(idx, post)| (post.image.id, *idx)
+                    children=move |(idx, post)| {
+                        let short_code = post.image.short_code.clone();
+                        let artist_name = post.artist.name.clone().unwrap_or_else(|| "Unknown Artist".to_string());
+                        let image_id = post.image.id;
+                        let is_favorited = post.is_favorited;
+                        let artist_id = post.artist.id;
 
-                    view! {
-                        <div class="shop-masonry-gallery__post">
-                            <div class="shop-masonry-gallery__card">
-                                <div class="shop-masonry-gallery__header">
-                                    <div class="shop-masonry-gallery__meta-row">
-                                        <a href={format!("/artist/{}", post.artist.id)}
-                                           class="shop-masonry-gallery__artist-link">
-                                            {artist_name}
-                                        </a>
+                        // Create a derived signal for this post's styles
+                        let post_styles = Signal::derive(move || {
+                            posts_signal.get()
+                                .get(idx)
+                                .map(|p| p.styles.clone())
+                                .unwrap_or_default()
+                        });
 
-                                        {post.styles.into_iter().map(|style| {
-                                            view! {
-                                                <span class="shop-masonry-gallery__style-tag">
-                                                    {style.name}
-                                                </span>
-                                            }
-                                        }).collect_view()}
+                        view! {
+                            <div class="shop-masonry-gallery__post">
+                                <div class="shop-masonry-gallery__card">
+                                    <div class="shop-masonry-gallery__header">
+                                        // Favorite button - positioned at top right
+                                        <div class="shop-masonry-gallery__favorite">
+                                            <FavoriteButton artists_images_id=image_id is_favorited_initial=is_favorited />
+                                        </div>
 
-                                        <FavoriteButton artists_images_id=image_id is_favorited_initial=is_favorited />
+                                        // Content area
+                                        <div class="shop-masonry-gallery__content">
+                                            <a href={format!("/artist/{}", artist_id)}
+                                               class="shop-masonry-gallery__artist-link">
+                                                {artist_name}
+                                            </a>
+
+                                            <div class="shop-masonry-gallery__style-tags">
+                                                {move || {
+                                                    post_styles.get().into_iter().map(|style| {
+                                                        view! {
+                                                            <span class="shop-masonry-gallery__style-tag">
+                                                                {style.name}
+                                                            </span>
+                                                        }
+                                                    }).collect_view()
+                                                }}
+                                            </div>
+                                        </div>
+
+                                        // Admin style tag manager
+                                        <StyleTagManager
+                                            image_id=image_id as i64
+                                            current_styles=post_styles
+                                            on_styles_changed=Callback::new(move |new_styles: Vec<Style>| {
+                                                // Update the post's styles in the signal
+                                                posts_signal.update(|posts| {
+                                                    if let Some(post) = posts.get_mut(idx) {
+                                                        post.styles = new_styles;
+                                                    }
+                                                });
+                                            })
+                                        />
                                     </div>
-                                </div>
 
-                                <InstagramEmbed short_code={short_code} />
+                                    <InstagramEmbed short_code={short_code} />
+                                </div>
                             </div>
-                        </div>
+                        }
                     }
-                }).collect_view()}
+                />
             </div>
         </div>
     }

@@ -119,13 +119,13 @@ pub fn get_authenticated_user() -> Option<(i64, String)> {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::prelude::*;
-        
+
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_namespace = localStorage)]
             fn getItem(key: &str) -> Option<String>;
         }
-        
+
         if let Some(token) = getItem("tatteau_auth_token") {
             if !token.is_empty() {
                 if let Some(claims) = decode_jwt_token(&token) {
@@ -134,14 +134,33 @@ pub fn get_authenticated_user() -> Option<(i64, String)> {
             }
         }
     }
-    
+
     #[cfg(not(feature = "hydrate"))]
     {
         // On server side, we don't have access to localStorage
         return None;
     }
-    
+
     None
+}
+
+/// Checks if the current authenticated user is an admin
+/// Returns true if user has role='admin', false otherwise
+pub fn is_admin() -> bool {
+    #[cfg(feature = "hydrate")]
+    {
+        if let Some((_user_id, user_type)) = get_authenticated_user() {
+            return user_type == "admin";
+        }
+    }
+
+    #[cfg(not(feature = "hydrate"))]
+    {
+        // On server side, we don't have access to localStorage
+        return false;
+    }
+
+    false
 }
 
 /// Decodes JWT token and returns claims if valid

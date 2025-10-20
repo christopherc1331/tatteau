@@ -2230,7 +2230,8 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
         };
 
         // Verify the user_type matches the role in database
-        if role != login_data.user_type {
+        // Allow admins to log in regardless of which option they select
+        if role != "admin" && role != login_data.user_type {
             return Ok(AuthResponse {
                 success: false,
                 token: None,
@@ -3206,5 +3207,244 @@ pub async fn get_available_time_slots(
     #[cfg(not(feature = "ssr"))]
     {
         Ok(vec![])
+    }
+}
+
+// ============================================================================
+// Admin Style Management Functions
+// ============================================================================
+
+/// Helper function to extract user info from JWT token on server side
+#[cfg(feature = "ssr")]
+fn extract_user_from_token(token: &str) -> Option<(i64, String)> {
+    use jsonwebtoken::{decode, DecodingKey, Validation};
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct Claims {
+        sub: String,
+        exp: usize,
+        user_type: String,
+        user_id: i64,
+    }
+
+    let secret = "tatteau-jwt-secret-key-change-in-production";
+    let token_data = decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(secret.as_ref()),
+        &Validation::default(),
+    ).ok()?;
+
+    Some((token_data.claims.user_id, token_data.claims.user_type))
+}
+
+/// Adds a style tag to an image (admin only)
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn add_style_to_image(
+    image_id: i64,
+    style_id: i64,
+    token: String,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use sqlx::Row;
+
+        // Verify admin role
+        let (user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new("Unauthorized: Admin access required".to_string()));
+        }
+
+        let pool = crate::db::pool::get_pool();
+
+        // Insert the style association with admin tracking
+        let result = sqlx::query(
+            "INSERT INTO artists_images_styles
+             (artists_images_id, style_id, is_admin_corrected, corrected_by, corrected_at)
+             VALUES ($1, $2, true, $3, CURRENT_TIMESTAMP)
+             ON CONFLICT (artists_images_id, style_id)
+             DO UPDATE SET
+                is_admin_corrected = true,
+                corrected_by = $3,
+                corrected_at = CURRENT_TIMESTAMP"
+        )
+        .bind(image_id)
+        .bind(style_id)
+        .bind(user_id)
+        .execute(pool)
+        .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to add style to image: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+/// Removes a style tag from an image (admin only)
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn remove_style_from_image(
+    image_id: i64,
+    style_id: i64,
+    token: String,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        // Verify admin role
+        let (_user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new("Unauthorized: Admin access required".to_string()));
+        }
+
+        let pool = crate::db::pool::get_pool();
+
+        // Delete the style association
+        let result = sqlx::query(
+            "DELETE FROM artists_images_styles
+             WHERE artists_images_id = $1 AND style_id = $2"
+        )
+        .bind(image_id)
+        .bind(style_id)
+        .execute(pool)
+        .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ServerFnError::new(format!(
+                "Failed to remove style from image: {}",
+                e
+            ))),
+        }
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+/// Gets all available styles for the admin modal
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
+#[server]
+pub async fn get_all_styles_for_admin() -> Result<Vec<Style>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use sqlx::Row;
+
+        let pool = crate::db::pool::get_pool();
+
+        let styles: Vec<Style> = sqlx::query(
+            "SELECT id, name FROM styles ORDER BY name ASC"
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?
+        .into_iter()
+        .map(|row| Style {
+            id: row.get::<i64, _>("id") as i32,
+            name: row.get("name"),
+        })
+        .collect();
+
+        Ok(styles)
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ImageStyleMetadata {
+    pub image_id: i64,
+    pub current_styles: Vec<Style>,
+    pub llm_recommended_styles: Vec<Style>,
+    pub admin_corrected_count: i32,
+}
+
+/// Gets style metadata for an image including LLM recommendations and admin corrections
+#[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
+#[server]
+pub async fn get_image_style_metadata(image_id: i64) -> Result<ImageStyleMetadata, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use sqlx::Row;
+
+        let pool = crate::db::pool::get_pool();
+
+        // Get current styles
+        let current_styles: Vec<Style> = sqlx::query(
+            "SELECT s.id, s.name
+             FROM styles s
+             JOIN artists_images_styles ais ON s.id = ais.style_id
+             WHERE ais.artists_images_id = $1
+             ORDER BY s.name"
+        )
+        .bind(image_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch current styles: {}", e)))?
+        .into_iter()
+        .map(|row| Style {
+            id: row.get::<i64, _>("id") as i32,
+            name: row.get("name"),
+        })
+        .collect();
+
+        // Get LLM recommended styles (original)
+        let llm_recommended_styles: Vec<Style> = sqlx::query(
+            "SELECT s.id, s.name
+             FROM styles s
+             JOIN image_style_llm_recommendations isr ON s.id = isr.style_id
+             WHERE isr.artists_images_id = $1
+             ORDER BY s.name"
+        )
+        .bind(image_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch LLM recommendations: {}", e)))?
+        .into_iter()
+        .map(|row| Style {
+            id: row.get::<i64, _>("id") as i32,
+            name: row.get("name"),
+        })
+        .collect();
+
+        // Count admin corrections
+        let admin_corrected_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM artists_images_styles
+             WHERE artists_images_id = $1 AND is_admin_corrected = true"
+        )
+        .bind(image_id)
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0);
+
+        Ok(ImageStyleMetadata {
+            image_id,
+            current_styles,
+            llm_recommended_styles,
+            admin_corrected_count: admin_corrected_count as i32,
+        })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Ok(ImageStyleMetadata {
+            image_id,
+            current_styles: vec![],
+            llm_recommended_styles: vec![],
+            admin_corrected_count: 0,
+        })
     }
 }

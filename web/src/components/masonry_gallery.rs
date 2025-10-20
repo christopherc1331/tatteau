@@ -4,6 +4,7 @@ use web_sys::window;
 
 // Import the entities from the db module
 use crate::db::entities::{ArtistImage, Style};
+use crate::components::style_tag_manager::StyleTagManager;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InstagramPost {
@@ -531,11 +532,14 @@ pub fn MasonryGallery(
     let (screen_width, set_screen_width) = signal(1200u32);
 
     // Use provided posts or fall back to sample posts
-    let gallery_posts = if instagram_posts.is_empty() {
+    let initial_posts = if instagram_posts.is_empty() {
         generate_sample_posts()
     } else {
         instagram_posts
     };
+
+    // Store posts in a signal so they can be updated when styles change
+    let gallery_posts = RwSignal::new(initial_posts);
 
     // Calculate responsive columns
     let column_count = Memo::new(move |_| {
@@ -579,26 +583,46 @@ pub fn MasonryGallery(
 
             <div class="masonry-gallery-grid">
                 <For
-                    each=move || gallery_posts.clone()
-                    key=|post| post.image.id
-                    children=move |post: InstagramPost| {
-                        // Clone styles for the inner For loop
-                        let styles = post.styles.clone();
+                    each=move || gallery_posts.get().into_iter().enumerate()
+                    key=|(idx, post)| (post.image.id, *idx)
+                    children=move |(idx, post): (usize, InstagramPost)| {
+                        let image_id = post.image.id;
+
+                        // Create a derived signal for this post's styles
+                        let post_styles = Signal::derive(move || {
+                            gallery_posts.get()
+                                .get(idx)
+                                .map(|p| p.styles.clone())
+                                .unwrap_or_default()
+                        });
 
                         view! {
                             <div class="masonry-gallery-item">
                                 <div class="masonry-gallery-instagram-card">
                                     <div class="masonry-gallery-style-chips">
-                                        <For
-                                            each=move || styles.clone()
-                                            key=|style| style.id
-                                            children=move |style: Style| {
+                                        {move || {
+                                            post_styles.get().into_iter().map(|style| {
                                                 view! {
                                                     <span class="masonry-gallery-style-chip">{style.name}</span>
                                                 }
-                                            }
-                                        />
+                                            }).collect_view()
+                                        }}
                                     </div>
+
+                                    // Admin style tag manager
+                                    <StyleTagManager
+                                        image_id=image_id as i64
+                                        current_styles=post_styles
+                                        on_styles_changed=Callback::new(move |new_styles: Vec<Style>| {
+                                            // Update the post's styles in the signal
+                                            gallery_posts.update(|posts| {
+                                                if let Some(post) = posts.get_mut(idx) {
+                                                    post.styles = new_styles;
+                                                }
+                                            });
+                                        })
+                                    />
+
                                     // Use the client-only component
                                     <InstagramEmbed post=post.clone()/>
                                 </div>

@@ -35,19 +35,34 @@
   &-header {
     padding: 0.5rem;
     background: white;
+    position: relative;
   }
 
-  &-meta-wrapper {
+  &-favorite {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 1;
+  }
+
+  &-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-right: 2.5rem; // Space for favorite button
+  }
+
+  &-style-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
-    align-items: center;
-    justify-content: flex-start;
+    align-items: flex-start;
   }
 
   &-artist-link {
     display: inline-flex;
     align-items: center;
+    align-self: flex-start;
     gap: 0.25rem;
     background: rgba(0, 0, 0, 0.85);
     color: white;
@@ -98,6 +113,8 @@
     border-radius: 10px;
     font-size: 0.6rem;
     font-weight: 500;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   &-embed-container {
