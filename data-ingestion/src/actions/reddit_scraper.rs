@@ -2,7 +2,7 @@
 // Scrapes /r/tattoo subreddit to find artists and match them to existing shops
 // Also scrapes shop Instagram bios to discover additional artists
 
-use crate::repository::{self, CityStats, CityToScrape, PendingArtistData};
+use crate::repository::{self, CityStats, CityToScrape};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
@@ -15,7 +15,6 @@ use std::env;
 
 struct Config {
     max_posts: i32,
-    max_comments: i32,
     min_images: i32,
     rescrape_days: i16,
     enable_shop_scrape: bool,
@@ -30,10 +29,6 @@ fn load_config_from_env() -> Config {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(100),
-        max_comments: env::var("REDDIT_MAX_COMMENTS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(20),
         min_images: env::var("REDDIT_MIN_IMAGES")
             .ok()
             .and_then(|s| s.parse().ok())
@@ -60,19 +55,15 @@ fn load_config_from_env() -> Config {
 
 #[derive(Debug, Deserialize)]
 struct RedditPost {
-    url: String,
-    title: String,
+    #[serde(rename = "postUrl")]
+    url: Option<String>,
+    #[serde(rename = "dataType")]
+    data_type: Option<String>,  // "post" or "comment"
+    title: Option<String>,
     body: Option<String>,
-    #[serde(rename = "comments")]
-    comments: Option<Vec<RedditComment>>,
-    #[serde(rename = "media")]
-    media_urls: Option<Vec<String>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RedditComment {
-    #[serde(rename = "body")]
-    text: String,
+    images: Option<Vec<String>>,
+    #[serde(rename = "contentUrl")]
+    content_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -184,9 +175,8 @@ async fn scrape_reddit_for_city(
     pool: &PgPool,
     config: &Config,
 ) -> Result<CityProcessingResult, Box<dyn std::error::Error>> {
-    // Build search URL and scrape Reddit
-    let search_url = build_reddit_search_url(&city.city, &city.state);
-    let posts = call_apify_reddit_scraper(&search_url, config).await?;
+    // Search Reddit posts for this city
+    let posts = call_apify_reddit_scraper(&city.city, config).await?;
 
     let mut stats = CityStats {
         posts_found: posts.len() as i32,
@@ -208,7 +198,8 @@ async fn scrape_reddit_for_city(
         match process_reddit_post(&post, city, pool, &mut stats, &mut matched_shops).await {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("⚠️  Error processing post {}: {}", post.url, e);
+                let url = post.url.as_deref().unwrap_or("unknown");
+                eprintln!("⚠️  Error processing post {}: {}", url, e);
             }
         }
     }
@@ -219,33 +210,36 @@ async fn scrape_reddit_for_city(
     })
 }
 
-fn build_reddit_search_url(city: &str, _state: &str) -> String {
-    // Using just city for search - Reddit's search will find relevant posts
-    format!(
-        "https://www.reddit.com/r/tattoos/search/?q={}&sort=top&t=year",
-        city
-    )
-}
-
 async fn call_apify_reddit_scraper(
-    search_url: &str,
+    city: &str,
     config: &Config,
 ) -> Result<Vec<RedditPost>, Box<dyn std::error::Error>> {
     let api_token = env::var("APIFY_API_TOKEN")?;
-    let actor_id = "trudax~reddit-scraper";
+    let actor_id = "harshmaur~reddit-scraper";
     let url = format!(
         "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}",
         actor_id, api_token
     );
 
+    // Use subreddit search URL to search within /r/tattoos for city name
+    // Get 1 comment per post for additional context
+    let search_url = format!("https://www.reddit.com/r/tattoos/search/?q={}&sort=top&t=year",
+        urlencoding::encode(city));
     let input = serde_json::json!({
-        "startUrls": [search_url],
-        "maxPostCount": config.max_posts,
-        "maxComments": config.max_comments,
-        "proxy": {"useApifyProxy": true}
+        "startUrls": [{"url": search_url}],
+        "crawlCommentsPerPost": true,
+        "maxPostsCount": config.max_posts,
+        "maxCommentsPerPost": 1,  // Get 1 comment per post for additional context
+        "includeNSFW": true,
+        "proxy": {
+            "useApifyProxy": true,
+            "apifyProxyGroups": ["RESIDENTIAL"]
+        }
     });
 
     println!("🔍 Scraping Reddit posts...");
+    println!("📋 Apify input:");
+    println!("{}", serde_json::to_string_pretty(&input).unwrap_or_default());
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(300))
@@ -260,25 +254,88 @@ async fn call_apify_reddit_scraper(
     }
 
     let response_text = response.text().await?;
-    let posts: Vec<RedditPost> = serde_json::from_str(&response_text)
-        .map_err(|e| format!("Failed to parse Reddit response: {}", e))?;
 
-    println!("📥 Retrieved {} posts from Reddit", posts.len());
+    // Log raw response for debugging
+    println!("📦 Raw Apify response preview (first 500 chars):");
+    println!("{}", &response_text[..std::cmp::min(500, response_text.len())]);
+
+    let all_items: Vec<RedditPost> = serde_json::from_str(&response_text)
+        .map_err(|e| {
+            eprintln!("Failed to parse response. Full response: {}", response_text);
+            format!("Failed to parse Reddit response: {}", e)
+        })?;
+
+    let total_items = all_items.len();
+
+    // Filter to only posts with images/galleries and valid postUrl
+    let posts: Vec<RedditPost> = all_items
+        .into_iter()
+        .filter(|item| {
+            // Must be a post (not comment)
+            item.data_type.as_deref() == Some("post") &&
+            // Must have a postUrl
+            item.url.is_some() &&
+            // Must have images OR contentUrl (gallery)
+            (item.images.as_ref().map_or(false, |imgs| !imgs.is_empty()) ||
+             item.content_url.is_some())
+        })
+        .collect();
+
+    println!("📥 Retrieved {} posts with images from Reddit (filtered from {} total items)", posts.len(), total_items);
+
+    // Log sample post structure
+    if let Some(first_post) = posts.first() {
+        println!("📝 Sample post structure:");
+        println!("  - URL: {:?}", first_post.url);
+        println!("  - Title: {:?}", first_post.title.as_ref().map(|s| &s[..std::cmp::min(50, s.len())]));
+        println!("  - Has body: {}", first_post.body.as_ref().map_or(false, |b| !b.is_empty()));
+        println!("  - Images: {:?}", first_post.images.as_ref().map(|m| m.len()));
+    }
 
     Ok(posts)
 }
 
 fn filter_posts_with_images(posts: Vec<RedditPost>, min_images: i32) -> Vec<RedditPost> {
-    posts
+    // Posts already have images/contentUrl at this point
+    // This function checks if they meet the minimum image count requirement
+    if min_images <= 1 {
+        // No additional filtering needed
+        return posts;
+    }
+
+    let total = posts.len();
+    let mut filtered_out_too_few = 0;
+
+    let result: Vec<RedditPost> = posts
         .into_iter()
         .filter(|post| {
-            if let Some(media) = &post.media_urls {
-                media.len() >= min_images as usize
+            // Check if post has enough images
+            let image_count = post.images.as_ref().map_or(0, |imgs| imgs.len());
+
+            if image_count >= min_images as usize {
+                true
             } else {
-                false
+                // ContentUrl (gallery) posts count as having sufficient images
+                if post.content_url.is_some() {
+                    true
+                } else {
+                    filtered_out_too_few += 1;
+                    let url = post.url.as_deref().unwrap_or("unknown");
+                    println!("  ⊘ Filtered out (only {} images, need {}): {}", image_count, min_images, url);
+                    false
+                }
             }
         })
-        .collect()
+        .collect();
+
+    if filtered_out_too_few > 0 {
+        println!("🔍 Minimum image filtering:");
+        println!("  - Posts before filtering: {}", total);
+        println!("  - Filtered out (too few images): {}", filtered_out_too_few);
+        println!("  - Posts with ≥{} images: {}", min_images, result.len());
+    }
+
+    result
 }
 
 async fn process_reddit_post(
@@ -291,9 +348,34 @@ async fn process_reddit_post(
     // Extract artist info with OpenAI
     let extracted_artists = extract_artist_info_with_openai(post).await?;
 
+    // If no artist info could be extracted, add to pending for manual review
+    if extracted_artists.is_empty() {
+        let title = post.title.as_deref().unwrap_or("");
+        let body = post.body.as_deref().unwrap_or("");
+        let post_context = format!("Title: {}\nBody: {}", title, body);
+        let post_url = post.url.as_deref().unwrap_or("unknown");
+
+        let pending = repository::PendingArtistData {
+            reddit_post_url: Some(post_url.to_string()),
+            artist_name: None,
+            instagram_handle: None,
+            shop_name_mentioned: None,
+            city: city.city.clone(),
+            state: city.state.clone(),
+            post_context: Some(post_context),
+            match_type: "no_artist_info_extracted".to_string(),
+        };
+
+        repository::insert_reddit_artist_pending(pool, &pending).await?;
+        stats.artists_pending += 1;
+        println!("📋 Added to pending review (no info extracted): {}", post_url);
+        return Ok(());
+    }
+
     // Process each extracted artist
+    let post_url = post.url.as_deref().unwrap_or("unknown");
     for artist_data in extracted_artists {
-        process_extracted_artist(&artist_data, city, &post.url, pool, stats, matched_shops).await?;
+        process_extracted_artist(&artist_data, city, post_url, pool, stats, matched_shops).await?;
     }
 
     Ok(())
@@ -304,25 +386,15 @@ async fn extract_artist_info_with_openai(
 ) -> Result<Vec<ExtractedArtist>, Box<dyn std::error::Error>> {
     let api_key = env::var("OPENAI_API_KEY")?;
 
-    // Build context from post and comments
+    // Build context from post title and body
+    let title = post.title.as_deref().unwrap_or("");
     let post_body = post.body.as_deref().unwrap_or("");
-    let comments_text = if let Some(comments) = &post.comments {
-        comments
-            .iter()
-            .take(10)
-            .map(|c| c.text.as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
-    } else {
-        String::new()
-    };
 
     let prompt = format!(
-        r#"Analyze this r/tattoo Reddit post and extract artist information:
+        r#"Analyze this r/tattoos Reddit post and extract artist information:
 
 TITLE: {}
 BODY: {}
-TOP COMMENTS: {}
 
 Extract:
 1. Artist Instagram handles (e.g., @username or instagram.com/username)
@@ -334,7 +406,7 @@ Return JSON array:
 
 If no artist information found, return empty array [].
 All fields are optional - include only what you can confidently extract."#,
-        post.title, post_body, comments_text
+        title, post_body
     );
 
     let client = reqwest::Client::new();
@@ -389,8 +461,18 @@ async fn process_extracted_artist(
     } else if artist_data.shop.is_some() || artist_data.artist_name.is_some() {
         // Scenario B: No Instagram but has name/shop
         process_artist_without_instagram(artist_data, city, post_url, pool, stats).await?;
+    } else {
+        // Scenario D: Nothing useful extracted - add to pending for manual review
+        add_to_pending_review(
+            pool,
+            artist_data,
+            city,
+            post_url,
+            "no_useful_info",
+            stats,
+        )
+        .await?;
     }
-    // Scenario D: Nothing useful - skip
 
     Ok(())
 }
@@ -532,19 +614,36 @@ async fn add_to_pending_review(
     match_type: &str,
     stats: &mut CityStats,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let pending = PendingArtistData {
+    // Build context string from what we extracted
+    let context_parts: Vec<String> = vec![
+        artist_data.artist_name.as_ref().map(|n| format!("Name: {}", n)),
+        artist_data.instagram.as_ref().map(|ig| format!("Instagram: {}", ig)),
+        artist_data.shop.as_ref().map(|s| format!("Shop: {}", s)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    let post_context = if !context_parts.is_empty() {
+        Some(context_parts.join(", "))
+    } else {
+        None
+    };
+
+    let pending = repository::PendingArtistData {
         reddit_post_url: Some(post_url.to_string()),
         artist_name: artist_data.artist_name.clone(),
         instagram_handle: artist_data.instagram.clone(),
         shop_name_mentioned: artist_data.shop.clone(),
         city: city.city.clone(),
         state: city.state.clone(),
-        post_context: None,
+        post_context,
         match_type: match_type.to_string(),
     };
 
     repository::insert_reddit_artist_pending(pool, &pending).await?;
     stats.artists_pending += 1;
+    println!("📋 Added to pending review ({}): {}", match_type, post_url);
 
     Ok(())
 }
