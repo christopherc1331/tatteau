@@ -222,7 +222,7 @@ async fn scrape_reddit_for_city(
 fn build_reddit_search_url(city: &str, _state: &str) -> String {
     // Using just city for search - Reddit's search will find relevant posts
     format!(
-        "https://www.reddit.com/r/tattoo/search/?q={}&sort=top&t=year",
+        "https://www.reddit.com/r/tattoos/search/?q={}&sort=top&t=year",
         city
     )
 }
@@ -232,7 +232,7 @@ async fn call_apify_reddit_scraper(
     config: &Config,
 ) -> Result<Vec<RedditPost>, Box<dyn std::error::Error>> {
     let api_token = env::var("APIFY_API_TOKEN")?;
-    let actor_id = "trudax/reddit-scraper";
+    let actor_id = "trudax~reddit-scraper";
     let url = format!(
         "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}",
         actor_id, api_token
