@@ -17,6 +17,7 @@ pub struct Artist {
     pub name: Option<String>,
     pub location_id: i32,
     pub social_links: Option<String>,
+    pub instagram_handle: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub years_experience: Option<i32>,

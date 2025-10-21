@@ -54,10 +54,11 @@ pub fn TattooGallery(
                 id: post.artist_id as i32,
                 name: Some(post.artist_name),
                 location_id: 0, // Placeholder
+                social_links: None,
+                instagram_handle: None,
                 email: None,
                 phone: None,
                 years_experience: None,
-                social_links: None,
                 styles_extracted: None,
             };
 

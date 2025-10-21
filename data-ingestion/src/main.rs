@@ -10,6 +10,7 @@ enum IngestAction {
     Scrape,
     GoogleApi,
     ExtractStyles,
+    RedditScraper,
 }
 
 impl IngestAction {
@@ -18,6 +19,7 @@ impl IngestAction {
             "SCRAPE_HTML" => Self::Scrape,
             "GOOGLE_API" => Self::GoogleApi,
             "EXTRACT_STYLES" => Self::ExtractStyles,
+            "REDDIT_SCRAPER" => Self::RedditScraper,
             _ => panic!("Invalid action"),
         }
     }
@@ -39,5 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             actions::google_api_ingestion::driver::ingest_google(&pool).await
         }
         IngestAction::ExtractStyles => actions::style_extraction::extract_styles(&pool).await,
+        IngestAction::RedditScraper => actions::reddit_scraper::run_reddit_scraper(&pool).await,
     }
 }

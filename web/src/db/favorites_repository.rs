@@ -160,7 +160,7 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
 
             // Get artist details
             let artist_row = sqlx::query(
-                "SELECT id, name, location_id, social_links, email, phone, years_experience, styles_extracted
+                "SELECT id, name, location_id, social_links, instagram_handle, email, phone, years_experience, styles_extracted
                  FROM artists WHERE id = $1",
             )
             .bind(image.artist_id)
@@ -172,6 +172,7 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
                 name: row.get("name"),
                 location_id: row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
                 social_links: row.get("social_links"),
+                instagram_handle: row.get("instagram_handle"),
                 email: row.get("email"),
                 phone: row.get("phone"),
                 years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),

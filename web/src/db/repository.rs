@@ -186,7 +186,7 @@ pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
     let pool = crate::db::pool::get_pool();
 
     let row = sqlx::query(
-        "SELECT id, name, location_id, social_links, email, phone, years_experience, styles_extracted
+        "SELECT id, name, location_id, social_links, instagram_handle, email, phone, years_experience, styles_extracted
          FROM artists
          WHERE id = $1"
     )
@@ -199,6 +199,7 @@ pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
         name: row.get("name"),
         location_id: row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
         social_links: row.get("social_links"),
+        instagram_handle: row.get("instagram_handle"),
         email: row.get("email"),
         phone: row.get("phone"),
         years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
@@ -338,7 +339,7 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
     let pool = crate::db::pool::get_pool();
 
     let rows = sqlx::query(
-        "SELECT a.id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted
+        "SELECT a.id, a.name, a.location_id, a.social_links, a.instagram_handle, a.email, a.phone, a.years_experience, a.styles_extracted
          FROM artists a
          JOIN locations l ON a.location_id = l.id
          WHERE a.location_id = $1
@@ -357,6 +358,7 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
             name: row.get("name"),
             location_id: row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
             social_links: row.get("social_links"),
+            instagram_handle: row.get("instagram_handle"),
             email: row.get("email"),
             phone: row.get("phone"),
             years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
@@ -408,7 +410,7 @@ pub async fn get_all_images_with_styles_by_location(
     // Build query with conditional LEFT JOIN for user favorites
     let (query, has_user_id) = if let Some(uid) = user_id {
         (
-            format!("SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+            format!("SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.instagram_handle, a.email, a.phone, a.years_experience, a.styles_extracted,
                     CASE WHEN uf.id IS NOT NULL THEN TRUE ELSE FALSE END as is_favorited
              FROM artists_images ai
              JOIN artists a ON ai.artist_id = a.id
@@ -422,7 +424,7 @@ pub async fn get_all_images_with_styles_by_location(
         )
     } else {
         (
-            "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+            "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.instagram_handle, a.email, a.phone, a.years_experience, a.styles_extracted,
                     FALSE as is_favorited
              FROM artists_images ai
              JOIN artists a ON ai.artist_id = a.id
@@ -456,6 +458,7 @@ pub async fn get_all_images_with_styles_by_location(
             name: image_row.get("name"),
             location_id: image_row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
             social_links: image_row.get("social_links"),
+            instagram_handle: image_row.get("instagram_handle"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
             years_experience: image_row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
@@ -1694,7 +1697,7 @@ pub async fn get_shop_images_paginated(
                      AND ai.id IN (SELECT ais.artists_images_id FROM artists_images_styles ais WHERE ais.style_id = ANY($2::int[]))"
                 ),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.instagram_handle, a.email, a.phone, a.years_experience, a.styles_extracted,
                             {}
                      FROM artists_images ai
                      JOIN artists a ON ai.artist_id = a.id
@@ -1722,7 +1725,7 @@ pub async fn get_shop_images_paginated(
                  AND a.name IS NOT NULL
                  AND a.name != ''".to_string(),
                 format!(
-                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                    "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.instagram_handle, a.email, a.phone, a.years_experience, a.styles_extracted,
                             {}
                      FROM artists_images ai
                      JOIN artists a ON ai.artist_id = a.id
@@ -1750,7 +1753,7 @@ pub async fn get_shop_images_paginated(
              AND a.name IS NOT NULL
              AND a.name != ''".to_string(),
             format!(
-                "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.email, a.phone, a.years_experience, a.styles_extracted,
+                "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, a.id as a_id, a.name, a.location_id, a.social_links, a.instagram_handle, a.email, a.phone, a.years_experience, a.styles_extracted,
                         {}
                  FROM artists_images ai
                  JOIN artists a ON ai.artist_id = a.id
@@ -1835,6 +1838,7 @@ pub async fn get_shop_images_paginated(
             name: image_row.get("name"),
             location_id: image_row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
             social_links: image_row.get("social_links"),
+            instagram_handle: image_row.get("instagram_handle"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
             years_experience: image_row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),

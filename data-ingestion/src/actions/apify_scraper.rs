@@ -200,3 +200,137 @@ pub async fn download_image(url: &str) -> Result<Vec<u8>, Box<dyn std::error::Er
     let bytes = response.bytes().await?;
     Ok(bytes.to_vec())
 }
+
+// ============================================================================
+// Instagram Search & Profile Scraping (for Reddit Scraper)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct InstagramSearchResult {
+    pub username: String,
+    #[serde(rename = "bio")]
+    pub bio: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InstagramProfileInfo {
+    pub username: String,
+    #[serde(rename = "fullName")]
+    pub full_name: Option<String>,
+    #[serde(rename = "biography")]
+    pub bio: Option<String>,
+}
+
+pub async fn search_instagram_profiles(
+    query: &str,
+) -> Result<Vec<InstagramSearchResult>, Box<dyn std::error::Error>> {
+    let api_token = env::var("APIFY_API_TOKEN")
+        .expect("APIFY_API_TOKEN environment variable must be set");
+
+    let actor_id = "apify/instagram-search-scraper";
+    let url = format!(
+        "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}",
+        actor_id, api_token
+    );
+
+    let input = serde_json::json!({
+        "search": query,
+        "resultsType": "user",
+        "searchLimit": 10
+    });
+
+    println!("🔍 Searching Instagram for: {}", query);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+
+    let response = client.post(&url).json(&input).send().await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await?;
+        return Err(format!(
+            "Apify Instagram Search failed with status {}: {}",
+            status, error_text
+        )
+        .into());
+    }
+
+    let response_text = response.text().await?;
+
+    let results: Vec<InstagramSearchResult> = match serde_json::from_str(&response_text) {
+        Ok(results) => results,
+        Err(e) => {
+            let preview = if response_text.len() > 500 {
+                &response_text[..500]
+            } else {
+                &response_text
+            };
+            println!("Failed to parse Instagram search response. Error: {}", e);
+            println!("Response preview: {}", preview);
+            return Err(format!("Failed to parse Instagram search response: {}", e).into());
+        }
+    };
+
+    println!("📥 Found {} Instagram profiles", results.len());
+
+    Ok(results)
+}
+
+pub async fn get_instagram_profile_info(
+    username: &str,
+) -> Result<InstagramProfileInfo, Box<dyn std::error::Error>> {
+    let api_token = env::var("APIFY_API_TOKEN")
+        .expect("APIFY_API_TOKEN environment variable must be set");
+
+    let actor_id = "apify/instagram-profile-scraper";
+    let url = format!(
+        "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}",
+        actor_id, api_token
+    );
+
+    let input = serde_json::json!({
+        "usernames": [username]
+    });
+
+    println!("📱 Getting Instagram profile info for @{}", username);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+
+    let response = client.post(&url).json(&input).send().await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await?;
+        return Err(format!(
+            "Apify Instagram Profile scraper failed with status {}: {}",
+            status, error_text
+        )
+        .into());
+    }
+
+    let response_text = response.text().await?;
+
+    let mut profiles: Vec<InstagramProfileInfo> = match serde_json::from_str(&response_text) {
+        Ok(profiles) => profiles,
+        Err(e) => {
+            let preview = if response_text.len() > 500 {
+                &response_text[..500]
+            } else {
+                &response_text
+            };
+            println!("Failed to parse Instagram profile response. Error: {}", e);
+            println!("Response preview: {}", preview);
+            return Err(format!("Failed to parse Instagram profile response: {}", e).into());
+        }
+    };
+
+    if profiles.is_empty() {
+        return Err(format!("No profile found for @{}", username).into());
+    }
+
+    Ok(profiles.remove(0))
+}

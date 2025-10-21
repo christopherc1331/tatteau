@@ -404,3 +404,333 @@ pub async fn update_openai_api_costs(
 
     Ok(())
 }
+
+// ============================================================================
+// Reddit Scraper Repository Functions
+// ============================================================================
+
+// --- City Management ---
+
+pub struct CityToScrape {
+    pub city: String,
+    pub state: String,
+}
+
+pub async fn get_cities_for_scrape(
+    pool: &PgPool,
+    limit: Option<i16>,
+    city_filter: Option<String>,
+    state_filter: Option<String>,
+    rescrape_days: i16,
+) -> Result<Vec<CityToScrape>, sqlx::Error> {
+    let mut query = String::from(
+        "SELECT city, state FROM reddit_scrape_cities WHERE 1=1"
+    );
+
+    // Add filters
+    if city_filter.is_some() && state_filter.is_some() {
+        query.push_str(" AND city = $1 AND state = $2");
+    } else if state_filter.is_some() {
+        query.push_str(" AND state = $1");
+    } else {
+        // Get pending or stale cities
+        query.push_str(" AND (status = 'pending' OR last_scraped_at IS NULL OR last_scraped_at < NOW() - INTERVAL '1 day' * $1)");
+    }
+
+    if let Some(lim) = limit {
+        query.push_str(&format!(" LIMIT {}", lim));
+    }
+
+    let rows = if let (Some(city), Some(state)) = (&city_filter, &state_filter) {
+        sqlx::query(&query)
+            .bind(city)
+            .bind(state)
+            .fetch_all(pool)
+            .await?
+    } else if let Some(state) = &state_filter {
+        sqlx::query(&query)
+            .bind(state)
+            .fetch_all(pool)
+            .await?
+    } else {
+        sqlx::query(&query)
+            .bind(rescrape_days as i32)
+            .fetch_all(pool)
+            .await?
+    };
+
+    let cities: Vec<CityToScrape> = rows
+        .into_iter()
+        .map(|row| CityToScrape {
+            city: row.get("city"),
+            state: row.get("state"),
+        })
+        .collect();
+
+    Ok(cities)
+}
+
+pub struct CityStats {
+    pub posts_found: i32,
+    pub artists_added: i32,
+    pub artists_updated: i32,
+    pub artists_pending: i32,
+    pub artists_added_from_shop_bios: i32,
+    pub shops_scraped: i32,
+}
+
+pub async fn mark_city_scraped(
+    pool: &PgPool,
+    city: &str,
+    state: &str,
+    status: &str,
+    stats: &CityStats,
+    error_message: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE reddit_scrape_cities
+         SET last_scraped_at = NOW(),
+             status = $3,
+             posts_found = $4,
+             artists_added = $5,
+             artists_updated = $6,
+             artists_pending = $7,
+             artists_added_from_shop_bios = $8,
+             shops_scraped = $9,
+             error_message = $10
+         WHERE city = $1 AND state = $2"
+    )
+    .bind(city)
+    .bind(state)
+    .bind(status)
+    .bind(stats.posts_found)
+    .bind(stats.artists_added)
+    .bind(stats.artists_updated)
+    .bind(stats.artists_pending)
+    .bind(stats.artists_added_from_shop_bios)
+    .bind(stats.shops_scraped)
+    .bind(error_message)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+// --- Shop/Location Matching ---
+
+pub async fn find_location_by_shop_and_city(
+    pool: &PgPool,
+    shop_name: &str,
+    city: &str,
+    state: &str,
+) -> Result<Option<i64>, sqlx::Error> {
+    let result = sqlx::query(
+        "SELECT id FROM locations
+         WHERE LOWER(name) = LOWER($1)
+           AND city = $2
+           AND state = $3
+         LIMIT 1"
+    )
+    .bind(shop_name)
+    .bind(city)
+    .bind(state)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(result.map(|row| row.get("id")))
+}
+
+// --- Artist Lookups ---
+
+pub struct ArtistWithSocial {
+    pub id: i64,
+    pub name: Option<String>,
+    pub location_id: i64,
+    pub social_links: Option<String>,
+    pub instagram_handle: Option<String>,
+}
+
+pub async fn find_artist_by_instagram_globally(
+    pool: &PgPool,
+    handle: &str,
+) -> Result<Option<ArtistWithSocial>, sqlx::Error> {
+    let result = sqlx::query(
+        "SELECT id, name, location_id, social_links, instagram_handle
+         FROM artists
+         WHERE instagram_handle = $1
+            OR social_links LIKE '%instagram.com/' || $1 || '%'
+         LIMIT 1"
+    )
+    .bind(handle)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(result.map(|row| ArtistWithSocial {
+        id: row.get("id"),
+        name: row.get("name"),
+        location_id: row.get("location_id"),
+        social_links: row.get("social_links"),
+        instagram_handle: row.get("instagram_handle"),
+    }))
+}
+
+pub async fn find_artist_by_instagram_at_location(
+    pool: &PgPool,
+    handle: &str,
+    location_id: i64,
+) -> Result<Option<ArtistWithSocial>, sqlx::Error> {
+    let result = sqlx::query(
+        "SELECT id, name, location_id, social_links, instagram_handle
+         FROM artists
+         WHERE location_id = $1
+           AND (instagram_handle = $2 OR social_links LIKE '%instagram.com/' || $2 || '%')
+         LIMIT 1"
+    )
+    .bind(location_id)
+    .bind(handle)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(result.map(|row| ArtistWithSocial {
+        id: row.get("id"),
+        name: row.get("name"),
+        location_id: row.get("location_id"),
+        social_links: row.get("social_links"),
+        instagram_handle: row.get("instagram_handle"),
+    }))
+}
+
+pub async fn find_artist_by_name_at_location(
+    pool: &PgPool,
+    first: &str,
+    last: &str,
+    location_id: i64,
+) -> Result<Option<ArtistWithSocial>, sqlx::Error> {
+    let result = if !last.is_empty() {
+        sqlx::query(
+            "SELECT id, name, location_id, social_links, instagram_handle
+             FROM artists
+             WHERE location_id = $1
+               AND (LOWER(name) LIKE '%' || $2 || '%' OR LOWER(name) LIKE '%' || $3 || '%')
+             LIMIT 1"
+        )
+        .bind(location_id)
+        .bind(first)
+        .bind(last)
+        .fetch_optional(pool)
+        .await?
+    } else {
+        sqlx::query(
+            "SELECT id, name, location_id, social_links, instagram_handle
+             FROM artists
+             WHERE location_id = $1
+               AND LOWER(name) LIKE '%' || $2 || '%'
+             LIMIT 1"
+        )
+        .bind(location_id)
+        .bind(first)
+        .fetch_optional(pool)
+        .await?
+    };
+
+    Ok(result.map(|row| ArtistWithSocial {
+        id: row.get("id"),
+        name: row.get("name"),
+        location_id: row.get("location_id"),
+        social_links: row.get("social_links"),
+        instagram_handle: row.get("instagram_handle"),
+    }))
+}
+
+// --- Artist Insert/Update ---
+
+pub async fn insert_artist_with_instagram(
+    pool: &PgPool,
+    name: Option<&str>,
+    location_id: i64,
+    instagram_handle: &str,
+    instagram_url: &str,
+) -> Result<i64, sqlx::Error> {
+    let row = sqlx::query(
+        "INSERT INTO artists (name, location_id, instagram_handle, social_links, styles_extracted)
+         VALUES ($1, $2, $3, $4, 0)
+         RETURNING id"
+    )
+    .bind(name)
+    .bind(location_id)
+    .bind(instagram_handle)
+    .bind(instagram_url)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(row.get("id"))
+}
+
+pub async fn update_artist_add_instagram(
+    pool: &PgPool,
+    artist_id: i64,
+    instagram_handle: &str,
+    instagram_url: &str,
+    existing_social_links: Option<String>,
+) -> Result<(), sqlx::Error> {
+    let new_social_links = if let Some(existing) = existing_social_links {
+        if existing.is_empty() {
+            instagram_url.to_string()
+        } else {
+            format!("{},{}", existing, instagram_url)
+        }
+    } else {
+        instagram_url.to_string()
+    };
+
+    sqlx::query(
+        "UPDATE artists
+         SET social_links = $1,
+             instagram_handle = $2
+         WHERE id = $3"
+    )
+    .bind(&new_social_links)
+    .bind(instagram_handle)
+    .bind(artist_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+// --- Pending Review ---
+
+pub struct PendingArtistData {
+    pub reddit_post_url: Option<String>,
+    pub artist_name: Option<String>,
+    pub instagram_handle: Option<String>,
+    pub shop_name_mentioned: Option<String>,
+    pub city: String,
+    pub state: String,
+    pub post_context: Option<String>,
+    pub match_type: String,
+}
+
+pub async fn insert_reddit_artist_pending(
+    pool: &PgPool,
+    data: &PendingArtistData,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO reddit_artists_pending
+         (reddit_post_url, artist_name, instagram_handle, shop_name_mentioned,
+          city, state, post_context, match_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+    )
+    .bind(&data.reddit_post_url)
+    .bind(&data.artist_name)
+    .bind(&data.instagram_handle)
+    .bind(&data.shop_name_mentioned)
+    .bind(&data.city)
+    .bind(&data.state)
+    .bind(&data.post_context)
+    .bind(&data.match_type)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
