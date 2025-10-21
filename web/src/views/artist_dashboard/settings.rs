@@ -1,17 +1,17 @@
+use crate::db::entities::{BusinessHours, UpdateBusinessHours};
+use crate::server::{get_business_hours, update_business_hours};
+use crate::utils::auth::use_authenticated_artist_id;
+use crate::utils::timezone::convert_to_12_hour_format;
+use leptos::ev::*;
 use leptos::prelude::*;
 use leptos_router::components::A;
 use thaw::*;
-use leptos::ev::*;
-use crate::server::{get_business_hours, update_business_hours};
-use crate::db::entities::{BusinessHours, UpdateBusinessHours};
-use crate::utils::timezone::convert_to_12_hour_format;
-use crate::utils::auth::use_authenticated_artist_id;
 
 #[component]
 pub fn ArtistSettings() -> impl IntoView {
     // Get authenticated artist ID from JWT token
     let artist_id = use_authenticated_artist_id();
-    
+
     let auto_reply = RwSignal::new(true);
     let availability = RwSignal::new(true);
     let base_price = RwSignal::new("150.0".to_string());
@@ -19,13 +19,48 @@ pub fn ArtistSettings() -> impl IntoView {
 
     // Business hours state - initialize with default values
     let business_hours = RwSignal::new(vec![
-        ("Monday".to_string(), RwSignal::new("09:00".to_string()), RwSignal::new("18:00".to_string()), RwSignal::new(false)),
-        ("Tuesday".to_string(), RwSignal::new("09:00".to_string()), RwSignal::new("18:00".to_string()), RwSignal::new(false)),
-        ("Wednesday".to_string(), RwSignal::new("09:00".to_string()), RwSignal::new("18:00".to_string()), RwSignal::new(false)),
-        ("Thursday".to_string(), RwSignal::new("09:00".to_string()), RwSignal::new("18:00".to_string()), RwSignal::new(false)),
-        ("Friday".to_string(), RwSignal::new("09:00".to_string()), RwSignal::new("18:00".to_string()), RwSignal::new(false)),
-        ("Saturday".to_string(), RwSignal::new("".to_string()), RwSignal::new("".to_string()), RwSignal::new(true)),
-        ("Sunday".to_string(), RwSignal::new("".to_string()), RwSignal::new("".to_string()), RwSignal::new(true)),
+        (
+            "Monday".to_string(),
+            RwSignal::new("09:00".to_string()),
+            RwSignal::new("18:00".to_string()),
+            RwSignal::new(false),
+        ),
+        (
+            "Tuesday".to_string(),
+            RwSignal::new("09:00".to_string()),
+            RwSignal::new("18:00".to_string()),
+            RwSignal::new(false),
+        ),
+        (
+            "Wednesday".to_string(),
+            RwSignal::new("09:00".to_string()),
+            RwSignal::new("18:00".to_string()),
+            RwSignal::new(false),
+        ),
+        (
+            "Thursday".to_string(),
+            RwSignal::new("09:00".to_string()),
+            RwSignal::new("18:00".to_string()),
+            RwSignal::new(false),
+        ),
+        (
+            "Friday".to_string(),
+            RwSignal::new("09:00".to_string()),
+            RwSignal::new("18:00".to_string()),
+            RwSignal::new(false),
+        ),
+        (
+            "Saturday".to_string(),
+            RwSignal::new("".to_string()),
+            RwSignal::new("".to_string()),
+            RwSignal::new(true),
+        ),
+        (
+            "Sunday".to_string(),
+            RwSignal::new("".to_string()),
+            RwSignal::new("".to_string()),
+            RwSignal::new(true),
+        ),
     ]);
 
     // Load existing business hours
@@ -34,7 +69,9 @@ pub fn ArtistSettings() -> impl IntoView {
         |id_opt| async move {
             match id_opt {
                 Some(id) => get_business_hours(id).await,
-                None => Err(ServerFnError::new("No authenticated artist found".to_string()))
+                None => Err(ServerFnError::new(
+                    "No authenticated artist found".to_string(),
+                )),
             }
         },
     );
@@ -44,7 +81,9 @@ pub fn ArtistSettings() -> impl IntoView {
         if let Some(Ok(hours)) = business_hours_resource.get() {
             let hours_with_signals = business_hours.get();
             for hour in hours {
-                if let Some((_, start_signal, end_signal, closed_signal)) = hours_with_signals.get(hour.day_of_week as usize) {
+                if let Some((_, start_signal, end_signal, closed_signal)) =
+                    hours_with_signals.get(hour.day_of_week as usize)
+                {
                     start_signal.set(hour.start_time.unwrap_or_default());
                     end_signal.set(hour.end_time.unwrap_or_default());
                     closed_signal.set(hour.is_closed);
@@ -56,7 +95,8 @@ pub fn ArtistSettings() -> impl IntoView {
     // Save business hours action
     let save_hours_action = Action::new(move |_: &()| async move {
         if let Some(id) = artist_id.get() {
-            let hours_to_save = business_hours.get()
+            let hours_to_save = business_hours
+                .get()
                 .iter()
                 .enumerate()
                 .map(|(day_index, (_, start, end, is_closed))| {
@@ -64,8 +104,16 @@ pub fn ArtistSettings() -> impl IntoView {
                     UpdateBusinessHours {
                         artist_id: id,
                         day_of_week: day_of_week as i32,
-                        start_time: if is_closed.get() { None } else { Some(start.get()) },
-                        end_time: if is_closed.get() { None } else { Some(end.get()) },
+                        start_time: if is_closed.get() {
+                            None
+                        } else {
+                            Some(start.get())
+                        },
+                        end_time: if is_closed.get() {
+                            None
+                        } else {
+                            Some(end.get())
+                        },
                         is_closed: is_closed.get(),
                     }
                 })
@@ -73,7 +121,9 @@ pub fn ArtistSettings() -> impl IntoView {
 
             update_business_hours(hours_to_save).await
         } else {
-            Err(ServerFnError::new("No authenticated artist found".to_string()))
+            Err(ServerFnError::new(
+                "No authenticated artist found".to_string(),
+            ))
         }
     });
 
@@ -90,7 +140,7 @@ pub fn ArtistSettings() -> impl IntoView {
             <div class="settings-grid">
                 <div class="settings-card">
                     <h2>"Availability Settings"</h2>
-                    
+
                     <div class="setting-group">
                         <label class="setting-label">
                             <Switch
@@ -114,7 +164,7 @@ pub fn ArtistSettings() -> impl IntoView {
 
                 <div class="settings-card">
                     <h2>"Pricing Configuration"</h2>
-                    
+
                     <div class="setting-group">
                         <label class="setting-label">"Base Price (Small Tattoos)"</label>
                         <div class="price-input">
@@ -146,7 +196,7 @@ pub fn ArtistSettings() -> impl IntoView {
 
                 <div class="settings-card">
                     <h2>"Business Hours"</h2>
-                    
+
                     <div class="hours-grid">
                         {business_hours.get().iter().enumerate().map(|(index, (day_name, start_time, end_time, is_closed))| {
                             let day_name = day_name.clone();
@@ -154,24 +204,24 @@ pub fn ArtistSettings() -> impl IntoView {
                             let end_signal = end_time.clone();
                             let closed_signal = is_closed.clone();
                             let day_index = index;
-                            
+
                             view! {
                                 <div class="day-setting">
                                     <span class="day-label">{day_name}</span>
                                     <div class="time-inputs">
-                                        <Input 
+                                        <Input
                                             value=start_signal
                                             placeholder="09:00"
                                             disabled=closed_signal.get()
                                         />
                                         <span>"-"</span>
-                                        <Input 
+                                        <Input
                                             value=end_signal
                                             placeholder="18:00"
                                             disabled=closed_signal.get()
                                         />
                                         <label class="closed-toggle">
-                                            <input 
+                                            <input
                                                 type="checkbox"
                                                 checked=closed_signal.get()
                                                 on:change=move |ev| {
@@ -195,8 +245,8 @@ pub fn ArtistSettings() -> impl IntoView {
                     </div>
 
                     <div class="setting-actions">
-                        <button 
-                            class="btn btn-primary" 
+                        <button
+                            class="btn btn-primary"
                             on:click=move |_| {
                                 save_hours_action.dispatch(());
                             }
@@ -227,7 +277,7 @@ pub fn ArtistSettings() -> impl IntoView {
 
                 <div class="settings-card">
                     <h2>"Profile Settings"</h2>
-                    
+
                     <div class="coming-soon-card">
                         <div class="coming-soon-icon">"⚙️"</div>
                         <h3>"Advanced Settings Coming Soon"</h3>

@@ -61,14 +61,21 @@ pub fn FavoriteButton(
                                         if let Some(window) = web_sys::window() {
                                             if let Ok(current_path) = window.location().pathname() {
                                                 let _ = window.history().and_then(|h| {
-                                                    h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&current_path))
+                                                    h.replace_state_with_url(
+                                                        &wasm_bindgen::JsValue::NULL,
+                                                        "",
+                                                        Some(&current_path),
+                                                    )
                                                 });
                                             }
                                         }
                                     }
                                 }
                                 Err(e) => {
-                                    leptos::logging::error!("Failed to auto-favorite after login: {:?}", e);
+                                    leptos::logging::error!(
+                                        "Failed to auto-favorite after login: {:?}",
+                                        e
+                                    );
                                     is_loading.set(false);
                                 }
                             }
@@ -108,7 +115,10 @@ pub fn FavoriteButton(
                 });
             } else {
                 // User not logged in, redirect to login with return path and favorite ID
-                let redirect_url = format!("/login?redirect={}&favorite={}", current_path, artists_images_id);
+                let redirect_url = format!(
+                    "/login?redirect={}&favorite={}",
+                    current_path, artists_images_id
+                );
                 navigate(&redirect_url, Default::default());
             }
         }

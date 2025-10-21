@@ -1,6 +1,6 @@
-use leptos::prelude::*;
-use crate::components::instagram_embed_ssr::InstagramEmbedSsr;
 use crate::components::instagram_embed::{InstagramEmbed, InstagramEmbedSize};
+use crate::components::instagram_embed_ssr::InstagramEmbedSsr;
+use leptos::prelude::*;
 
 #[component]
 pub fn InstagramDemo() -> impl IntoView {
@@ -33,11 +33,11 @@ pub fn InstagramDemo() -> impl IntoView {
                             "Fetched via Instagram oEmbed API on the server, then sent as HTML to the client. Faster, more reliable, SEO-friendly."
                         </p>
                         <div class="instagram-demo-embed-container">
-                            <InstagramEmbedSsr 
-                                short_code="DLbEyS3uN7k".to_string() 
+                            <InstagramEmbedSsr
+                                short_code="DLbEyS3uN7k".to_string()
                             />
                         </div>
-                        
+
                         <div class="instagram-demo-benefits">
                             <h4 class="instagram-demo-benefits-title">
                                 "✅ Benefits:"
@@ -66,12 +66,12 @@ pub fn InstagramDemo() -> impl IntoView {
                             "Traditional iframe approach with client-side JavaScript. Slower, less reliable, but currently used throughout the app."
                         </p>
                         <div class="instagram-demo-embed-container">
-                            <InstagramEmbed 
-                                short_code="DLbEyS3uN7k".to_string() 
+                            <InstagramEmbed
+                                short_code="DLbEyS3uN7k".to_string()
                                 size=InstagramEmbedSize::Medium
                             />
                         </div>
-                        
+
                         <div class="instagram-demo-limitations">
                             <h4 class="instagram-demo-limitations-title">
                                 "⚠️ Limitations:"
@@ -92,7 +92,7 @@ pub fn InstagramDemo() -> impl IntoView {
                     <h2 class="instagram-demo-technical-title">
                         "🔧 Technical Implementation"
                     </h2>
-                    
+
                     <div class="instagram-demo-technical-grid">
                         <div>
                             <h3 class="instagram-demo-process-title">
@@ -106,7 +106,7 @@ pub fn InstagramDemo() -> impl IntoView {
                                 <li>"Errors gracefully fall back to beautiful CTA component"</li>
                             </ol>
                         </div>
-                        
+
                         <div>
                             <h3 class="instagram-demo-process-title">
                                 "Client-Side Process:"
@@ -128,16 +128,16 @@ pub fn InstagramDemo() -> impl IntoView {
                         "🧪 Test Cases"
                     </h2>
                     <p class="instagram-demo-test-description">
-                        "The demo post (DLbEyS3uN7k) is a public Instagram post that should load successfully with both methods. 
+                        "The demo post (DLbEyS3uN7k) is a public Instagram post that should load successfully with both methods.
                         For broken posts, the server-side version will show the fallback CTA, while the client-side version may show loading states indefinitely."
                     </p>
-                    
+
                     <div class="instagram-demo-next-steps">
                         <h4 class="instagram-demo-next-steps-title">
                             "📝 Next Steps:"
                         </h4>
                         <p class="instagram-demo-next-steps-content">
-                            "If server-side rendering performs well, we can gradually replace the client-side InstagramEmbed 
+                            "If server-side rendering performs well, we can gradually replace the client-side InstagramEmbed
                             components throughout the app with InstagramEmbedSsr for better performance and reliability."
                         </p>
                     </div>

@@ -1,9 +1,9 @@
+use crate::db::entities::Style;
+use crate::server::{add_style_to_image, get_all_styles_for_admin, remove_style_from_image};
+use crate::utils::auth::is_admin;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use thaw::*;
-use crate::db::entities::Style;
-use crate::server::{add_style_to_image, remove_style_from_image, get_all_styles_for_admin};
-use crate::utils::auth::is_admin;
 
 #[component]
 pub fn StyleTagManager(
@@ -48,11 +48,8 @@ pub fn StyleTagManager(
         search_filter.set(String::new()); // Reset search filter
 
         // Initialize selected styles with current styles
-        let current_ids: std::collections::HashSet<i32> = current_styles
-            .get()
-            .iter()
-            .map(|s| s.id)
-            .collect();
+        let current_ids: std::collections::HashSet<i32> =
+            current_styles.get().iter().map(|s| s.id).collect();
         selected_style_ids.set(current_ids);
 
         // Fetch all available styles
@@ -88,11 +85,8 @@ pub fn StyleTagManager(
         loading.set(true);
         error_message.set(None);
 
-        let current_ids: std::collections::HashSet<i32> = current_styles
-            .get()
-            .iter()
-            .map(|s| s.id)
-            .collect();
+        let current_ids: std::collections::HashSet<i32> =
+            current_styles.get().iter().map(|s| s.id).collect();
         let selected_ids = selected_style_ids.get();
 
         // Determine which styles to add and remove
@@ -104,7 +98,9 @@ pub fn StyleTagManager(
 
             // Remove styles
             for style_id in to_remove {
-                if let Err(e) = remove_style_from_image(image_id, style_id as i64, token.clone()).await {
+                if let Err(e) =
+                    remove_style_from_image(image_id, style_id as i64, token.clone()).await
+                {
                     error_message.set(Some(format!("Failed to remove style: {}", e)));
                     success = false;
                     break;
@@ -114,7 +110,9 @@ pub fn StyleTagManager(
             // Add styles
             if success {
                 for style_id in to_add {
-                    if let Err(e) = add_style_to_image(image_id, style_id as i64, token.clone()).await {
+                    if let Err(e) =
+                        add_style_to_image(image_id, style_id as i64, token.clone()).await
+                    {
                         error_message.set(Some(format!("Failed to add style: {}", e)));
                         success = false;
                         break;

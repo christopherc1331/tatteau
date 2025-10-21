@@ -8,8 +8,12 @@ use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard, ErrorBoundary, Navbar};
-use crate::views::artist_dashboard::{ArtistHome, ArtistCalendar, ArtistRequests, ArtistSettings, ArtistRecurring, BookingDetails, QuestionnaireBuilder};
+use crate::views::artist_dashboard::{
+    ArtistCalendar, ArtistHome, ArtistRecurring, ArtistRequests, ArtistSettings, BookingDetails,
+    QuestionnaireBuilder,
+};
 use crate::views::artist_highlight::ArtistHighlight;
+use crate::views::artist_login_prompt::ArtistLoginPrompt;
 use crate::views::auth::{LoginPage, SignupPage};
 use crate::views::booking::{ArtistBooking, ShopBooking};
 use crate::views::booking_confirmation::BookingConfirmation;
@@ -17,12 +21,11 @@ use crate::views::favorites::FavoritesPage;
 use crate::views::home::HomePage;
 use crate::views::map::map_wrapper::DiscoveryMap;
 use crate::views::match_results::MatchResults;
+use crate::views::not_found::NotFoundPage;
 use crate::views::quiz::GetMatchedQuiz;
 use crate::views::shop::Shop;
 use crate::views::styles::StylesShowcase;
 use crate::views::subscription_tiers::SubscriptionTiersPage;
-use crate::views::artist_login_prompt::ArtistLoginPrompt;
-use crate::views::not_found::NotFoundPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -139,14 +142,16 @@ fn GalleryPage() -> impl IntoView {
 fn BookingDetailsPage() -> impl IntoView {
     let params = leptos_router::hooks::use_params_map();
     let booking_id = move || {
-        params.get().get("id")
+        params
+            .get()
+            .get("id")
             .and_then(|id| id.parse::<i32>().ok())
             .unwrap_or(0)
     };
-    
+
     // Get the booking_id once at component creation time
     let id = booking_id();
-    
+
     view! {
         <BookingDetails booking_id=id />
     }
@@ -212,13 +217,15 @@ fn ProtectedQuestionnaireBuilder() -> impl IntoView {
 fn ProtectedBookingDetailsPage() -> impl IntoView {
     let params = leptos_router::hooks::use_params_map();
     let booking_id = move || {
-        params.get().get("id")
+        params
+            .get()
+            .get("id")
             .and_then(|id| id.parse::<i32>().ok())
             .unwrap_or(0)
     };
-    
+
     let id = booking_id();
-    
+
     view! {
         <ArtistAuthGuard>
             <BookingDetails booking_id=id />

@@ -59,7 +59,8 @@ fn extract_user_id_from_token(token: &str) -> Option<i64> {
         token,
         &DecodingKey::from_secret(secret.as_ref()),
         &Validation::default(),
-    ).ok()?;
+    )
+    .ok()?;
 
     Some(token_data.claims.user_id)
 }
@@ -193,7 +194,10 @@ pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnErr
 #[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 #[server]
 #[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
-pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<ShopData, ServerFnError> {
+pub async fn fetch_shop_data(
+    location_id: i32,
+    token: Option<String>,
+) -> Result<ShopData, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         let user_id = token.as_deref().and_then(extract_user_id_from_token);
@@ -226,9 +230,15 @@ pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<
     }
 }
 
-#[cfg_attr(feature = "ssr", instrument(skip(token, style_ids), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(token, style_ids), err, level = "info")
+)]
 #[server]
-#[cfg_attr(feature = "ssr", instrument(skip(style_ids, token), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(style_ids, token), err, level = "info")
+)]
 pub async fn fetch_shop_images_paginated(
     location_id: i32,
     style_ids: Option<Vec<i32>>,
@@ -254,9 +264,15 @@ pub async fn fetch_shop_images_paginated(
     }
 }
 
-#[cfg_attr(feature = "ssr", instrument(skip(token, style_ids), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(token, style_ids), err, level = "info")
+)]
 #[server]
-#[cfg_attr(feature = "ssr", instrument(skip(style_ids, token), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(style_ids, token), err, level = "info")
+)]
 pub async fn fetch_artist_images_paginated(
     artist_id: i32,
     style_ids: Option<Vec<i32>>,
@@ -411,9 +427,15 @@ pub struct LocationDetailInfo {
     pub average_rating: Option<f64>,
 }
 
-#[cfg_attr(feature = "ssr", instrument(skip(bounds, style_filter), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(bounds, style_filter), err, level = "info")
+)]
 #[server]
-#[cfg_attr(feature = "ssr", instrument(skip(bounds, style_filter), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(bounds, style_filter), err, level = "info")
+)]
 pub async fn get_locations_with_details(
     state: String,
     city: String,
@@ -459,9 +481,15 @@ pub struct MatchedArtist {
     pub max_price: Option<f64>,
 }
 
-#[cfg_attr(feature = "ssr", instrument(skip(style_preferences), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(style_preferences), err, level = "info")
+)]
 #[server]
-#[cfg_attr(feature = "ssr", instrument(skip(style_preferences), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(style_preferences), err, level = "info")
+)]
 pub async fn get_matched_artists(
     style_preferences: Vec<String>,
     location: String,
@@ -877,7 +905,10 @@ pub struct TattooPost {
     pub is_favorited: bool,
 }
 
-#[cfg_attr(feature = "ssr", instrument(skip(token, cities, states), err, level = "info"))]
+#[cfg_attr(
+    feature = "ssr",
+    instrument(skip(token, cities, states), err, level = "info")
+)]
 #[server]
 pub async fn get_tattoo_posts_by_style(
     style_names: Vec<String>,
@@ -1331,7 +1362,9 @@ pub async fn get_booking_messages(
     {
         use sqlx::Row;
 
-        async fn query_messages(booking_request_id: i32) -> Result<Vec<BookingMessage>, sqlx::Error> {
+        async fn query_messages(
+            booking_request_id: i32,
+        ) -> Result<Vec<BookingMessage>, sqlx::Error> {
             let pool = crate::db::pool::get_pool();
 
             let rows = sqlx::query(
@@ -1680,13 +1713,16 @@ pub async fn get_effective_availability(
         use chrono::{Datelike, NaiveDate, Weekday};
         use sqlx::Row;
 
-        async fn check_effective_availability(artist_id: i32, date: String) -> Result<bool, sqlx::Error> {
+        async fn check_effective_availability(
+            artist_id: i32,
+            date: String,
+        ) -> Result<bool, sqlx::Error> {
             let pool = crate::db::pool::get_pool();
 
             // First check if there's an explicit availability record for this date
             let explicit_availability: Option<bool> = sqlx::query(
                 "SELECT is_available FROM availability_slots
-                WHERE artist_id = $1 AND specific_date = $2"
+                WHERE artist_id = $1 AND specific_date = $2",
             )
             .bind(artist_id)
             .bind(&date)
@@ -1707,7 +1743,7 @@ pub async fn get_effective_availability(
             // Get all active recurring rules for this artist
             let rules = sqlx::query(
                 "SELECT rule_type, pattern, action FROM recurring_rules
-                WHERE artist_id = $1 AND active = true"
+                WHERE artist_id = $1 AND active = true",
             )
             .bind(artist_id)
             .fetch_all(pool)
@@ -1829,7 +1865,7 @@ pub async fn get_booking_request_by_id(booking_id: i32) -> Result<BookingRequest
                        message_from_client, status, artist_response, estimated_price,
                        created_at, updated_at, decline_reason
                 FROM booking_requests
-                WHERE id = $1"
+                WHERE id = $1",
             )
             .bind(booking_id)
             .fetch_one(pool)
@@ -1967,7 +2003,9 @@ pub async fn get_client_booking_history(
     {
         use sqlx::Row;
 
-        async fn query_client_history(client_email: String) -> Result<Vec<BookingHistoryEntry>, sqlx::Error> {
+        async fn query_client_history(
+            client_email: String,
+        ) -> Result<Vec<BookingHistoryEntry>, sqlx::Error> {
             let pool = crate::db::pool::get_pool();
 
             let rows = sqlx::query(
@@ -1975,7 +2013,7 @@ pub async fn get_client_booking_history(
                 FROM booking_requests
                 WHERE client_email = $1
                 ORDER BY created_at DESC
-                LIMIT 10"
+                LIMIT 10",
             )
             .bind(&client_email)
             .fetch_all(pool)
@@ -1987,7 +2025,9 @@ pub async fn get_client_booking_history(
                     id: row.get("id"),
                     booking_date: row.get("requested_date"),
                     status: row.get("status"),
-                    created_at: row.try_get("created_at").unwrap_or_else(|_| "Unknown".to_string()),
+                    created_at: row
+                        .try_get("created_at")
+                        .unwrap_or_else(|_| "Unknown".to_string()),
                 })
                 .collect();
 
@@ -2190,7 +2230,7 @@ pub async fn login_user(login_data: LoginData) -> Result<AuthResponse, ServerFnE
         let result = sqlx::query(
             "SELECT id, password_hash, first_name, last_name, role::text as role
              FROM users
-             WHERE email = $1 AND is_active = true"
+             WHERE email = $1 AND is_active = true",
         )
         .bind(&login_data.email)
         .fetch_optional(pool)
@@ -2335,7 +2375,7 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             let row = sqlx::query(
                 "INSERT INTO users (first_name, last_name, email, phone, password_hash, role)
                  VALUES ($1, $2, $3, $4, $5, 'client')
-                 RETURNING id"
+                 RETURNING id",
             )
             .bind(&signup_data.first_name)
             .bind(&signup_data.last_name)
@@ -2354,9 +2394,12 @@ pub async fn signup_user(signup_data: SignupData) -> Result<AuthResponse, Server
             let artist_row = sqlx::query(
                 "INSERT INTO artists (name, location_id, email, availability_status)
                  VALUES ($1, $2, $3, $4)
-                 RETURNING id"
+                 RETURNING id",
             )
-            .bind(format!("{} {}", signup_data.first_name, signup_data.last_name))
+            .bind(format!(
+                "{} {}",
+                signup_data.first_name, signup_data.last_name
+            ))
             .bind(1) // Placeholder location - will be updated during onboarding
             .bind(&signup_data.email)
             .bind("pending_onboarding")
@@ -2457,7 +2500,7 @@ pub async fn verify_token(token: String) -> Result<Option<UserInfo>, ServerFnErr
                 let user_info = sqlx::query(
                     "SELECT id, first_name, last_name, email, role::text as role
                      FROM users
-                     WHERE id = $1 AND is_active = true"
+                     WHERE id = $1 AND is_active = true",
                 )
                 .bind(claims.user_id)
                 .fetch_optional(pool)
@@ -2497,7 +2540,7 @@ pub async fn get_subscription_tiers() -> Result<Vec<SubscriptionTier>, ServerFnE
         let rows = sqlx::query(
             "SELECT id, tier_name, tier_level, price_monthly, features_json, created_at
             FROM subscription_tiers
-            ORDER BY tier_level ASC"
+            ORDER BY tier_level ASC",
         )
         .fetch_all(pool)
         .await
@@ -2833,11 +2876,12 @@ pub async fn get_artist_id_from_user(user_id: i32) -> Result<i32, ServerFnError>
 
         let pool = crate::db::pool::get_pool();
 
-        let artist_id: i32 = sqlx::query_scalar("SELECT artist_id FROM users WHERE id = $1 AND role = 'artist'")
-            .bind(user_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Failed to get artist_id: {}", e)))?;
+        let artist_id: i32 =
+            sqlx::query_scalar("SELECT artist_id FROM users WHERE id = $1 AND role = 'artist'")
+                .bind(user_id)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| ServerFnError::new(format!("Failed to get artist_id: {}", e)))?;
 
         Ok(artist_id)
     }
@@ -2861,7 +2905,7 @@ pub async fn get_artist_styles_by_id(artist_id: i64) -> Result<Vec<String>, Serv
             FROM styles s
             JOIN artists_styles ast ON s.id = ast.style_id
             WHERE ast.artist_id = $1
-            ORDER BY s.name ASC"
+            ORDER BY s.name ASC",
         )
         .bind(artist_id)
         .fetch_all(pool)
@@ -2973,7 +3017,7 @@ pub async fn get_available_dates(
                 "SELECT day_of_week, start_time, end_time, is_closed
                  FROM business_hours
                  WHERE artist_id = $1
-                 ORDER BY day_of_week"
+                 ORDER BY day_of_week",
             )
             .bind(artist_id)
             .fetch_all(pool)
@@ -2994,7 +3038,7 @@ pub async fn get_available_dates(
                  FROM artist_availability
                  WHERE artist_id = $1
                    AND specific_date IS NOT NULL
-                   AND specific_date BETWEEN $2 AND $3"
+                   AND specific_date BETWEEN $2 AND $3",
             )
             .bind(artist_id)
             .bind(&start_date)
@@ -3015,7 +3059,7 @@ pub async fn get_available_dates(
                  FROM booking_requests
                  WHERE artist_id = $1
                    AND requested_date BETWEEN $2 AND $3
-                   AND status IN ('pending', 'approved')"
+                   AND status IN ('pending', 'approved')",
             )
             .bind(artist_id)
             .bind(&start_date)
@@ -3099,7 +3143,10 @@ pub async fn get_available_time_slots(
     {
         use sqlx::Row;
 
-        async fn query_time_slots(artist_id: i32, date: String) -> Result<Vec<TimeSlot>, sqlx::Error> {
+        async fn query_time_slots(
+            artist_id: i32,
+            date: String,
+        ) -> Result<Vec<TimeSlot>, sqlx::Error> {
             let pool = crate::db::pool::get_pool();
 
             // Parse the date to get day of week
@@ -3111,7 +3158,7 @@ pub async fn get_available_time_slots(
             let business_hours: Option<(String, String)> = sqlx::query(
                 "SELECT start_time, end_time
                  FROM business_hours
-                 WHERE artist_id = $1 AND day_of_week = $2 AND is_closed = false"
+                 WHERE artist_id = $1 AND day_of_week = $2 AND is_closed = false",
             )
             .bind(artist_id)
             .bind(day_of_week)
@@ -3131,7 +3178,7 @@ pub async fn get_available_time_slots(
                  FROM booking_requests
                  WHERE artist_id = $1
                    AND requested_date = $2
-                   AND status IN ('pending', 'approved')"
+                   AND status IN ('pending', 'approved')",
             )
             .bind(artist_id)
             .bind(&date)
@@ -3219,7 +3266,8 @@ fn extract_user_from_token(token: &str) -> Option<(i64, String)> {
         token,
         &DecodingKey::from_secret(secret.as_ref()),
         &Validation::default(),
-    ).ok()?;
+    )
+    .ok()?;
 
     Some((token_data.claims.user_id, token_data.claims.user_type))
 }
@@ -3241,7 +3289,9 @@ pub async fn add_style_to_image(
             .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
 
         if user_type != "admin" {
-            return Err(ServerFnError::new("Unauthorized: Admin access required".to_string()));
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
         }
 
         let pool = crate::db::pool::get_pool();
@@ -3255,7 +3305,7 @@ pub async fn add_style_to_image(
              DO UPDATE SET
                 is_admin_corrected = true,
                 corrected_by = $3,
-                corrected_at = CURRENT_TIMESTAMP"
+                corrected_at = CURRENT_TIMESTAMP",
         )
         .bind(image_id)
         .bind(style_id)
@@ -3292,7 +3342,9 @@ pub async fn remove_style_from_image(
             .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
 
         if user_type != "admin" {
-            return Err(ServerFnError::new("Unauthorized: Admin access required".to_string()));
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
         }
 
         let pool = crate::db::pool::get_pool();
@@ -3300,7 +3352,7 @@ pub async fn remove_style_from_image(
         // Delete the style association
         let result = sqlx::query(
             "DELETE FROM artists_images_styles
-             WHERE artists_images_id = $1 AND style_id = $2"
+             WHERE artists_images_id = $1 AND style_id = $2",
         )
         .bind(image_id)
         .bind(style_id)
@@ -3331,18 +3383,16 @@ pub async fn get_all_styles_for_admin() -> Result<Vec<Style>, ServerFnError> {
 
         let pool = crate::db::pool::get_pool();
 
-        let styles: Vec<Style> = sqlx::query(
-            "SELECT id, name FROM styles ORDER BY name ASC"
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?
-        .into_iter()
-        .map(|row| Style {
-            id: row.get::<i64, _>("id") as i32,
-            name: row.get("name"),
-        })
-        .collect();
+        let styles: Vec<Style> = sqlx::query("SELECT id, name FROM styles ORDER BY name ASC")
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?
+            .into_iter()
+            .map(|row| Style {
+                id: row.get::<i64, _>("id") as i32,
+                name: row.get("name"),
+            })
+            .collect();
 
         Ok(styles)
     }
@@ -3376,7 +3426,7 @@ pub async fn get_image_style_metadata(image_id: i64) -> Result<ImageStyleMetadat
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
              WHERE ais.artists_images_id = $1
-             ORDER BY s.name"
+             ORDER BY s.name",
         )
         .bind(image_id)
         .fetch_all(pool)
@@ -3395,7 +3445,7 @@ pub async fn get_image_style_metadata(image_id: i64) -> Result<ImageStyleMetadat
              FROM styles s
              JOIN image_style_llm_recommendations isr ON s.id = isr.style_id
              WHERE isr.artists_images_id = $1
-             ORDER BY s.name"
+             ORDER BY s.name",
         )
         .bind(image_id)
         .fetch_all(pool)
@@ -3411,7 +3461,7 @@ pub async fn get_image_style_metadata(image_id: i64) -> Result<ImageStyleMetadat
         // Count admin corrections
         let admin_corrected_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM artists_images_styles
-             WHERE artists_images_id = $1 AND is_admin_corrected = true"
+             WHERE artists_images_id = $1 AND is_admin_corrected = true",
         )
         .bind(image_id)
         .fetch_one(pool)

@@ -1,20 +1,16 @@
-use leptos::prelude::*;
-use crate::server::get_instagram_embed;
 use crate::components::instagram_fallback_cta::InstagramFallbackCta;
+use crate::server::get_instagram_embed;
+use leptos::prelude::*;
 
 #[component]
-pub fn InstagramEmbedSsr(
-    short_code: String,
-) -> impl IntoView {
+pub fn InstagramEmbedSsr(short_code: String) -> impl IntoView {
     let short_code_for_resource = short_code.clone();
     let short_code_for_fallback = short_code.clone();
-    
+
     // Create a resource to fetch the Instagram embed from the server
     let embed_resource = Resource::new(
         move || short_code_for_resource.clone(),
-        move |short_code| async move {
-            get_instagram_embed(short_code).await
-        },
+        move |short_code| async move { get_instagram_embed(short_code).await },
     );
 
     view! {

@@ -8,12 +8,8 @@ use crate::{
 
 #[component]
 pub fn StylesShowcase() -> impl IntoView {
-    let styles_resource = Resource::new(
-        || (),
-        |_| async move {
-            get_all_styles_with_counts().await
-        },
-    );
+    let styles_resource =
+        Resource::new(|| (), |_| async move { get_all_styles_with_counts().await });
 
     view! {
         <div class="styles-showcase-container">
@@ -96,7 +92,7 @@ pub fn StylesShowcase() -> impl IntoView {
 pub fn StyleCard(style_info: StyleWithCount) -> impl IntoView {
     let style_name = style_info.name.clone();
     let artist_count = style_info.artist_count;
-    
+
     // Get sample images for this style (placeholder for now)
     let sample_images = style_info.sample_images.unwrap_or_default();
 
@@ -144,8 +140,8 @@ pub fn StyleCard(style_info: StyleWithCount) -> impl IntoView {
             }}
 
             <div class="styles-style-description">
-                {style_info.description.unwrap_or_else(|| 
-                    format!("Explore {} tattoo style with {} talented artists in our network.", 
+                {style_info.description.unwrap_or_else(||
+                    format!("Explore {} tattoo style with {} talented artists in our network.",
                            style_name, artist_count)
                 )}
             </div>

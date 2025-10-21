@@ -10,9 +10,9 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::Regex;
 use reqwest::Client as HttpClient;
-use sqlx::{PgPool, Row};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use sqlx::{PgPool, Row};
 use std::collections::HashSet;
 use std::env;
 use std::sync::{
@@ -74,14 +74,12 @@ fn get_domain(url_str: &str) -> anyhow::Result<String> {
 
 async fn log_scrape_action(pool: &PgPool, location_id: i64, action: &str) -> anyhow::Result<()> {
     let timestamp = Utc::now().to_rfc3339();
-    sqlx::query(
-        "INSERT INTO scrape_actions (location_id, action, timestamp) VALUES ($1, $2, $3)"
-    )
-    .bind(location_id)
-    .bind(action)
-    .bind(timestamp)
-    .execute(pool)
-    .await?;
+    sqlx::query("INSERT INTO scrape_actions (location_id, action, timestamp) VALUES ($1, $2, $3)")
+        .bind(location_id)
+        .bind(action)
+        .bind(timestamp)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -91,10 +89,7 @@ async fn get_existing_artists(pool: &PgPool, location_id: i64) -> anyhow::Result
         .fetch_all(pool)
         .await?;
 
-    let artists: Vec<String> = rows
-        .into_iter()
-        .map(|row| row.get("name"))
-        .collect();
+    let artists: Vec<String> = rows.into_iter().map(|row| row.get("name")).collect();
 
     Ok(artists)
 }
@@ -129,32 +124,28 @@ async fn persist_artist_and_styles(
                 let style_name = normalize_style(raw_style);
 
                 // Try to get existing style_id, or insert new style
-                let style_id = match sqlx::query(
-                    "SELECT id FROM styles WHERE LOWER(name) = LOWER($1)"
-                )
-                .bind(&style_name)
-                .fetch_optional(pool)
-                .await?
-                {
-                    Some(row) => row.get::<i64, _>("id"),
-                    None => {
-                        let row = sqlx::query(
-                            "INSERT INTO styles (name) VALUES ($1) RETURNING id"
-                        )
+                let style_id =
+                    match sqlx::query("SELECT id FROM styles WHERE LOWER(name) = LOWER($1)")
                         .bind(&style_name)
-                        .fetch_one(pool)
-                        .await?;
-                        row.get("id")
-                    }
-                };
+                        .fetch_optional(pool)
+                        .await?
+                    {
+                        Some(row) => row.get::<i64, _>("id"),
+                        None => {
+                            let row =
+                                sqlx::query("INSERT INTO styles (name) VALUES ($1) RETURNING id")
+                                    .bind(&style_name)
+                                    .fetch_one(pool)
+                                    .await?;
+                            row.get("id")
+                        }
+                    };
 
-                sqlx::query(
-                    "INSERT INTO artists_styles (artist_id, style_id) VALUES ($1, $2)"
-                )
-                .bind(artist_id)
-                .bind(style_id)
-                .execute(pool)
-                .await?;
+                sqlx::query("INSERT INTO artists_styles (artist_id, style_id) VALUES ($1, $2)")
+                    .bind(artist_id)
+                    .bind(style_id)
+                    .execute(pool)
+                    .await?;
             }
         }
     }
@@ -188,7 +179,9 @@ async fn handle_gpt_decision(
             return Ok((false, Some(url.clone())));
         }
         GptAction::Extract => {
-            let existing_artists = get_existing_artists(pool, location_id).await.unwrap_or_default();
+            let existing_artists = get_existing_artists(pool, location_id)
+                .await
+                .unwrap_or_default();
 
             let artists =
                 call_gpt_extract(gpt_client, base_url, cleaned_html, &existing_artists).await?;
@@ -205,7 +198,8 @@ async fn handle_gpt_decision(
                     pool,
                     location_id,
                     &format!("extract:new_artists_found:{}", artists.len()),
-                ).await;
+                )
+                .await;
             }
         }
         GptAction::Done => {
@@ -417,7 +411,7 @@ pub async fn scrape(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
                 AND website_uri NOT LIKE '%facebook%'
                 AND website_uri NOT LIKE '%instagram%'
                 LIMIT $1
-            ) RETURNING id, website_uri"
+            ) RETURNING id, website_uri",
         )
         .bind(max_scrapes as i32)
         .fetch_all(pool)
@@ -510,7 +504,8 @@ pub async fn scrape(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
                                                 &pool,
                                                 id,
                                                 &format!("error:decision_handling:{}", e),
-                                            ).await;
+                                            )
+                                            .await;
                                             break;
                                         }
                                     }
@@ -521,7 +516,8 @@ pub async fn scrape(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
                                         &pool,
                                         id,
                                         &format!("error:gpt_call:{}", e),
-                                    ).await;
+                                    )
+                                    .await;
                                     break;
                                 }
                             }
@@ -535,11 +531,13 @@ pub async fn scrape(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
                                 &pool,
                                 id,
                                 &format!("error:fetch_failed:{}", err),
-                            ).await;
-                            let _ = sqlx::query("UPDATE locations SET is_scraped = -1 WHERE id = $1")
-                                .bind(id)
-                                .execute(&pool)
-                                .await;
+                            )
+                            .await;
+                            let _ =
+                                sqlx::query("UPDATE locations SET is_scraped = -1 WHERE id = $1")
+                                    .bind(id)
+                                    .execute(&pool)
+                                    .await;
                             break;
                         }
                     }

@@ -2,10 +2,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 
 #[component]
-pub fn ArtistCTA(
-    artist_id: i32,
-    #[prop(optional)] class: &'static str,
-) -> impl IntoView {
+pub fn ArtistCTA(artist_id: i32, #[prop(optional)] class: &'static str) -> impl IntoView {
     view! {
         <div class={format!("artist-cta {}", class)}>
             <A href=format!("/artist/{}", artist_id)

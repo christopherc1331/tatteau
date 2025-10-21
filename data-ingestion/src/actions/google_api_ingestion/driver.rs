@@ -1,9 +1,9 @@
 use super::fetcher::fetch_data;
 use super::parser::{parse_data, ParsedLocationData};
 use crate::repository::{fetch_county_boundaries, mark_county_ingested, upsert_locations};
-use sqlx::PgPool;
 use serde_json::Value;
 use shared_types::CountyBoundary;
+use sqlx::PgPool;
 
 pub async fn ingest_google(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let limit_results_to: i8 = 20;
@@ -71,4 +71,3 @@ async fn process_county(
 
     Ok(())
 }
-

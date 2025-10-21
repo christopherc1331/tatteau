@@ -33,10 +33,7 @@ fn extract_user_id_from_token(token: &str) -> Result<i32, ServerFnError> {
 
 #[server]
 #[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
-pub async fn toggle_favorite(
-    token: String,
-    artists_images_id: i32,
-) -> Result<bool, ServerFnError> {
+pub async fn toggle_favorite(token: String, artists_images_id: i32) -> Result<bool, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
         use crate::db::favorites_repository;

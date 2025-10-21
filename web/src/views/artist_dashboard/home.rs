@@ -2,8 +2,7 @@ use leptos::prelude::*;
 use leptos_router::components::A;
 
 use crate::{
-    components::loading::LoadingView,
-    server::get_artist_dashboard_data,
+    components::loading::LoadingView, server::get_artist_dashboard_data,
     utils::auth::use_authenticated_artist_id,
 };
 
@@ -17,9 +16,11 @@ pub fn ArtistHome() -> impl IntoView {
         move |id_opt| async move {
             match id_opt {
                 Some(id) => get_artist_dashboard_data(id).await,
-                None => Err(ServerFnError::new("No authenticated artist found".to_string()))
+                None => Err(ServerFnError::new(
+                    "No authenticated artist found".to_string(),
+                )),
             }
-        }
+        },
     );
 
     view! {
@@ -29,8 +30,8 @@ pub fn ArtistHome() -> impl IntoView {
                 <p class="dashboard-subtitle">"Welcome back! Here's what's happening with your bookings."</p>
             </div>
 
-            <Suspense fallback=move || view! { 
-                <LoadingView message=Some("Loading your dashboard...".to_string()) /> 
+            <Suspense fallback=move || view! {
+                <LoadingView message=Some("Loading your dashboard...".to_string()) />
             }>
                 {move || {
                     match dashboard_data.get() {
@@ -45,7 +46,7 @@ pub fn ArtistHome() -> impl IntoView {
                                         icon="📅".to_string()
                                         link="/artist/dashboard/calendar".to_string()
                                     />
-                                    
+
                                     <DashboardTile
                                         title="Sketch Requests".to_string()
                                         value=data.pending_sketches.to_string()
@@ -54,7 +55,7 @@ pub fn ArtistHome() -> impl IntoView {
                                         icon="✏️".to_string()
                                         link="/artist/dashboard/requests".to_string()
                                     />
-                                    
+
                                     <DashboardTile
                                         title="Unread Messages".to_string()
                                         value=data.unread_messages.to_string()
@@ -63,7 +64,7 @@ pub fn ArtistHome() -> impl IntoView {
                                         icon="💬".to_string()
                                         link="/artist/dashboard/requests".to_string()
                                     />
-                                    
+
                                     <DashboardTile
                                         title="This Month".to_string()
                                         value=format!("${}", data.monthly_revenue)
@@ -95,7 +96,7 @@ pub fn ArtistHome() -> impl IntoView {
                                                 </div>
                                             }
                                         }).collect_view()}
-                                        
+
                                         {if data.recent_bookings.is_empty() {
                                             view! {
                                                 <div class="empty-state">
@@ -117,14 +118,14 @@ pub fn ArtistHome() -> impl IntoView {
                                                 <div class="action-text">"View Calendar"</div>
                                             </div>
                                         </A>
-                                        
+
                                         <A href="/artist/dashboard/requests">
                                             <div class="action-button">
                                                 <div class="action-icon">"📋"</div>
                                                 <div class="action-text">"Manage Requests"</div>
                                             </div>
                                         </A>
-                                        
+
                                         <A href="/artist/dashboard/settings">
                                             <div class="action-button">
                                                 <div class="action-icon">"⚙️"</div>

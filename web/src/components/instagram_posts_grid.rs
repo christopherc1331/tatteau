@@ -1,8 +1,8 @@
-use crate::db::entities::{Artist, ArtistImage, Style};
-use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::favorite_button::FavoriteButton;
+use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::style_tag::StyleTag;
 use crate::components::style_tag_manager::StyleTagManager;
+use crate::db::entities::{Artist, ArtistImage, Style};
 use leptos::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,7 +19,10 @@ pub fn InstagramPostsGrid(
     #[prop(optional)] filter_id: Option<String>,
 ) -> impl IntoView {
     let posts_signal = RwSignal::new(posts);
-    let grid_id = format!("posts-grid-{}", filter_id.clone().unwrap_or_else(|| "default".to_string()));
+    let grid_id = format!(
+        "posts-grid-{}",
+        filter_id.clone().unwrap_or_else(|| "default".to_string())
+    );
 
     view! {
         <div class="instagram-posts-grid-container" data-filter-id={filter_id.clone()} id={grid_id}>
@@ -101,7 +104,7 @@ pub fn InstagramPostsGrid(
                 }
             />
         </div>
-        
+
 
     }
 }

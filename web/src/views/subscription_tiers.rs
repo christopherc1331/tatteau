@@ -11,7 +11,9 @@ fn snake_case_to_title_case(snake_str: &str) -> String {
             let mut chars = word.chars();
             match chars.next() {
                 None => String::new(),
-                Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+                Some(first) => {
+                    first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+                }
             }
         })
         .collect::<Vec<String>>()
@@ -30,7 +32,7 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
     let loading = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
     let success_message = RwSignal::new(Option::<String>::None);
-    
+
     // Mock artist ID for now - this would come from authentication context
     let artist_id = 1; // TODO: Get from authentication context
 
@@ -59,10 +61,15 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                     tier_id,
                     "active".to_string(),
                     Some("mock_payment".to_string()),
-                ).await {
+                )
+                .await
+                {
                     Ok(_) => {
-                        success_message.set(Some("Subscription created successfully! Redirecting to artist dashboard...".to_string()));
-                        
+                        success_message.set(Some(
+                            "Subscription created successfully! Redirecting to artist dashboard..."
+                                .to_string(),
+                        ));
+
                         // Redirect to artist dashboard immediately for now
                         // TODO: Add proper delay redirect later
                         if let Some(window) = web_sys::window() {
@@ -114,7 +121,7 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                                                     <span class="subscription-tiers-price-period">"/month"</span>
                                                 </div>
                                             </div>
-                                            
+
                                             <div class="subscription-tiers-features">
                                                 <h4>"Features Included:"</h4>
                                                 <ul>
@@ -151,7 +158,7 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                     <div class="subscription-tiers-payment-notice">
                         <p>"Payment processing is not yet implemented. This is a placeholder for the subscription flow."</p>
                     </div>
-                    
+
                     <div class="subscription-tiers-action-buttons">
                         <Button
                             loading=Signal::from(loading)
@@ -160,7 +167,7 @@ pub fn SubscriptionTiersPage() -> impl IntoView {
                         >
                             "Subscribe Now"
                         </Button>
-                        
+
                         <A href="/signup">
                             <Button>
                                 "Back to Signup"

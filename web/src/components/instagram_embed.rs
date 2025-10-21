@@ -1,5 +1,5 @@
-use leptos::prelude::*;
 use leptos::html::Div;
+use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -25,7 +25,7 @@ impl InstagramEmbedSize {
             Self::Large => "instagram-embed-container instagram-embed-container--large",
         }
     }
-    
+
     fn media_class(&self) -> &'static str {
         match self {
             Self::Thumbnail => "instagram-embed-media instagram-embed-media--thumbnail",
@@ -58,8 +58,8 @@ pub fn InstagramEmbed(
     Effect::new(move |_| {
         // This will re-run until container_ref.get() returns Some
         if let Some(container) = container_ref.get() {
-        let js_code = format!(
-            r#"
+            let js_code = format!(
+                r#"
             (function(elem) {{
                 processInstagramEmbed(elem);
 
@@ -175,11 +175,11 @@ pub fn InstagramEmbed(
                 }}
             }})(arguments[0]);
         "#
-        );
+            );
 
-        // Execute the JavaScript with the container element as argument
-        let func = web_sys::js_sys::Function::new_with_args("elem", &js_code);
-        let _ = func.call1(&wasm_bindgen::JsValue::NULL, &container);
+            // Execute the JavaScript with the container element as argument
+            let func = web_sys::js_sys::Function::new_with_args("elem", &js_code);
+            let _ = func.call1(&wasm_bindgen::JsValue::NULL, &container);
         }
     });
 

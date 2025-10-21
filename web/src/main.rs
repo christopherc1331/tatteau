@@ -2,14 +2,14 @@
 #[tokio::main]
 async fn main() {
     use axum::Router;
-    use web::app::*;
-    use web::server::*;
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
-    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-    use tower_http::trace::{TraceLayer, DefaultMakeSpan, DefaultOnResponse};
+    use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
     use tracing::Level;
+    use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+    use web::app::*;
+    use web::server::*;
 
     // Load .env file for local development
     // Try to load from parent directory first (for cargo leptos watch from web/)

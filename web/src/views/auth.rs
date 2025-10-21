@@ -1,6 +1,9 @@
 use crate::server::{login_user, signup_user};
 use leptos::{prelude::*, task::spawn_local};
-use leptos_router::{components::A, hooks::{use_query_map, use_navigate}};
+use leptos_router::{
+    components::A,
+    hooks::{use_navigate, use_query_map},
+};
 use serde::{Deserialize, Serialize};
 use thaw::*;
 
@@ -25,29 +28,34 @@ pub struct SignupData {
 pub fn LoginPage() -> impl IntoView {
     let query_map = use_query_map();
     let navigate = use_navigate();
-    
-    // Initialize user_type from query parameter or default to "client"  
-    let initial_user_type = query_map.get().get("user_type").unwrap_or_else(|| "client".to_string());
+
+    // Initialize user_type from query parameter or default to "client"
+    let initial_user_type = query_map
+        .get()
+        .get("user_type")
+        .unwrap_or_else(|| "client".to_string());
     let user_type = RwSignal::new(initial_user_type);
-    
+
     let email = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
     let password_visible = RwSignal::new(false);
     let loading = RwSignal::new(false);
     let error_message = RwSignal::new(Option::<String>::None);
     let success_message = RwSignal::new(Option::<String>::None);
-    
+
     // Check for success query parameter
     Effect::new({
         let success_message = success_message.clone();
         move |_| {
             let query = query_map.get();
             if query.get("success").as_deref() == Some("signup") {
-                success_message.set(Some("Account created successfully! Please log in.".to_string()));
+                success_message.set(Some(
+                    "Account created successfully! Please log in.".to_string(),
+                ));
             }
         }
     });
-    
+
     // Update user_type when URL changes
     Effect::new({
         let user_type = user_type.clone();
@@ -83,17 +91,17 @@ pub fn LoginPage() -> impl IntoView {
                             #[cfg(feature = "hydrate")]
                             {
                                 use wasm_bindgen::prelude::*;
-                                
+
                                 #[wasm_bindgen]
                                 extern "C" {
                                     #[wasm_bindgen(js_namespace = localStorage)]
                                     fn setItem(key: &str, value: &str);
                                 }
-                                
+
                                 setItem("tatteau_auth_token", token);
                             }
                         }
-                        
+
                         // Redirect to appropriate page
                         if let Some(user_type) = auth_response.user_type {
                             // Check for redirect/return_url parameter first
@@ -305,11 +313,14 @@ pub fn LoginPage() -> impl IntoView {
 pub fn SignupPage() -> impl IntoView {
     let query_map = use_query_map();
     let navigate = use_navigate();
-    
+
     // Initialize user_type from query parameter or default to "client"
-    let initial_user_type = query_map.get().get("user_type").unwrap_or_else(|| "client".to_string());
+    let initial_user_type = query_map
+        .get()
+        .get("user_type")
+        .unwrap_or_else(|| "client".to_string());
     let user_type = RwSignal::new(initial_user_type);
-    
+
     let first_name = RwSignal::new(String::new());
     let last_name = RwSignal::new(String::new());
     let email = RwSignal::new(String::new());
@@ -397,15 +408,15 @@ pub fn SignupPage() -> impl IntoView {
                                 let navigate = navigate.clone();
                                 move |_| {
                                     user_type.set("client".to_string());
-                                    
+
                                     // Build query string with user_type and preserve success if present
                                     let current_query = query_map.get();
                                     let mut query_parts = vec!["user_type=client"];
-                                    
+
                                     if current_query.get("success").is_some() {
                                         query_parts.push("success=signup");
                                     }
-                                    
+
                                     let query_string = format!("?{}", query_parts.join("&"));
                                     navigate(&format!("/signup{}", query_string), Default::default());
                                 }
@@ -419,15 +430,15 @@ pub fn SignupPage() -> impl IntoView {
                                 let navigate = navigate.clone();
                                 move |_| {
                                     user_type.set("artist".to_string());
-                                    
+
                                     // Build query string with user_type and preserve success if present
                                     let current_query = query_map.get();
                                     let mut query_parts = vec!["user_type=artist"];
-                                    
+
                                     if current_query.get("success").is_some() {
                                         query_parts.push("success=signup");
                                     }
-                                    
+
                                     let query_string = format!("?{}", query_parts.join("&"));
                                     navigate(&format!("/signup{}", query_string), Default::default());
                                 }
@@ -600,4 +611,3 @@ pub fn SignupPage() -> impl IntoView {
         </div>
     }
 }
-

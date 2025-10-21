@@ -6,9 +6,8 @@ pub fn InstagramFallbackCta(
     #[prop(default = "This tattoo image is available on Instagram".to_string())] message: String,
     #[prop(default = "200px".to_string())] min_height: String,
 ) -> impl IntoView {
-    
     view! {
-        <div 
+        <div
             class="instagram-fallback-cta-container"
             style={format!("--min-height: {};", min_height)}
         >
@@ -21,7 +20,7 @@ pub fn InstagramFallbackCta(
             <p class="instagram-fallback-cta-message">
                 {message}
             </p>
-            <a 
+            <a
                 href={format!("https://www.instagram.com/p/{}/", short_code)}
                 target="_blank"
                 class="instagram-fallback-cta-button"

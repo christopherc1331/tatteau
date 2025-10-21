@@ -53,7 +53,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
              LEFT JOIN artists a ON l.id = a.location_id
              WHERE l.postal_code = $1
              AND (l.is_person IS NULL OR l.is_person = 0)
-             GROUP BY l.city, l.state, l.county, l.postal_code"
+             GROUP BY l.city, l.state, l.county, l.postal_code",
         )
         .bind(&normalized_query)
         .fetch_all(pool)
@@ -96,7 +96,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
              ORDER BY
                 CASE WHEN LOWER(l.city) = $5 THEN 0 ELSE 1 END,
                 COUNT(DISTINCT a.id) DESC
-             LIMIT 10"
+             LIMIT 10",
         )
         .bind(format!("%{}%", city_search))
         .bind(&state_exact_pattern)
@@ -121,7 +121,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
              ORDER BY
                 CASE WHEN LOWER(l.city) = $2 THEN 0 ELSE 1 END,
                 COUNT(DISTINCT a.id) DESC
-             LIMIT 10"
+             LIMIT 10",
         )
         .bind(format!("%{}%", city_search))
         .bind(&city_search)
@@ -134,9 +134,10 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
         let state: String = row.get("state");
 
         // Don't add duplicates if we already found it via postal code
-        if !results.iter().any(|existing|
-            existing.city == city && existing.state == state
-        ) {
+        if !results
+            .iter()
+            .any(|existing| existing.city == city && existing.state == state)
+        {
             results.push(SearchResult {
                 city,
                 state,
@@ -164,7 +165,7 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
          AND (l.is_person IS NULL OR l.is_person = 0)
          GROUP BY l.city, l.state, l.county, l.postal_code
          ORDER BY COUNT(DISTINCT a.id) DESC
-         LIMIT 5"
+         LIMIT 5",
     )
     .bind(format!("%{}%", normalized_query))
     .fetch_all(pool)
@@ -175,9 +176,10 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
         let state: String = row.get("state");
 
         // Don't add duplicates
-        if !results.iter().any(|existing|
-            existing.county == county && existing.state == state
-        ) {
+        if !results
+            .iter()
+            .any(|existing| existing.county == county && existing.state == state)
+        {
             results.push(SearchResult {
                 city: row.get("city"),
                 state,
@@ -196,7 +198,10 @@ pub async fn universal_location_search(query: String) -> Result<Vec<SearchResult
 }
 
 #[cfg(feature = "ssr")]
-pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<String>, sqlx::Error> {
+pub async fn get_search_suggestions(
+    query: String,
+    limit: usize,
+) -> Result<Vec<String>, sqlx::Error> {
     let pool = crate::db::pool::get_pool();
 
     let normalized_query = query.trim().to_lowercase();
@@ -204,7 +209,9 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
 
     // Helper function to check if a suggestion already exists
     let suggestion_exists = |suggestions: &Vec<String>, new_suggestion: &str| {
-        suggestions.iter().any(|s| s.eq_ignore_ascii_case(new_suggestion))
+        suggestions
+            .iter()
+            .any(|s| s.eq_ignore_ascii_case(new_suggestion))
     };
 
     // 1. Get city suggestions (highest priority)
@@ -217,7 +224,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
          WHERE LOWER(city) LIKE $1
          AND (is_person IS NULL OR is_person = 0)
          ORDER BY priority, city_length
-         LIMIT $3"
+         LIMIT $3",
     )
     .bind(&city_pattern)
     .bind(&normalized_query)
@@ -229,7 +236,9 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
         let s: String = row.get("suggestion");
         if !suggestion_exists(&suggestions, &s) {
             suggestions.push(s);
-            if suggestions.len() >= limit { break; }
+            if suggestions.len() >= limit {
+                break;
+            }
         }
     }
 
@@ -246,7 +255,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
              WHERE (LOWER(state) LIKE $1 OR LOWER(state) LIKE $2)
              AND (is_person IS NULL OR is_person = 0)
              ORDER BY state_length
-             LIMIT $3"
+             LIMIT $3",
         )
         .bind(&state_pattern)
         .bind(&state_full_pattern)
@@ -258,7 +267,9 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
             let s: String = row.get("suggestion");
             if !suggestion_exists(&suggestions, &s) {
                 suggestions.push(s);
-                if suggestions.len() >= limit { break; }
+                if suggestions.len() >= limit {
+                    break;
+                }
             }
         }
     }
@@ -276,7 +287,7 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
              AND county IS NOT NULL
              AND (is_person IS NULL OR is_person = 0)
              ORDER BY county_length
-             LIMIT $2"
+             LIMIT $2",
         )
         .bind(&county_pattern)
         .bind(remaining)
@@ -287,7 +298,9 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
             let s: String = row.get("suggestion");
             if !suggestion_exists(&suggestions, &s) {
                 suggestions.push(s);
-                if suggestions.len() >= limit { break; }
+                if suggestions.len() >= limit {
+                    break;
+                }
             }
         }
     }
@@ -310,7 +323,8 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
              AND postal_code IS NOT NULL
              AND (is_person IS NULL OR is_person = 0)
              ORDER BY postal_order
-             LIMIT $2", postal_condition
+             LIMIT $2",
+            postal_condition
         );
 
         let postal_pattern = format!("{}%", normalized_query);
@@ -326,7 +340,9 @@ pub async fn get_search_suggestions(query: String, limit: usize) -> Result<Vec<S
             let s: String = row.get("suggestion");
             if !suggestion_exists(&suggestions, &s) {
                 suggestions.push(s);
-                if suggestions.len() >= limit { break; }
+                if suggestions.len() >= limit {
+                    break;
+                }
             }
         }
     }

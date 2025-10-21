@@ -3,9 +3,9 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::window;
 
 // Import the entities from the db module
-use crate::db::entities::{ArtistImage, Style};
 use crate::components::style_tag::StyleTag;
 use crate::components::style_tag_manager::StyleTagManager;
+use crate::db::entities::{ArtistImage, Style};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct InstagramPost {
@@ -98,12 +98,10 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 artist_id: 4,
                 post_date: None,
             },
-            styles: vec![
-                Style {
-                    id: 10,
-                    name: "Realism".to_string(),
-                },
-            ],
+            styles: vec![Style {
+                id: 10,
+                name: "Realism".to_string(),
+            }],
         },
         InstagramPost {
             image: ArtistImage {
@@ -316,12 +314,10 @@ pub fn generate_sample_posts() -> Vec<InstagramPost> {
                 artist_id: 15,
                 post_date: None,
             },
-            styles: vec![
-                Style {
-                    id: 37,
-                    name: "Trash Polka".to_string(),
-                },
-            ],
+            styles: vec![Style {
+                id: 37,
+                name: "Trash Polka".to_string(),
+            }],
         },
         InstagramPost {
             image: ArtistImage {

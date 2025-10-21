@@ -14,7 +14,10 @@ pub fn TimeSlotPicker(
         move |(id_opt, date)| async move {
             if let Some(id) = id_opt {
                 if id != 0 && !date.trim().is_empty() {
-                    get_available_time_slots(id, date).await.ok().unwrap_or_default()
+                    get_available_time_slots(id, date)
+                        .await
+                        .ok()
+                        .unwrap_or_default()
                 } else {
                     vec![]
                 }

@@ -1,8 +1,8 @@
-use leptos::prelude::*;
-use thaw::*;
 use crate::db::entities::ClientQuestionnaireForm;
-use std::collections::HashMap;
+use leptos::prelude::*;
 use serde_json;
+use std::collections::HashMap;
+use thaw::*;
 
 #[component]
 pub fn MultiStepQuestionnaire(
@@ -13,17 +13,19 @@ pub fn MultiStepQuestionnaire(
 ) -> impl IntoView {
     let current_step = RwSignal::new(0usize);
     let total_questions = questionnaire_form.questions.len();
-    
+
     // Filter out contact info questions for logged-in users
-    let filtered_questions = questionnaire_form.questions.into_iter()
+    let filtered_questions = questionnaire_form
+        .questions
+        .into_iter()
         .filter(|q| {
             let text = q.question_text.to_lowercase();
             !text.contains("name") && !text.contains("email") && !text.contains("phone")
         })
         .collect::<Vec<_>>();
-    
+
     let total_steps = filtered_questions.len();
-    
+
     let current_question = Memo::new(move |_| {
         let step = current_step.get();
         if step < filtered_questions.len() {
@@ -32,11 +34,15 @@ pub fn MultiStepQuestionnaire(
             None
         }
     });
-    
+
     let is_current_answered = Memo::new(move |_| {
         if let Some(question) = current_question.get() {
             if question.is_required {
-                let response = responses.get().get(&question.id).cloned().unwrap_or_default();
+                let response = responses
+                    .get()
+                    .get(&question.id)
+                    .cloned()
+                    .unwrap_or_default();
                 !response.trim().is_empty()
             } else {
                 true // Optional questions can be skipped
@@ -45,15 +51,15 @@ pub fn MultiStepQuestionnaire(
             false
         }
     });
-    
+
     let progress_percentage = Memo::new(move |_| {
-        if total_steps == 0 { 
-            100.0 
-        } else { 
-            (current_step.get() as f64 / total_steps as f64) * 100.0 
+        if total_steps == 0 {
+            100.0
+        } else {
+            (current_step.get() as f64 / total_steps as f64) * 100.0
         }
     });
-    
+
     let handle_next = move || {
         let current = current_step.get();
         if current + 1 >= total_steps {
@@ -62,7 +68,7 @@ pub fn MultiStepQuestionnaire(
             current_step.set(current + 1);
         }
     };
-    
+
     let handle_previous = move || {
         let current = current_step.get();
         if current == 0 {
@@ -71,20 +77,20 @@ pub fn MultiStepQuestionnaire(
             current_step.set(current - 1);
         }
     };
-    
+
     let handle_response = move |question_id: i32, value: String| {
         responses.update(|responses| {
             responses.insert(question_id, value);
         });
     };
-    
+
     // Auto-advance for boolean questions (immediate advance for better UX)
     let handle_boolean_response = move |question_id: i32, value: String| {
         handle_response(question_id, value);
         // Auto-advance immediately for boolean questions
         handle_next();
     };
-    
+
     view! {
         <div class="multi-step-questionnaire-container">
             // Progress Bar
@@ -92,35 +98,35 @@ pub fn MultiStepQuestionnaire(
                 <div class="multi-step-questionnaire-progress-info">
                     <h3>"Artist Questionnaire"</h3>
                     <p class="multi-step-questionnaire-progress-text">
-                        {move || format!("Question {} of {}", 
-                            current_step.get() + 1, 
+                        {move || format!("Question {} of {}",
+                            current_step.get() + 1,
                             total_steps
                         )}
                     </p>
                 </div>
                 <div class="multi-step-questionnaire-progress-bar">
-                    <div 
+                    <div
                         class="multi-step-questionnaire-progress-fill"
                         style:width=move || format!("{}%", progress_percentage.get())
                     ></div>
                 </div>
             </div>
-            
+
             // Question Content
             <div class="multi-step-questionnaire-question-container">
                 {move || {
                     if let Some(question) = current_question.get() {
                         let question_id = question.id;
                         let current_response = responses.get().get(&question_id).cloned().unwrap_or_default();
-                        
+
                         view! {
                             <div class="multi-step-questionnaire-question-content">
                                 <div class="multi-step-questionnaire-question-header">
                                     <h4 class="multi-step-questionnaire-question-text">{question.question_text.clone()}</h4>
                                     {if question.question_type == "multiselect" {
                                         view! {
-                                            <span 
-                                                class="multi-step-questionnaire-info-icon" 
+                                            <span
+                                                class="multi-step-questionnaire-info-icon"
                                                 title="This is a list of options that the artist is currently accepting at this time"
                                             >{"ⓘ"}</span>
                                         }.into_any()
@@ -135,7 +141,7 @@ pub fn MultiStepQuestionnaire(
                                         view! {}.into_any()
                                     }}
                                 </div>
-                                
+
                                 <div class="multi-step-questionnaire-answer-section">
                                     {match question.question_type.as_str() {
                                         "text" => view! {
@@ -157,20 +163,20 @@ pub fn MultiStepQuestionnaire(
                                             } else {
                                                 serde_json::from_str(&current_response).unwrap_or_default()
                                             };
-                                            
+
                                             view! {
                                                 <div class="multi-step-questionnaire-multiselect-container">
                                                     {options.into_iter().map(|option| {
                                                         let option_value = option.clone();
                                                         let is_selected = selected.contains(&option);
-                                                        
+
                                                         view! {
                                                             <div class="multi-step-questionnaire-option-item">
                                                                 <Button
-                                                                    appearance=if is_selected { 
-                                                                        ButtonAppearance::Primary 
-                                                                    } else { 
-                                                                        ButtonAppearance::Secondary 
+                                                                    appearance=if is_selected {
+                                                                        ButtonAppearance::Primary
+                                                                    } else {
+                                                                        ButtonAppearance::Secondary
                                                                     }
                                                                     class=if is_selected {
                                                                         "multi-step-questionnaire-option-button selected"
@@ -182,19 +188,19 @@ pub fn MultiStepQuestionnaire(
                                                                             .get(&question_id)
                                                                             .cloned()
                                                                             .unwrap_or_default();
-                                                                        
+
                                                                         let mut selected_list: Vec<String> = if current_selected.is_empty() {
                                                                             Vec::new()
                                                                         } else {
                                                                             serde_json::from_str(&current_selected).unwrap_or_default()
                                                                         };
-                                                                        
+
                                                                         if selected_list.contains(&option_value) {
                                                                             selected_list.retain(|x| x != &option_value);
                                                                         } else {
                                                                             selected_list.push(option_value.clone());
                                                                         }
-                                                                        
+
                                                                         let json_value = serde_json::to_string(&selected_list).unwrap_or_default();
                                                                         handle_response(question_id, json_value);
                                                                     }
@@ -223,10 +229,10 @@ pub fn MultiStepQuestionnaire(
                                             <div class="multi-step-questionnaire-boolean-container">
                                                 <div class="multi-step-questionnaire-boolean-options">
                                                     <Button
-                                                        appearance=if current_response == "true" { 
-                                                            ButtonAppearance::Primary 
-                                                        } else { 
-                                                            ButtonAppearance::Secondary 
+                                                        appearance=if current_response == "true" {
+                                                            ButtonAppearance::Primary
+                                                        } else {
+                                                            ButtonAppearance::Secondary
                                                         }
                                                         class="multi-step-questionnaire-boolean-button"
                                                         on_click=move |_| {
@@ -236,10 +242,10 @@ pub fn MultiStepQuestionnaire(
                                                         "Yes"
                                                     </Button>
                                                     <Button
-                                                        appearance=if current_response == "false" { 
-                                                            ButtonAppearance::Primary 
-                                                        } else { 
-                                                            ButtonAppearance::Secondary 
+                                                        appearance=if current_response == "false" {
+                                                            ButtonAppearance::Primary
+                                                        } else {
+                                                            ButtonAppearance::Secondary
                                                         }
                                                         class="multi-step-questionnaire-boolean-button"
                                                         on_click=move |_| {
@@ -276,7 +282,7 @@ pub fn MultiStepQuestionnaire(
                     }
                 }}
             </div>
-            
+
             // Navigation Controls
             <div class="multi-step-questionnaire-navigation-controls">
                 <Button
@@ -285,16 +291,16 @@ pub fn MultiStepQuestionnaire(
                 >
                     {move || if current_step.get() == 0 { "Back" } else { "Previous" }}
                 </Button>
-                
+
                 <Button
                     appearance=ButtonAppearance::Primary
                     disabled=MaybeSignal::derive(move || !is_current_answered.get())
                     on_click=move |_| handle_next()
                 >
-                    {move || if current_step.get() + 1 >= total_steps { 
-                        "Complete" 
-                    } else { 
-                        "Next" 
+                    {move || if current_step.get() + 1 >= total_steps {
+                        "Complete"
+                    } else {
+                        "Next"
                     }}
                 </Button>
             </div>

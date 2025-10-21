@@ -1,9 +1,9 @@
-use leptos::prelude::*;
-use thaw::*;
-use serde_json;
+use crate::db::entities::RecurringRule;
 use crate::server::*;
-use crate::db::entities::{RecurringRule};
 use crate::utils::auth::use_authenticated_artist_id;
+use leptos::prelude::*;
+use serde_json;
+use thaw::*;
 
 #[component]
 pub fn ArtistRecurring() -> impl IntoView {
@@ -17,60 +17,141 @@ pub fn ArtistRecurring() -> impl IntoView {
     let selected_weekdays = RwSignal::new(Vec::<String>::new());
     let selected_dates = RwSignal::new("".to_string());
     let monthly_pattern = RwSignal::new("".to_string());
-    
+
     // Get authenticated artist ID from JWT token
     let artist_id = use_authenticated_artist_id();
-    
+
     // Resource to fetch recurring rules from database
     let rules_resource = Resource::new(
         move || artist_id.get(),
         move |id_opt| async move {
             match id_opt {
                 Some(id) => get_recurring_rules(id).await.unwrap_or_else(|_| Vec::new()),
-                None => Vec::new()
+                None => Vec::new(),
             }
-        }
+        },
     );
-    
+
     // Action to create a new rule
-    let create_rule_action = Action::new(move |(artist_id, name, rule_type, pattern, action, start_time_param, end_time_param): &(i32, String, String, String, String, Option<String>, Option<String>)| {
-        let (artist_id, name, rule_type, pattern, action, start_time_param, end_time_param) = (*artist_id, name.clone(), rule_type.clone(), pattern.clone(), action.clone(), start_time_param.clone(), end_time_param.clone());
-        async move {
-            match create_recurring_rule(artist_id, name, rule_type, pattern, action, start_time_param, end_time_param).await {
-                Ok(_) => {
-                    show_add_rule_modal.set(false);
-                    rules_resource.refetch();
-                    // Reset form
-                    rule_name.set("".to_string());
-                    rule_pattern.set("".to_string());
-                    start_time.set("".to_string());
-                    end_time.set("".to_string());
-                    selected_weekdays.set(Vec::new());
-                    selected_dates.set("".to_string());
-                    monthly_pattern.set("".to_string());
-                },
-                Err(e) => {
-                    leptos::logging::error!("Failed to create rule: {}", e);
+    let create_rule_action =
+        Action::new(
+            move |(
+                artist_id,
+                name,
+                rule_type,
+                pattern,
+                action,
+                start_time_param,
+                end_time_param,
+            ): &(
+                i32,
+                String,
+                String,
+                String,
+                String,
+                Option<String>,
+                Option<String>,
+            )| {
+                let (artist_id, name, rule_type, pattern, action, start_time_param, end_time_param) = (
+                    *artist_id,
+                    name.clone(),
+                    rule_type.clone(),
+                    pattern.clone(),
+                    action.clone(),
+                    start_time_param.clone(),
+                    end_time_param.clone(),
+                );
+                async move {
+                    match create_recurring_rule(
+                        artist_id,
+                        name,
+                        rule_type,
+                        pattern,
+                        action,
+                        start_time_param,
+                        end_time_param,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            show_add_rule_modal.set(false);
+                            rules_resource.refetch();
+                            // Reset form
+                            rule_name.set("".to_string());
+                            rule_pattern.set("".to_string());
+                            start_time.set("".to_string());
+                            end_time.set("".to_string());
+                            selected_weekdays.set(Vec::new());
+                            selected_dates.set("".to_string());
+                            monthly_pattern.set("".to_string());
+                        }
+                        Err(e) => {
+                            leptos::logging::error!("Failed to create rule: {}", e);
+                        }
+                    }
                 }
-            }
-        }
-    });
-    
+            },
+        );
+
     // Action to update a rule
-    let update_rule_action = Action::new(move |(id, name_param, pattern_param, action_param, start_time_param, end_time_param, active_param): &(i32, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<bool>)| {
-        let (id, name_param, pattern_param, action_param, start_time_param, end_time_param, active_param) = (*id, name_param.clone(), pattern_param.clone(), action_param.clone(), start_time_param.clone(), end_time_param.clone(), *active_param);
-        async move {
-            match update_recurring_rule(id, name_param, pattern_param, action_param, start_time_param, end_time_param, active_param).await {
-                Ok(_) => {
-                    rules_resource.refetch();
-                },
-                Err(e) => {
-                    leptos::logging::error!("Failed to update rule: {}", e);
+    let update_rule_action = Action::new(
+        move |(
+            id,
+            name_param,
+            pattern_param,
+            action_param,
+            start_time_param,
+            end_time_param,
+            active_param,
+        ): &(
+            i32,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<bool>,
+        )| {
+            let (
+                id,
+                name_param,
+                pattern_param,
+                action_param,
+                start_time_param,
+                end_time_param,
+                active_param,
+            ) = (
+                *id,
+                name_param.clone(),
+                pattern_param.clone(),
+                action_param.clone(),
+                start_time_param.clone(),
+                end_time_param.clone(),
+                *active_param,
+            );
+            async move {
+                match update_recurring_rule(
+                    id,
+                    name_param,
+                    pattern_param,
+                    action_param,
+                    start_time_param,
+                    end_time_param,
+                    active_param,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        rules_resource.refetch();
+                    }
+                    Err(e) => {
+                        leptos::logging::error!("Failed to update rule: {}", e);
+                    }
                 }
             }
-        }
-    });
-    
+        },
+    );
+
     // Action to delete a rule
     let delete_rule_action = Action::new(move |rule_id: &i32| {
         let rule_id = *rule_id;
@@ -78,14 +159,14 @@ pub fn ArtistRecurring() -> impl IntoView {
             match delete_recurring_rule(rule_id).await {
                 Ok(_) => {
                     rules_resource.refetch();
-                },
+                }
                 Err(e) => {
                     leptos::logging::error!("Failed to delete rule: {}", e);
                 }
             }
         }
     });
-    
+
     // Function to build pattern from form inputs
     let build_pattern = move || -> String {
         match rule_type.get().as_str() {
@@ -95,8 +176,9 @@ pub fn ArtistRecurring() -> impl IntoView {
                     "[]".to_string()
                 } else {
                     // Convert day names to numbers for JSON array
-                    let day_numbers: Vec<i32> = days.iter().map(|day| {
-                        match day.as_str() {
+                    let day_numbers: Vec<i32> = days
+                        .iter()
+                        .map(|day| match day.as_str() {
                             "Sunday" => 0,
                             "Monday" => 1,
                             "Tuesday" => 2,
@@ -104,20 +186,21 @@ pub fn ArtistRecurring() -> impl IntoView {
                             "Thursday" => 4,
                             "Friday" => 5,
                             "Saturday" => 6,
-                            _ => -1
-                        }
-                    }).filter(|&n| n != -1).collect();
-                    
+                            _ => -1,
+                        })
+                        .filter(|&n| n != -1)
+                        .collect();
+
                     // Create JSON array
                     serde_json::to_string(&day_numbers).unwrap_or_else(|_| "[]".to_string())
                 }
-            },
+            }
             "dates" => selected_dates.get(),
             "monthly" => monthly_pattern.get(),
-            _ => "".to_string()
+            _ => "".to_string(),
         }
     };
-    
+
     // Function to save the rule
     let save_rule = move |_| {
         if let Some(id) = artist_id.get() {
@@ -126,34 +209,34 @@ pub fn ArtistRecurring() -> impl IntoView {
                 leptos::logging::warn!("Rule name and pattern are required");
                 return;
             }
-            
+
             create_rule_action.dispatch((
                 id,
                 rule_name.get(),
                 rule_type.get(),
                 pattern,
                 rule_action.get(),
-                if start_time.get().is_empty() { None } else { Some(start_time.get()) },
-                if end_time.get().is_empty() { None } else { Some(end_time.get()) },
+                if start_time.get().is_empty() {
+                    None
+                } else {
+                    Some(start_time.get())
+                },
+                if end_time.get().is_empty() {
+                    None
+                } else {
+                    Some(end_time.get())
+                },
             ));
         } else {
             leptos::logging::error!("No authenticated artist found");
         }
     };
-    
+
     // Function to toggle rule active status
     let toggle_rule_active = move |rule: RecurringRule| {
-        update_rule_action.dispatch((
-            rule.id,
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(!rule.active)
-        ));
+        update_rule_action.dispatch((rule.id, None, None, None, None, None, Some(!rule.active)));
     };
-    
+
     // Function to delete a rule
     let delete_rule = move |rule_id: i32| {
         delete_rule_action.dispatch(rule_id);
@@ -177,7 +260,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                     </Button>
                 </div>
             </div>
-            
+
             <div class="recurring-content">
                 <div class="rule-types-info">
                     <h2>"Rule Types"</h2>
@@ -196,7 +279,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="existing-rules">
                     <h2>"Your Active Rules"</h2>
                     <Suspense fallback=move || view! { <div>"Loading rules..."</div> }>
@@ -253,7 +336,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                     </Suspense>
                 </div>
             </div>
-            
+
             // Add Rule Modal
             <Show when=move || show_add_rule_modal.get()>
                 <div class="modal-backdrop" on:click=move |_| show_add_rule_modal.set(false)>
@@ -262,12 +345,12 @@ pub fn ArtistRecurring() -> impl IntoView {
                             <h2>"Add Recurring Rule"</h2>
                             <Button on_click=move |_| show_add_rule_modal.set(false)>"×"</Button>
                         </div>
-                        
+
                         <div class="modal-content">
                             <div class="add-rule-form">
                                 <div class="form-group">
                                     <label>"Rule Name"</label>
-                                    <Input 
+                                    <Input
                                         placeholder="e.g., No Weekends"
                                         value=rule_name
                                         on:input=move |e| {
@@ -276,7 +359,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                         }
                                     />
                                 </div>
-                                
+
                                 <div class="form-group">
                                     <label>"Rule Type"</label>
                                     <div class="radio-group">
@@ -294,7 +377,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                         </label>
                                     </div>
                                 </div>
-                                
+
                                 <div class="form-group">
                                     <label>"Action"</label>
                                     <div class="radio-group">
@@ -308,7 +391,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                         </label>
                                     </div>
                                 </div>
-                                
+
                                 // Dynamic form based on rule type
                                 {move || match rule_type.get().as_str() {
                                     "weekdays" => view! {
@@ -320,8 +403,8 @@ pub fn ArtistRecurring() -> impl IntoView {
                                                     let day_clone = day_str.clone();
                                                     view! {
                                                         <label class="checkbox-label">
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 on:change=move |e| {
                                                                     let checked = event_target_checked(&e);
                                                                     let mut current = selected_weekdays.get();
@@ -345,7 +428,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                     "dates" => view! {
                                         <div class="form-group">
                                             <label>"Annual Dates (comma separated)"</label>
-                                            <Input 
+                                            <Input
                                                 placeholder="e.g., December 25, January 1"
                                                 value=selected_dates
                                                 on:input=move |e| {
@@ -358,7 +441,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                     "monthly" => view! {
                                         <div class="form-group">
                                             <label>"Monthly Pattern"</label>
-                                            <Input 
+                                            <Input
                                                 placeholder="e.g., 1st Monday, Last Friday, 15th of month"
                                                 value=monthly_pattern
                                                 on:input=move |e| {
@@ -370,10 +453,10 @@ pub fn ArtistRecurring() -> impl IntoView {
                                     }.into_any(),
                                     _ => view! {}.into_any()
                                 }}
-                                
+
                                 <div class="form-group">
                                     <label>"Start Time (optional)"</label>
-                                    <Input 
+                                    <Input
                                         placeholder="e.g., 09:00 or leave blank for all day"
                                         value=start_time
                                         on:input=move |e| {
@@ -382,10 +465,10 @@ pub fn ArtistRecurring() -> impl IntoView {
                                         }
                                     />
                                 </div>
-                                
+
                                 <div class="form-group">
                                     <label>"End Time (optional)"</label>
-                                    <Input 
+                                    <Input
                                         placeholder="e.g., 17:00 or leave blank for all day"
                                         value=end_time
                                         on:input=move |e| {
@@ -394,7 +477,7 @@ pub fn ArtistRecurring() -> impl IntoView {
                                         }
                                     />
                                 </div>
-                                
+
                                 <div class="modal-actions">
                                     <Button appearance=ButtonAppearance::Primary on_click=save_rule>
                                         "Save Rule"
@@ -417,26 +500,33 @@ fn format_rule_pattern(rule: &RecurringRule) -> String {
     match rule.rule_type.as_str() {
         "weekdays" => {
             if let Ok(days) = serde_json::from_str::<Vec<i32>>(&rule.pattern) {
-                let day_names: Vec<String> = days.iter().map(|&day| {
-                    match day {
-                        0 => "Sunday",
-                        1 => "Monday", 
-                        2 => "Tuesday",
-                        3 => "Wednesday",
-                        4 => "Thursday",
-                        5 => "Friday",
-                        6 => "Saturday",
-                        _ => "Unknown"
-                    }.to_string()
-                }).collect();
-                
+                let day_names: Vec<String> = days
+                    .iter()
+                    .map(|&day| {
+                        match day {
+                            0 => "Sunday",
+                            1 => "Monday",
+                            2 => "Tuesday",
+                            3 => "Wednesday",
+                            4 => "Thursday",
+                            5 => "Friday",
+                            6 => "Saturday",
+                            _ => "Unknown",
+                        }
+                        .to_string()
+                    })
+                    .collect();
+
                 if day_names.is_empty() {
                     "No days selected".to_string()
                 } else if day_names.len() == 7 {
                     "Every day".to_string()
-                } else if day_names == vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] {
+                } else if day_names == vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+                {
                     "Weekdays (Mon-Fri)".to_string()
-                } else if day_names == vec!["Saturday", "Sunday"] || day_names == vec!["Sunday", "Saturday"] {
+                } else if day_names == vec!["Saturday", "Sunday"]
+                    || day_names == vec!["Sunday", "Saturday"]
+                {
                     "Weekends".to_string()
                 } else {
                     day_names.join(", ")
@@ -444,7 +534,7 @@ fn format_rule_pattern(rule: &RecurringRule) -> String {
             } else {
                 "Invalid weekday pattern".to_string()
             }
-        },
+        }
         "dates" => {
             let dates_str = rule.pattern.clone();
             if dates_str.is_empty() {
@@ -452,7 +542,7 @@ fn format_rule_pattern(rule: &RecurringRule) -> String {
             } else {
                 format!("Annual dates: {}", dates_str)
             }
-        },
+        }
         "monthly" => {
             let pattern = rule.pattern.clone();
             if pattern.is_empty() {
@@ -460,8 +550,8 @@ fn format_rule_pattern(rule: &RecurringRule) -> String {
             } else {
                 format!("Monthly: {}", pattern)
             }
-        },
-        _ => rule.pattern.clone()
+        }
+        _ => rule.pattern.clone(),
     }
 }
 

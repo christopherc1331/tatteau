@@ -360,8 +360,8 @@ All fields are optional - include only what you can confidently extract."#,
         .ok_or("No content in OpenAI response")?;
 
     // Parse JSON from response
-    let artists: Vec<ExtractedArtist> = serde_json::from_str(content)
-        .unwrap_or_else(|_| Vec::new());
+    let artists: Vec<ExtractedArtist> =
+        serde_json::from_str(content).unwrap_or_else(|_| Vec::new());
 
     Ok(artists)
 }
@@ -440,18 +440,14 @@ async fn process_artist_with_instagram(
                 .await?;
                 stats.artists_added += 1;
                 matched_shops.insert(location_id);
-                println!("➕ Created new artist {} at shop {}", artist_id, location_id);
+                println!(
+                    "➕ Created new artist {} at shop {}",
+                    artist_id, location_id
+                );
             } else {
                 // Shop not matched - add to pending
-                add_to_pending_review(
-                    pool,
-                    artist_data,
-                    city,
-                    post_url,
-                    "no_shop_match",
-                    stats,
-                )
-                .await?;
+                add_to_pending_review(pool, artist_data, city, post_url, "no_shop_match", stats)
+                    .await?;
             }
         } else {
             // No shop provided - add to pending (Scenario C)
@@ -595,7 +591,8 @@ async fn process_shop_bio(
 
     if let Some(profile) = shop_profile {
         // Get full profile with bio
-        let profile_info = crate::actions::apify_scraper::get_instagram_profile_info(&profile.username).await?;
+        let profile_info =
+            crate::actions::apify_scraper::get_instagram_profile_info(&profile.username).await?;
 
         if let Some(bio) = profile_info.bio {
             // Parse bio for artist handles
@@ -632,27 +629,24 @@ async fn get_shop_name(pool: &PgPool, shop_id: i64) -> Result<String, Box<dyn st
 async fn search_for_shop_instagram(
     shop_name: &str,
     city: &str,
-) -> Result<Option<crate::actions::apify_scraper::InstagramSearchResult>, Box<dyn std::error::Error>> {
+) -> Result<Option<crate::actions::apify_scraper::InstagramSearchResult>, Box<dyn std::error::Error>>
+{
     let query = format!("{} {} tattoo", shop_name, city);
     let results = crate::actions::apify_scraper::search_instagram_profiles(&query).await?;
 
     // Filter for profiles with "tattoo" in bio
-    let filtered = results
-        .into_iter()
-        .find(|r| {
-            if let Some(bio) = &r.bio {
-                bio.to_lowercase().contains("tattoo")
-            } else {
-                false
-            }
-        });
+    let filtered = results.into_iter().find(|r| {
+        if let Some(bio) = &r.bio {
+            bio.to_lowercase().contains("tattoo")
+        } else {
+            false
+        }
+    });
 
     Ok(filtered)
 }
 
-async fn extract_handles_from_bio(
-    bio: &str,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+async fn extract_handles_from_bio(bio: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let api_key = env::var("OPENAI_API_KEY")?;
 
     let prompt = format!(
@@ -723,7 +717,8 @@ async fn process_artist_from_shop_bio(
         }
     } else {
         // Artist doesn't exist - get name from Instagram and try to match
-        let profile_info = crate::actions::apify_scraper::get_instagram_profile_info(handle).await?;
+        let profile_info =
+            crate::actions::apify_scraper::get_instagram_profile_info(handle).await?;
 
         if let Some(name) = profile_info.full_name {
             let (first, last) = parse_name_components(&name);
@@ -823,10 +818,9 @@ fn extract_instagram_handle_from_url(url: &str) -> Option<String> {
 
 fn has_valid_instagram_url(social_links: &Option<String>) -> bool {
     if let Some(links) = social_links {
-        links
-            .split(',')
-            .map(|url| url.trim())
-            .any(|url| url.contains("instagram.com") && extract_instagram_handle_from_url(url).is_some())
+        links.split(',').map(|url| url.trim()).any(|url| {
+            url.contains("instagram.com") && extract_instagram_handle_from_url(url).is_some()
+        })
     } else {
         false
     }

@@ -3,7 +3,10 @@ use sqlx::{PgPool, Row};
 
 use shared_types::{CountyBoundary, LocationInfo};
 
-pub async fn upsert_locations(pool: &PgPool, locations: &[LocationInfo]) -> Result<(), sqlx::Error> {
+pub async fn upsert_locations(
+    pool: &PgPool,
+    locations: &[LocationInfo],
+) -> Result<(), sqlx::Error> {
     for li in locations {
         sqlx::query(
             "
@@ -155,7 +158,10 @@ pub struct LocationUris {
     pub website_uri: String,
 }
 
-pub async fn get_locations_to_scrape(pool: &PgPool, limit: i16) -> Result<Vec<LocationUris>, sqlx::Error> {
+pub async fn get_locations_to_scrape(
+    pool: &PgPool,
+    limit: i16,
+) -> Result<Vec<LocationUris>, sqlx::Error> {
     let rows = sqlx::query(
         "
             SELECT id, website_uri
@@ -240,12 +246,15 @@ pub async fn get_artists_for_style_extraction(
     Ok(artists)
 }
 
-pub async fn get_all_styles(pool: &PgPool) -> Result<std::collections::HashMap<String, Vec<String>>, sqlx::Error> {
+pub async fn get_all_styles(
+    pool: &PgPool,
+) -> Result<std::collections::HashMap<String, Vec<String>>, sqlx::Error> {
     let rows = sqlx::query("SELECT name, type FROM styles ORDER BY type, name")
         .fetch_all(pool)
         .await?;
 
-    let mut styles_by_type: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut styles_by_type: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
 
     for row in rows {
         let name: String = row.get("name");
@@ -287,7 +296,7 @@ pub async fn upsert_artist_styles(
     for style_id in style_ids {
         sqlx::query(
             "INSERT INTO artists_styles (artist_id, style_id) VALUES ($1, $2)
-             ON CONFLICT (artist_id, style_id) DO NOTHING"
+             ON CONFLICT (artist_id, style_id) DO NOTHING",
         )
         .bind(artist_id)
         .bind(style_id)
@@ -298,7 +307,10 @@ pub async fn upsert_artist_styles(
     Ok(())
 }
 
-pub async fn mark_artist_styles_extracted(pool: &PgPool, artist_id: i64) -> Result<(), sqlx::Error> {
+pub async fn mark_artist_styles_extracted(
+    pool: &PgPool,
+    artist_id: i64,
+) -> Result<(), sqlx::Error> {
     sqlx::query("UPDATE artists SET styles_extracted = 1 WHERE id = $1")
         .bind(artist_id)
         .execute(pool)
@@ -343,7 +355,7 @@ pub async fn insert_artist_image_styles(
     for style_id in style_ids {
         sqlx::query(
             "INSERT INTO artists_images_styles (artists_images_id, style_id) VALUES ($1, $2)
-             ON CONFLICT (artists_images_id, style_id) DO NOTHING"
+             ON CONFLICT (artists_images_id, style_id) DO NOTHING",
         )
         .bind(artist_image_id)
         .bind(style_id)
@@ -360,7 +372,7 @@ pub async fn update_openai_api_costs(
     cost: f64,
 ) -> Result<(), sqlx::Error> {
     let existing = sqlx::query(
-        "SELECT count, total_cost FROM openai_api_costs WHERE action = $1 AND model = $2"
+        "SELECT count, total_cost FROM openai_api_costs WHERE action = $1 AND model = $2",
     )
     .bind(action)
     .bind(model)
@@ -377,7 +389,7 @@ pub async fn update_openai_api_costs(
 
             sqlx::query(
                 "UPDATE openai_api_costs SET count = $1, avg_cost = $2, total_cost = $3
-                 WHERE action = $4 AND model = $5"
+                 WHERE action = $4 AND model = $5",
             )
             .bind(new_count)
             .bind(new_avg)
@@ -390,7 +402,7 @@ pub async fn update_openai_api_costs(
         None => {
             sqlx::query(
                 "INSERT INTO openai_api_costs (action, count, avg_cost, model, total_cost)
-                 VALUES ($1, $2, $3, $4, $5)"
+                 VALUES ($1, $2, $3, $4, $5)",
             )
             .bind(action)
             .bind(1_i64)
@@ -423,9 +435,7 @@ pub async fn get_cities_for_scrape(
     state_filter: Option<String>,
     rescrape_days: i16,
 ) -> Result<Vec<CityToScrape>, sqlx::Error> {
-    let mut query = String::from(
-        "SELECT city, state FROM reddit_scrape_cities WHERE 1=1"
-    );
+    let mut query = String::from("SELECT city, state FROM reddit_scrape_cities WHERE 1=1");
 
     // Add filters
     if city_filter.is_some() && state_filter.is_some() {
@@ -448,10 +458,7 @@ pub async fn get_cities_for_scrape(
             .fetch_all(pool)
             .await?
     } else if let Some(state) = &state_filter {
-        sqlx::query(&query)
-            .bind(state)
-            .fetch_all(pool)
-            .await?
+        sqlx::query(&query).bind(state).fetch_all(pool).await?
     } else {
         sqlx::query(&query)
             .bind(rescrape_days as i32)
@@ -498,7 +505,7 @@ pub async fn mark_city_scraped(
              artists_added_from_shop_bios = $8,
              shops_scraped = $9,
              error_message = $10
-         WHERE city = $1 AND state = $2"
+         WHERE city = $1 AND state = $2",
     )
     .bind(city)
     .bind(state)
@@ -529,7 +536,7 @@ pub async fn find_location_by_shop_and_city(
          WHERE LOWER(name) = LOWER($1)
            AND city = $2
            AND state = $3
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(shop_name)
     .bind(city)
@@ -559,7 +566,7 @@ pub async fn find_artist_by_instagram_globally(
          FROM artists
          WHERE instagram_handle = $1
             OR social_links LIKE '%instagram.com/' || $1 || '%'
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(handle)
     .fetch_optional(pool)
@@ -584,7 +591,7 @@ pub async fn find_artist_by_instagram_at_location(
          FROM artists
          WHERE location_id = $1
            AND (instagram_handle = $2 OR social_links LIKE '%instagram.com/' || $2 || '%')
-         LIMIT 1"
+         LIMIT 1",
     )
     .bind(location_id)
     .bind(handle)
@@ -612,7 +619,7 @@ pub async fn find_artist_by_name_at_location(
              FROM artists
              WHERE location_id = $1
                AND (LOWER(name) LIKE '%' || $2 || '%' OR LOWER(name) LIKE '%' || $3 || '%')
-             LIMIT 1"
+             LIMIT 1",
         )
         .bind(location_id)
         .bind(first)
@@ -625,7 +632,7 @@ pub async fn find_artist_by_name_at_location(
              FROM artists
              WHERE location_id = $1
                AND LOWER(name) LIKE '%' || $2 || '%'
-             LIMIT 1"
+             LIMIT 1",
         )
         .bind(location_id)
         .bind(first)
@@ -654,7 +661,7 @@ pub async fn insert_artist_with_instagram(
     let row = sqlx::query(
         "INSERT INTO artists (name, location_id, instagram_handle, social_links, styles_extracted)
          VALUES ($1, $2, $3, $4, 0)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(name)
     .bind(location_id)
@@ -687,7 +694,7 @@ pub async fn update_artist_add_instagram(
         "UPDATE artists
          SET social_links = $1,
              instagram_handle = $2
-         WHERE id = $3"
+         WHERE id = $3",
     )
     .bind(&new_social_links)
     .bind(instagram_handle)
@@ -719,7 +726,7 @@ pub async fn insert_reddit_artist_pending(
         "INSERT INTO reddit_artists_pending
          (reddit_post_url, artist_name, instagram_handle, shop_name_mentioned,
           city, state, post_context, match_type)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(&data.reddit_post_url)
     .bind(&data.artist_name)

@@ -1,5 +1,5 @@
-use crate::components::instagram_posts_grid::{InstagramPostsGrid, PostWithArtist};
 use crate::components::instagram_embed::process_instagram_embeds;
+use crate::components::instagram_posts_grid::{InstagramPostsGrid, PostWithArtist};
 use crate::db::entities::{ArtistImage, Style};
 use leptos::prelude::*;
 
@@ -17,9 +17,12 @@ pub fn ArtistMasonryGallery(
 ) -> impl IntoView {
     // Trigger Instagram embed processing when component mounts
     Effect::new(move |_| {
-        set_timeout(move || {
-            process_instagram_embeds();
-        }, std::time::Duration::from_millis(100));
+        set_timeout(
+            move || {
+                process_instagram_embeds();
+            },
+            std::time::Duration::from_millis(100),
+        );
     });
 
     // Convert to PostWithArtist format
@@ -39,4 +42,3 @@ pub fn ArtistMasonryGallery(
         </div>
     }
 }
-

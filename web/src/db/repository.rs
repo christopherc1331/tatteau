@@ -1,14 +1,13 @@
 use super::entities::{
-    Artist, ArtistImage, Style, CityCoords, Location,
-    QuestionnaireQuestion, ArtistQuestionnaire, BookingQuestionnaireResponse,
-    ClientQuestionnaireForm, ClientQuestionnaireQuestion,
-    ErrorLog, CreateErrorLog,
+    Artist, ArtistImage, ArtistQuestionnaire, BookingQuestionnaireResponse, CityCoords,
+    ClientQuestionnaireForm, ClientQuestionnaireQuestion, CreateErrorLog, ErrorLog, Location,
+    QuestionnaireQuestion, Style,
 };
-#[cfg(feature = "ssr")]
-use sqlx::{PgPool, Row, Executor};
 #[cfg(feature = "ssr")]
 use serde_json;
 use shared_types::{LocationInfo, MapBounds};
+#[cfg(feature = "ssr")]
+use sqlx::{Executor, PgPool, Row};
 #[cfg(feature = "ssr")]
 type DbResult<T> = Result<T, sqlx::Error>;
 
@@ -107,7 +106,11 @@ pub async fn query_locations(
                 state: row.get("state"),
                 country_code: row.get("country_code"),
                 postal_code: row.get("postal_code"),
-                is_open: row.try_get::<i16, _>("is_open").ok().map(|v| v != 0).unwrap_or(false),
+                is_open: row
+                    .try_get::<i16, _>("is_open")
+                    .ok()
+                    .map(|v| v != 0)
+                    .unwrap_or(false),
                 address: row.get("address"),
                 category: row.get("category"),
                 website_uri: row.get("website_uri"),
@@ -141,7 +144,9 @@ pub async fn get_states() -> DbResult<Vec<LocationState>> {
 
     let states = rows
         .into_iter()
-        .map(|r| LocationState { state: r.get("state") })
+        .map(|r| LocationState {
+            state: r.get("state"),
+        })
         .collect();
 
     Ok(states)
@@ -176,7 +181,8 @@ pub async fn get_city_coordinates(city_name: String) -> DbResult<CityCoords> {
         })
         .collect();
 
-    city_coords.first()
+    city_coords
+        .first()
         .cloned()
         .ok_or_else(|| sqlx::Error::RowNotFound)
 }
@@ -202,8 +208,14 @@ pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
         instagram_handle: row.get("instagram_handle"),
         email: row.get("email"),
         phone: row.get("phone"),
-        years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
-        styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
+        years_experience: row
+            .try_get::<i64, _>("years_experience")
+            .ok()
+            .map(|v| v as i32),
+        styles_extracted: row
+            .try_get::<i64, _>("styles_extracted")
+            .ok()
+            .map(|v| v as i32),
     })
 }
 
@@ -361,8 +373,14 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
             instagram_handle: row.get("instagram_handle"),
             email: row.get("email"),
             phone: row.get("phone"),
-            years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
-            styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
+            years_experience: row
+                .try_get::<i64, _>("years_experience")
+                .ok()
+                .map(|v| v as i32),
+            styles_extracted: row
+                .try_get::<i64, _>("styles_extracted")
+                .ok()
+                .map(|v| v as i32),
         })
         .collect();
 
@@ -461,8 +479,14 @@ pub async fn get_all_images_with_styles_by_location(
             instagram_handle: image_row.get("instagram_handle"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
-            years_experience: image_row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
-            styles_extracted: image_row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
+            years_experience: image_row
+                .try_get::<i64, _>("years_experience")
+                .ok()
+                .map(|v| v as i32),
+            styles_extracted: image_row
+                .try_get::<i64, _>("styles_extracted")
+                .ok()
+                .map(|v| v as i32),
         };
 
         let is_favorited: bool = image_row.get("is_favorited");
@@ -661,7 +685,11 @@ pub async fn get_styles_by_location(
         String::new()
     };
 
-    let join_type = if where_clauses.is_empty() { "LEFT" } else { "INNER" };
+    let join_type = if where_clauses.is_empty() {
+        "LEFT"
+    } else {
+        "INNER"
+    };
 
     let query = format!(
         "SELECT
@@ -682,7 +710,11 @@ pub async fn get_styles_by_location(
         join_type,
         join_type,
         where_clause,
-        if where_clauses.is_empty() { "" } else { "HAVING COUNT(DISTINCT ai.id) > 0" }
+        if where_clauses.is_empty() {
+            ""
+        } else {
+            "HAVING COUNT(DISTINCT ai.id) > 0"
+        }
     );
 
     let mut sql_query = sqlx::query(&query);
@@ -851,11 +883,15 @@ pub async fn query_locations_with_details(
     .fetch_all(pool)
     .await?;
 
-    let mut styles_map: std::collections::HashMap<i64, Vec<String>> = std::collections::HashMap::new();
+    let mut styles_map: std::collections::HashMap<i64, Vec<String>> =
+        std::collections::HashMap::new();
     for row in style_rows {
         let loc_id: i64 = row.get("location_id");
         let style_name: String = row.get("name");
-        styles_map.entry(loc_id).or_insert_with(Vec::new).push(style_name);
+        styles_map
+            .entry(loc_id)
+            .or_insert_with(Vec::new)
+            .push(style_name);
     }
 
     // Batch query: Get top 4 artists with their details for all locations
@@ -884,7 +920,8 @@ pub async fn query_locations_with_details(
     .fetch_all(pool)
     .await?;
 
-    let mut artists_map: std::collections::HashMap<i64, Vec<crate::server::ArtistThumbnail>> = std::collections::HashMap::new();
+    let mut artists_map: std::collections::HashMap<i64, Vec<crate::server::ArtistThumbnail>> =
+        std::collections::HashMap::new();
     for row in artist_rows {
         let loc_id: i64 = row.get("location_id");
         let artist = crate::server::ArtistThumbnail {
@@ -893,7 +930,10 @@ pub async fn query_locations_with_details(
             image_url: row.try_get("image_url").ok().flatten(),
             primary_style: row.try_get("primary_style").ok().flatten(),
         };
-        artists_map.entry(loc_id).or_insert_with(Vec::new).push(artist);
+        artists_map
+            .entry(loc_id)
+            .or_insert_with(Vec::new)
+            .push(artist);
     }
 
     // Build results from location rows and batch query results
@@ -914,7 +954,11 @@ pub async fn query_locations_with_details(
             state: location_row.get("state"),
             country_code: location_row.get("country_code"),
             postal_code: location_row.get("postal_code"),
-            is_open: location_row.try_get::<i16, _>("is_open").ok().map(|v| v != 0).unwrap_or(false),
+            is_open: location_row
+                .try_get::<i16, _>("is_open")
+                .ok()
+                .map(|v| v != 0)
+                .unwrap_or(false),
             address: location_row.get("address"),
             category: location_row.get("category"),
             website_uri: location_row.get("website_uri"),
@@ -970,7 +1014,7 @@ pub async fn query_matched_artists(
         AND a.name != ''
         GROUP BY a.id, a.name, l.city, l.state, l.name, a.years_experience
         ORDER BY image_count DESC, a.name ASC
-        LIMIT 10"
+        LIMIT 10",
     )
     .fetch_all(pool)
     .await?;
@@ -987,10 +1031,14 @@ pub async fn query_matched_artists(
         let image_count: i64 = row.get("image_count");
 
         // Get styles for this artist
-        let styles = get_artist_styles_by_id(pool, artist_id).await.unwrap_or_default();
+        let styles = get_artist_styles_by_id(pool, artist_id)
+            .await
+            .unwrap_or_default();
 
         // Get portfolio images for this artist
-        let portfolio_images = get_artist_portfolio_images_by_id(pool, artist_id).await.unwrap_or_default();
+        let portfolio_images = get_artist_portfolio_images_by_id(pool, artist_id)
+            .await
+            .unwrap_or_default();
 
         // Calculate match score based on style overlap and image count
         let match_score = calculate_match_score(&styles, &style_preferences, image_count as i32);
@@ -1028,19 +1076,13 @@ async fn get_artist_styles_by_id(pool: &PgPool, artist_id: i64) -> DbResult<Vec<
     .fetch_all(pool)
     .await?;
 
-    let styles = rows
-        .into_iter()
-        .map(|row| row.get("name"))
-        .collect();
+    let styles = rows.into_iter().map(|row| row.get("name")).collect();
 
     Ok(styles)
 }
 
 #[cfg(feature = "ssr")]
-async fn get_artist_portfolio_images_by_id(
-    pool: &PgPool,
-    artist_id: i64,
-) -> DbResult<Vec<String>> {
+async fn get_artist_portfolio_images_by_id(pool: &PgPool, artist_id: i64) -> DbResult<Vec<String>> {
     let rows = sqlx::query(
         "SELECT short_code FROM artists_images
          WHERE artist_id = $1
@@ -1141,7 +1183,7 @@ pub async fn get_location_with_artist_details(
         "SELECT id, name, lat, long, city, county, state, country_code,
                postal_code, is_open, address, category, website_uri, _id
         FROM locations
-        WHERE id = $1"
+        WHERE id = $1",
     )
     .bind(location_id)
     .fetch_one(pool)
@@ -1157,7 +1199,11 @@ pub async fn get_location_with_artist_details(
         state: location_row.get("state"),
         country_code: location_row.get("country_code"),
         postal_code: location_row.get("postal_code"),
-        is_open: location_row.try_get::<i16, _>("is_open").ok().map(|v| v != 0).unwrap_or(false),
+        is_open: location_row
+            .try_get::<i16, _>("is_open")
+            .ok()
+            .map(|v| v != 0)
+            .unwrap_or(false),
         address: location_row.get("address"),
         category: location_row.get("category"),
         website_uri: location_row.get("website_uri"),
@@ -1181,7 +1227,7 @@ pub async fn get_location_with_artist_details(
         FROM artists a
         WHERE a.location_id = $1
         ORDER BY a.name
-        LIMIT 4"
+        LIMIT 4",
     )
     .bind(location_id)
     .fetch_all(pool)
@@ -1204,7 +1250,7 @@ pub async fn get_location_with_artist_details(
             COUNT(DISTINCT ai.id) as image_count
         FROM artists a
         LEFT JOIN artists_images ai ON a.id = ai.artist_id
-        WHERE a.location_id = $1"
+        WHERE a.location_id = $1",
     )
     .bind(location_id)
     .fetch_one(pool)
@@ -1221,16 +1267,13 @@ pub async fn get_location_with_artist_details(
         JOIN artists a ON ast.artist_id = a.id
         WHERE a.location_id = $1
         ORDER BY s.name
-        LIMIT 5"
+        LIMIT 5",
     )
     .bind(location_id)
     .fetch_all(pool)
     .await?;
 
-    let styles: Vec<String> = style_rows
-        .into_iter()
-        .map(|row| row.get("name"))
-        .collect();
+    let styles: Vec<String> = style_rows.into_iter().map(|row| row.get("name")).collect();
 
     Ok(LocationDetailInfo {
         location,
@@ -1269,7 +1312,7 @@ pub async fn get_artist_questionnaire(artist_id: i32) -> DbResult<ClientQuestion
         SELECT id, question_type, question_text, is_required, options, validation_rules
         FROM latest_configs
         WHERE rn = 1
-        ORDER BY display_order"
+        ORDER BY display_order",
     )
     .bind(artist_id)
     .fetch_all(pool)
@@ -1301,7 +1344,7 @@ pub async fn get_artist_questionnaire(artist_id: i32) -> DbResult<ClientQuestion
         let system_question_result = sqlx::query(
             "SELECT id, question_type, question_text, validation_rules
             FROM questionnaire_questions
-            WHERE id = 6"
+            WHERE id = 6",
         )
         .fetch_optional(pool)
         .await?;
@@ -1326,7 +1369,11 @@ pub async fn get_artist_questionnaire(artist_id: i32) -> DbResult<ClientQuestion
 
 // Artist Availability and Booking Conflict Functions
 #[cfg(feature = "ssr")]
-pub async fn check_artist_availability(artist_id: i32, requested_date: &str, requested_time: &str) -> DbResult<bool> {
+pub async fn check_artist_availability(
+    artist_id: i32,
+    requested_date: &str,
+    requested_time: &str,
+) -> DbResult<bool> {
     let pool = crate::db::pool::get_pool();
 
     // Check for existing bookings at the requested time
@@ -1335,7 +1382,7 @@ pub async fn check_artist_availability(artist_id: i32, requested_date: &str, req
         FROM bookings
         WHERE artist_id = $1
         AND booking_date = $2
-        AND status NOT IN ('cancelled', 'rejected')"
+        AND status NOT IN ('cancelled', 'rejected')",
     )
     .bind(artist_id)
     .bind(requested_date)
@@ -1354,7 +1401,7 @@ pub async fn check_artist_availability(artist_id: i32, requested_date: &str, req
         FROM artist_availability
         WHERE artist_id = $1
         AND (specific_date = $2 OR day_of_week = EXTRACT(DOW FROM $2::date)::text)
-        AND is_available = false"
+        AND is_available = false",
     )
     .bind(artist_id)
     .bind(requested_date)
@@ -1379,7 +1426,7 @@ pub async fn get_all_default_questions() -> DbResult<Vec<QuestionnaireQuestion>>
                options_data, validation_rules, created_at
         FROM questionnaire_questions
         WHERE is_default = true
-        ORDER BY id"
+        ORDER BY id",
     )
     .fetch_all(pool)
     .await?;
@@ -1408,7 +1455,7 @@ pub async fn get_artist_questionnaire_config(artist_id: i32) -> DbResult<Vec<Art
         "SELECT id, artist_id, question_id, is_required, display_order, custom_options, is_enabled
         FROM artist_questionnaires
         WHERE artist_id = $1
-        ORDER BY display_order"
+        ORDER BY display_order",
     )
     .bind(artist_id)
     .fetch_all(pool)
@@ -1433,7 +1480,7 @@ pub async fn get_artist_questionnaire_config(artist_id: i32) -> DbResult<Vec<Art
 #[cfg(feature = "ssr")]
 pub async fn update_artist_questionnaire_config(
     artist_id: i32,
-    config: Vec<ArtistQuestionnaire>
+    config: Vec<ArtistQuestionnaire>,
 ) -> DbResult<()> {
     let pool = crate::db::pool::get_pool();
 
@@ -1451,7 +1498,7 @@ pub async fn update_artist_questionnaire_config(
         sqlx::query(
             "INSERT INTO artist_questionnaires
              (artist_id, question_id, is_required, display_order, custom_options, is_enabled)
-             VALUES ($1, $2, $3, $4, $5, $6)"
+             VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(item.artist_id)
         .bind(item.question_id)
@@ -1472,21 +1519,16 @@ pub async fn update_artist_questionnaire_config(
 pub async fn get_artist_id_from_user_id(user_id: i64) -> DbResult<Option<i32>> {
     let pool = crate::db::pool::get_pool();
 
-    let result = sqlx::query(
-        "SELECT artist_id FROM users WHERE id = $1 AND role = 'artist'"
-    )
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await?;
+    let result = sqlx::query("SELECT artist_id FROM users WHERE id = $1 AND role = 'artist'")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await?;
 
     Ok(result.and_then(|row| row.try_get("artist_id").ok()))
 }
 
 #[cfg(feature = "ssr")]
-pub async fn delete_artist_question(
-    artist_id: i32,
-    question_id: i32
-) -> DbResult<()> {
+pub async fn delete_artist_question(artist_id: i32, question_id: i32) -> DbResult<()> {
     let pool = crate::db::pool::get_pool();
 
     sqlx::query("DELETE FROM artist_questionnaires WHERE artist_id = $1 AND question_id = $2")
@@ -1501,7 +1543,7 @@ pub async fn delete_artist_question(
 #[cfg(feature = "ssr")]
 pub async fn save_questionnaire_responses(
     booking_request_id: i32,
-    responses: Vec<BookingQuestionnaireResponse>
+    responses: Vec<BookingQuestionnaireResponse>,
 ) -> DbResult<()> {
     let pool = crate::db::pool::get_pool();
 
@@ -1509,7 +1551,7 @@ pub async fn save_questionnaire_responses(
         sqlx::query(
             "INSERT INTO booking_questionnaire_responses
              (booking_request_id, question_id, response_text, response_data)
-             VALUES ($1, $2, $3, $4)"
+             VALUES ($1, $2, $3, $4)",
         )
         .bind(booking_request_id)
         .bind(response.question_id)
@@ -1524,7 +1566,7 @@ pub async fn save_questionnaire_responses(
 
 #[cfg(feature = "ssr")]
 pub async fn get_booking_questionnaire_responses(
-    booking_request_id: i32
+    booking_request_id: i32,
 ) -> DbResult<Vec<BookingQuestionnaireResponse>> {
     let pool = crate::db::pool::get_pool();
 
@@ -1532,7 +1574,7 @@ pub async fn get_booking_questionnaire_responses(
         "SELECT id, booking_request_id, question_id, response_text, response_data, created_at
         FROM booking_questionnaire_responses
         WHERE booking_request_id = $1
-        ORDER BY id"
+        ORDER BY id",
     )
     .bind(booking_request_id)
     .fetch_all(pool)
@@ -1563,7 +1605,7 @@ pub async fn log_error(error_data: CreateErrorLog) -> DbResult<i64> {
          (error_type, error_level, error_message, error_stack, url_path,
           user_agent, user_id, session_id, request_headers, additional_context)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(error_data.error_type)
     .bind(error_data.error_level)
@@ -1591,7 +1633,7 @@ pub async fn get_recent_errors(limit: i32) -> DbResult<Vec<ErrorLog>> {
                request_headers, additional_context
         FROM error_logs
         ORDER BY timestamp DESC
-        LIMIT $1"
+        LIMIT $1",
     )
     .bind(limit)
     .fetch_all(pool)
@@ -1629,7 +1671,7 @@ pub async fn get_errors_by_type(error_type: String, limit: i32) -> DbResult<Vec<
         FROM error_logs
         WHERE error_type = $1
         ORDER BY timestamp DESC
-        LIMIT $2"
+        LIMIT $2",
     )
     .bind(error_type)
     .bind(limit)
@@ -1671,7 +1713,10 @@ pub async fn get_shop_images_paginated(
     // Build the WHERE clause for style filtering
     // Build the favorites JOIN clause based on user_id
     let favorites_join = if let Some(uid) = user_id {
-        format!("LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}", uid)
+        format!(
+            "LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}",
+            uid
+        )
     } else {
         String::new()
     };
@@ -1841,8 +1886,14 @@ pub async fn get_shop_images_paginated(
             instagram_handle: image_row.get("instagram_handle"),
             email: image_row.get("email"),
             phone: image_row.get("phone"),
-            years_experience: image_row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
-            styles_extracted: image_row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
+            years_experience: image_row
+                .try_get::<i64, _>("years_experience")
+                .ok()
+                .map(|v| v as i32),
+            styles_extracted: image_row
+                .try_get::<i64, _>("styles_extracted")
+                .ok()
+                .map(|v| v as i32),
         };
 
         let is_favorited: bool = image_row.get("is_favorited");
@@ -1853,7 +1904,7 @@ pub async fn get_shop_images_paginated(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = $1"
+             WHERE ais.artists_images_id = $1",
         )
         .bind(img_id)
         .fetch_all(pool)
@@ -1886,7 +1937,10 @@ pub async fn get_artist_images_paginated(
 
     // Build the favorites JOIN clause based on user_id
     let favorites_join = if let Some(uid) = user_id {
-        format!("LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}", uid)
+        format!(
+            "LEFT JOIN user_favorites uf ON ai.id = uf.artists_images_id AND uf.user_id = {}",
+            uid
+        )
     } else {
         String::new()
     };
@@ -1924,7 +1978,8 @@ pub async fn get_artist_images_paginated(
             (
                 "SELECT COUNT(DISTINCT ai.id)
                  FROM artists_images ai
-                 WHERE ai.artist_id = $1".to_string(),
+                 WHERE ai.artist_id = $1"
+                    .to_string(),
                 format!(
                     "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date,
                             {}
@@ -1933,16 +1988,16 @@ pub async fn get_artist_images_paginated(
                      WHERE ai.artist_id = $1
                      ORDER BY ai.id DESC
                      LIMIT $2 OFFSET $3",
-                     is_favorited_select,
-                     favorites_join
-                )
+                    is_favorited_select, favorites_join
+                ),
             )
         }
     } else {
         (
             "SELECT COUNT(DISTINCT ai.id)
              FROM artists_images ai
-             WHERE ai.artist_id = $1".to_string(),
+             WHERE ai.artist_id = $1"
+                .to_string(),
             format!(
                 "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date,
                         {}
@@ -1951,9 +2006,8 @@ pub async fn get_artist_images_paginated(
                  WHERE ai.artist_id = $1
                  ORDER BY ai.id DESC
                  LIMIT $2 OFFSET $3",
-                 is_favorited_select,
-                 favorites_join
-            )
+                is_favorited_select, favorites_join
+            ),
         )
     };
 
@@ -2027,7 +2081,7 @@ pub async fn get_artist_images_paginated(
             "SELECT s.id, s.name
              FROM styles s
              JOIN artists_images_styles ais ON s.id = ais.style_id
-             WHERE ais.artists_images_id = $1"
+             WHERE ais.artists_images_id = $1",
         )
         .bind(img_id)
         .fetch_all(pool)

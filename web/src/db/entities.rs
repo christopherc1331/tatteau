@@ -157,8 +157,8 @@ pub struct RecurringRule {
     pub artist_id: i32,
     pub name: String,
     pub rule_type: String, // "weekdays", "dates", "monthly"
-    pub pattern: String, // JSON string for flexible pattern storage
-    pub action: String, // "available" or "blocked"
+    pub pattern: String,   // JSON string for flexible pattern storage
+    pub action: String,    // "available" or "blocked"
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     pub active: bool,
@@ -322,7 +322,7 @@ pub struct CreateUserFavorite {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ErrorLog {
     pub id: i32,
-    pub error_type: String, // 'client', 'server', 'database'
+    pub error_type: String,  // 'client', 'server', 'database'
     pub error_level: String, // 'error', 'warn', 'fatal'
     pub error_message: String,
     pub error_stack: Option<String>,
@@ -331,7 +331,7 @@ pub struct ErrorLog {
     pub user_id: Option<i32>, // NULL if not logged in
     pub session_id: Option<String>,
     pub timestamp: String,
-    pub request_headers: Option<String>, // JSON string
+    pub request_headers: Option<String>,    // JSON string
     pub additional_context: Option<String>, // JSON string for any extra data
 }
 

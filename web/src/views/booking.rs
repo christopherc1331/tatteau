@@ -1,13 +1,14 @@
 use leptos::prelude::*;
-use leptos_router::hooks::{use_params_map, use_navigate};
+use leptos_router::hooks::{use_navigate, use_params_map};
 
 #[component]
 pub fn ArtistBooking() -> impl IntoView {
     let params = use_params_map();
     let navigate = use_navigate();
-    
+
     let artist_id = Memo::new(move |_| {
-        params.read()
+        params
+            .read()
             .get("id")
             .and_then(|id| id.parse::<i32>().ok())
     });
@@ -30,11 +31,12 @@ pub fn ArtistBooking() -> impl IntoView {
     }
 }
 
-#[component] 
+#[component]
 pub fn ShopBooking() -> impl IntoView {
     let params = use_params_map();
     let shop_id = Memo::new(move |_| {
-        params.read()
+        params
+            .read()
             .get("id")
             .and_then(|id| id.parse::<i32>().ok())
             .unwrap_or(0)
@@ -47,11 +49,11 @@ pub fn ShopBooking() -> impl IntoView {
                     <h1 class="booking-shop-title">
                         "🏪 Book at Shop"
                     </h1>
-                    
+
                     <p class="booking-shop-subtitle">
                         {format!("Booking system for shop ID: {}", shop_id.get())}
                     </p>
-                    
+
                     <div class="booking-shop-notice">
                         <p class="booking-shop-notice-title">
                             "🚧 Coming Soon!"
@@ -60,14 +62,14 @@ pub fn ShopBooking() -> impl IntoView {
                             "Our booking system is currently under development. Please contact the shop directly for appointments."
                         </p>
                     </div>
-                    
+
                     <div class="booking-shop-actions">
-                        <a href={format!("/shop/{}", shop_id.get())} 
+                        <a href={format!("/shop/{}", shop_id.get())}
                            class="booking-shop-btn-primary">
                             "← Back to Shop"
                         </a>
-                        
-                        <a href="/" 
+
+                        <a href="/"
                            class="booking-shop-btn-secondary">
                             "🏠 Home"
                         </a>

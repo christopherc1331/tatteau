@@ -19,9 +19,7 @@ pub async fn init_pool() -> Result<(), sqlx::Error> {
         .await?;
 
     DB_POOL.set(pool).map_err(|_| {
-        sqlx::Error::Configuration(
-            "Database pool already initialized".to_string().into(),
-        )
+        sqlx::Error::Configuration("Database pool already initialized".to_string().into())
     })?;
 
     Ok(())
@@ -29,5 +27,7 @@ pub async fn init_pool() -> Result<(), sqlx::Error> {
 
 #[cfg(feature = "ssr")]
 pub fn get_pool() -> &'static Pool<Postgres> {
-    DB_POOL.get().expect("Database pool not initialized. Call init_pool() first.")
+    DB_POOL
+        .get()
+        .expect("Database pool not initialized. Call init_pool() first.")
 }

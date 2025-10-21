@@ -1,7 +1,5 @@
 use crate::{
-    components::loading::LoadingView,
-    db::entities::CityCoords,
-    server::get_locations_with_details,
+    components::loading::LoadingView, db::entities::CityCoords, server::get_locations_with_details,
     views::map::enhanced_map_marker::EnhancedMapMarker,
 };
 use leptos::prelude::*;
@@ -75,12 +73,17 @@ pub fn MapRendererV2(
                             },
                         };
 
-                        leptos::logging::log!("Map bounds updated: NE({}, {}), SW({}, {})",
-                            new_bounds.north_east.lat, new_bounds.north_east.long,
-                            new_bounds.south_west.lat, new_bounds.south_west.long);
+                        leptos::logging::log!(
+                            "Map bounds updated: NE({}, {}), SW({}, {})",
+                            new_bounds.north_east.lat,
+                            new_bounds.north_east.long,
+                            new_bounds.south_west.lat,
+                            new_bounds.south_west.long
+                        );
                         bounds_signal.set(new_bounds);
                     }
-                }) as Box<dyn FnMut()>);
+                })
+                    as Box<dyn FnMut()>);
 
                 // Add event listener
                 map_instance.on("moveend", closure.as_ref().unchecked_ref());
@@ -104,9 +107,13 @@ pub fn MapRendererV2(
                     },
                 };
 
-                leptos::logging::log!("Initial map bounds: NE({}, {}), SW({}, {})",
-                    initial_bounds.north_east.lat, initial_bounds.north_east.long,
-                    initial_bounds.south_west.lat, initial_bounds.south_west.long);
+                leptos::logging::log!(
+                    "Initial map bounds: NE({}, {}), SW({}, {})",
+                    initial_bounds.north_east.lat,
+                    initial_bounds.north_east.long,
+                    initial_bounds.south_west.lat,
+                    initial_bounds.south_west.long
+                );
                 map_bounds.set(initial_bounds);
             }
         });
@@ -125,9 +132,13 @@ pub fn MapRendererV2(
             return Ok(vec![]);
         }
 
-        leptos::logging::log!("Fetching locations for bounds: NE({}, {}), SW({}, {})",
-            current_bounds.north_east.lat, current_bounds.north_east.long,
-            current_bounds.south_west.lat, current_bounds.south_west.long);
+        leptos::logging::log!(
+            "Fetching locations for bounds: NE({}, {}), SW({}, {})",
+            current_bounds.north_east.lat,
+            current_bounds.north_east.long,
+            current_bounds.south_west.lat,
+            current_bounds.south_west.long
+        );
 
         get_locations_with_details(
             current_state,
@@ -146,7 +157,9 @@ pub fn MapRendererV2(
     Effect::new(move |_| {
         if let Some(Ok(city_coords_list)) = cities.get() {
             let current_city = city.get();
-            let matching_city = city_coords_list.into_iter().find(|c| c.city == current_city);
+            let matching_city = city_coords_list
+                .into_iter()
+                .find(|c| c.city == current_city);
             if let Some(found_city) = matching_city {
                 selected_city_coords.set(found_city);
             }

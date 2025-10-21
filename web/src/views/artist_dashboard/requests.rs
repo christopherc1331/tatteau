@@ -34,7 +34,7 @@ pub fn ArtistRequests() -> impl IntoView {
                                 </div>
                                 <div class="request-status pending">"Pending"</div>
                             </div>
-                            
+
                             <div class="request-details">
                                 <p><strong>"Placement:"</strong> " Left shoulder"</p>
                                 <p><strong>"Style:"</strong> " Traditional rose"</p>
@@ -62,7 +62,7 @@ pub fn ArtistRequests() -> impl IntoView {
                                 </div>
                                 <div class="request-status pending">"Pending"</div>
                             </div>
-                            
+
                             <div class="request-details">
                                 <p><strong>"Placement:"</strong> " Right forearm"</p>
                                 <p><strong>"Style:"</strong> " Geometric"</p>

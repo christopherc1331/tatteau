@@ -1,5 +1,6 @@
 pub mod artist_dashboard;
 pub mod artist_highlight;
+pub mod artist_login_prompt;
 pub mod auth;
 pub mod booking;
 pub mod booking_confirmation;
@@ -8,9 +9,8 @@ pub mod home;
 pub mod instagram_demo;
 pub mod map;
 pub mod match_results;
+pub mod not_found;
 pub mod quiz;
 pub mod shop;
 pub mod styles;
 pub mod subscription_tiers;
-pub mod artist_login_prompt;
-pub mod not_found;

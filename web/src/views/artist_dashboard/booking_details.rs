@@ -766,4 +766,3 @@ fn BookingMessageItem(message: BookingMessage, timezone: ReadSignal<String>) -> 
         </div>
     }
 }
-

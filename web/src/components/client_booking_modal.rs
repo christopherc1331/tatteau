@@ -75,7 +75,10 @@ pub fn ClientBookingModal(
 
             let slot = selected_time_slot.get();
             let (start_time, end_time) = if let Some(time_slot) = slot {
-                (time_slot.start_time.clone(), Some(time_slot.end_time.clone()))
+                (
+                    time_slot.start_time.clone(),
+                    Some(time_slot.end_time.clone()),
+                )
             } else {
                 (String::new(), None)
             };
@@ -136,7 +139,8 @@ pub fn ClientBookingModal(
                     }
 
                     // Get artist name from the resource for the confirmation page
-                    let artist_name = artist_resource.get()
+                    let artist_name = artist_resource
+                        .get()
                         .and_then(|artist_opt| artist_opt)
                         .and_then(|artist_data| artist_data.artist.name)
                         .unwrap_or_else(|| "the artist".to_string());
@@ -152,7 +156,11 @@ pub fn ClientBookingModal(
                     booking_id.set(None);
 
                     // Navigate to confirmation page with booking ID and artist name
-                    let confirmation_url = format!("/booking/confirmation?booking_id={}&artist_name={}", id, urlencoding::encode(&artist_name));
+                    let confirmation_url = format!(
+                        "/booking/confirmation?booking_id={}&artist_name={}",
+                        id,
+                        urlencoding::encode(&artist_name)
+                    );
                     let _ = navigate(&confirmation_url, Default::default());
 
                     // Close modal and stop submitting after navigation
@@ -167,9 +175,8 @@ pub fn ClientBookingModal(
         }
     });
 
-    let is_appointment_form_valid = move || {
-        !requested_date.get().trim().is_empty() && selected_time_slot.get().is_some()
-    };
+    let is_appointment_form_valid =
+        move || !requested_date.get().trim().is_empty() && selected_time_slot.get().is_some();
 
     // Create computed signal for button disabled state
     let is_submit_disabled = Memo::new(move |_| {
@@ -383,4 +390,3 @@ pub fn ClientBookingModal(
         </div>
     }
 }
-

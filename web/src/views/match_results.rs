@@ -312,4 +312,3 @@ fn ArtistModalContent(artist: MatchedArtist) -> impl IntoView {
         </div>
     }
 }
-

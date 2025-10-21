@@ -32,4 +32,3 @@ pub fn MapMarker(location: LocationInfo) -> impl IntoView {
         </Marker>
     }
 }
-

@@ -1,4 +1,4 @@
-use super::entities::{UserFavorite, CreateUserFavorite, ArtistImage, Artist, Style};
+use super::entities::{Artist, ArtistImage, CreateUserFavorite, Style, UserFavorite};
 #[cfg(feature = "ssr")]
 use sqlx::{PgPool, Row};
 
@@ -107,12 +107,10 @@ pub async fn get_user_favorites(user_id: i32) -> DbResult<Vec<i32>> {
 pub async fn get_user_favorite_count(user_id: i32) -> DbResult<i32> {
     let pool = crate::db::pool::get_pool();
 
-    let row = sqlx::query(
-        "SELECT COUNT(*) as count FROM user_favorites WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await?;
+    let row = sqlx::query("SELECT COUNT(*) as count FROM user_favorites WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await?;
 
     Ok(row.get::<i64, _>("count") as i32)
 }
@@ -133,7 +131,9 @@ pub async fn toggle_favorite(user_id: i32, artists_images_id: i32) -> DbResult<b
 
 /// Get user's favorite posts with full details (image, artist, styles)
 #[cfg(feature = "ssr")]
-pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<FavoritePostWithDetails>> {
+pub async fn get_user_favorites_with_details(
+    user_id: i32,
+) -> DbResult<Vec<FavoritePostWithDetails>> {
     let pool = crate::db::pool::get_pool();
 
     // Get all favorited image IDs
@@ -175,8 +175,14 @@ pub async fn get_user_favorites_with_details(user_id: i32) -> DbResult<Vec<Favor
                 instagram_handle: row.get("instagram_handle"),
                 email: row.get("email"),
                 phone: row.get("phone"),
-                years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
-                styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
+                years_experience: row
+                    .try_get::<i64, _>("years_experience")
+                    .ok()
+                    .map(|v| v as i32),
+                styles_extracted: row
+                    .try_get::<i64, _>("styles_extracted")
+                    .ok()
+                    .map(|v| v as i32),
             });
 
             // Get styles for this image

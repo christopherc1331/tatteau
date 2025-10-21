@@ -1,12 +1,12 @@
+use crate::server::get_artist_id_from_jwt_user_id;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
-use crate::server::get_artist_id_from_jwt_user_id;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Claims {
-    sub: String, // User ID
-    exp: usize,  // Expiration time
+    sub: String,       // User ID
+    exp: usize,        // Expiration time
     user_type: String, // "client" or "artist"
     user_id: i64,
 }
@@ -17,32 +17,32 @@ pub fn get_authenticated_artist_id() -> Option<i64> {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::prelude::*;
-        
+
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_namespace = localStorage)]
             fn getItem(key: &str) -> Option<String>;
         }
-        
+
         if let Some(token) = getItem("tatteau_auth_token") {
             if token.is_empty() {
                 return None;
             }
-            
+
             // Decode JWT token
             if let Some(artist_id) = decode_jwt_artist_id(&token) {
                 return Some(artist_id);
             }
         }
     }
-    
+
     #[cfg(not(feature = "hydrate"))]
     {
         // On server side, we don't have access to localStorage
         // This should be handled by server-side context or cookies
         return None;
     }
-    
+
     None
 }
 
@@ -59,7 +59,7 @@ fn decode_jwt_artist_id(token: &str) -> Option<i64> {
 /// Hook to get the authenticated artist ID reactively with proper server lookup
 pub fn use_authenticated_artist_id() -> Signal<Option<i32>> {
     let artist_id = RwSignal::new(None::<i32>);
-    
+
     Effect::new(move |_| {
         // Get JWT user_id first
         if let Some((user_id, user_type)) = get_authenticated_user() {
@@ -79,7 +79,7 @@ pub fn use_authenticated_artist_id() -> Signal<Option<i32>> {
             artist_id.set(None);
         }
     });
-    
+
     artist_id.into()
 }
 
@@ -89,13 +89,13 @@ pub fn is_authenticated() -> bool {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::prelude::*;
-        
+
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_namespace = localStorage)]
             fn getItem(key: &str) -> Option<String>;
         }
-        
+
         if let Some(token) = getItem("tatteau_auth_token") {
             if !token.is_empty() {
                 // Try to decode the token to verify it's valid
@@ -103,13 +103,13 @@ pub fn is_authenticated() -> bool {
             }
         }
     }
-    
+
     #[cfg(not(feature = "hydrate"))]
     {
         // On server side, we don't have access to localStorage
         return false;
     }
-    
+
     false
 }
 
@@ -169,33 +169,33 @@ fn decode_jwt_token(token: &str) -> Option<Claims> {
     if parts.len() != 3 {
         return None;
     }
-    
+
     // Decode the payload (second part)
     let payload = parts[1];
-    
+
     // Add padding if needed for base64 decoding
     let padded_payload = match payload.len() % 4 {
         2 => format!("{}==", payload),
         3 => format!("{}=", payload),
         _ => payload.to_string(),
     };
-    
+
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::prelude::*;
-        
+
         #[wasm_bindgen]
         extern "C" {
             #[wasm_bindgen(js_name = atob)]
             fn base64_decode(data: &str) -> String;
         }
-        
+
         if let Ok(decoded) = std::panic::catch_unwind(|| base64_decode(&padded_payload)) {
             if let Ok(claims) = serde_json::from_str::<Claims>(&decoded) {
                 return Some(claims);
             }
         }
     }
-    
+
     None
 }

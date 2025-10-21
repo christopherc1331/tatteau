@@ -1,7 +1,7 @@
+use crate::server::get_available_dates;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use thaw::*;
-use crate::server::get_available_dates;
 
 #[component]
 pub fn AvailableDatePicker(

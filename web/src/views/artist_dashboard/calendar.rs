@@ -20,10 +20,10 @@ type CalendarTimeBlock = TimeBlockData;
 pub fn ArtistCalendar() -> impl IntoView {
     // Get authenticated artist ID directly using the proper hook
     let artist_id_signal = use_authenticated_artist_id();
-    
+
     // Convert the signal to RwSignal for compatibility with existing code
     let artist_id = RwSignal::new(None::<i32>);
-    
+
     Effect::new(move |_| {
         artist_id.set(artist_id_signal.get());
     });
@@ -818,4 +818,3 @@ fn get_day_time_blocks(
 
     time_blocks
 }
-

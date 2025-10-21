@@ -46,9 +46,13 @@ pub fn MapRenderer(
             return Ok(vec![]);
         }
 
-        leptos::logging::log!("Fetching locations for bounds: NE({}, {}), SW({}, {})",
-            current_bounds.north_east.lat, current_bounds.north_east.long,
-            current_bounds.south_west.lat, current_bounds.south_west.long);
+        leptos::logging::log!(
+            "Fetching locations for bounds: NE({}, {}), SW({}, {})",
+            current_bounds.north_east.lat,
+            current_bounds.north_east.long,
+            current_bounds.south_west.lat,
+            current_bounds.south_west.long
+        );
 
         get_locations_with_details(
             current_state,
@@ -111,12 +115,17 @@ pub fn MapRenderer(
                             },
                         };
 
-                        leptos::logging::log!("Map bounds updated: NE({}, {}), SW({}, {})",
-                            new_bounds.north_east.lat, new_bounds.north_east.long,
-                            new_bounds.south_west.lat, new_bounds.south_west.long);
+                        leptos::logging::log!(
+                            "Map bounds updated: NE({}, {}), SW({}, {})",
+                            new_bounds.north_east.lat,
+                            new_bounds.north_east.long,
+                            new_bounds.south_west.lat,
+                            new_bounds.south_west.long
+                        );
                         bounds_signal.set(new_bounds);
                     }
-                }) as Box<dyn FnMut()>);
+                })
+                    as Box<dyn FnMut()>);
 
                 // Add event listener
                 map_instance.on("moveend", closure.as_ref().unchecked_ref());
@@ -140,9 +149,13 @@ pub fn MapRenderer(
                     },
                 };
 
-                leptos::logging::log!("Initial map bounds: NE({}, {}), SW({}, {})",
-                    initial_bounds.north_east.lat, initial_bounds.north_east.long,
-                    initial_bounds.south_west.lat, initial_bounds.south_west.long);
+                leptos::logging::log!(
+                    "Initial map bounds: NE({}, {}), SW({}, {})",
+                    initial_bounds.north_east.lat,
+                    initial_bounds.north_east.long,
+                    initial_bounds.south_west.lat,
+                    initial_bounds.south_west.long
+                );
                 map_bounds.set(initial_bounds);
             }
         });

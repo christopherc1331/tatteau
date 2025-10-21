@@ -416,4 +416,3 @@ pub fn Shop() -> impl IntoView {
         </div>
     }
 }
-

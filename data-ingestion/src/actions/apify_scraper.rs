@@ -1,7 +1,7 @@
+use chrono::DateTime;
 use reqwest;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::env;
-use chrono::DateTime;
 
 // Custom deserializer for timestamp that handles both ISO 8601 strings and i64 Unix timestamps
 mod timestamp_deserializer {
@@ -60,7 +60,9 @@ mod timestamp_deserializer {
                 // Parse ISO 8601 string
                 DateTime::parse_from_rfc3339(value)
                     .map(|dt| Some(dt.timestamp()))
-                    .map_err(|_| de::Error::custom(format!("invalid ISO 8601 timestamp: {}", value)))
+                    .map_err(|_| {
+                        de::Error::custom(format!("invalid ISO 8601 timestamp: {}", value))
+                    })
             }
 
             fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
@@ -224,8 +226,8 @@ pub struct InstagramProfileInfo {
 pub async fn search_instagram_profiles(
     query: &str,
 ) -> Result<Vec<InstagramSearchResult>, Box<dyn std::error::Error>> {
-    let api_token = env::var("APIFY_API_TOKEN")
-        .expect("APIFY_API_TOKEN environment variable must be set");
+    let api_token =
+        env::var("APIFY_API_TOKEN").expect("APIFY_API_TOKEN environment variable must be set");
 
     let actor_id = "apify/instagram-search-scraper";
     let url = format!(
@@ -281,8 +283,8 @@ pub async fn search_instagram_profiles(
 pub async fn get_instagram_profile_info(
     username: &str,
 ) -> Result<InstagramProfileInfo, Box<dyn std::error::Error>> {
-    let api_token = env::var("APIFY_API_TOKEN")
-        .expect("APIFY_API_TOKEN environment variable must be set");
+    let api_token =
+        env::var("APIFY_API_TOKEN").expect("APIFY_API_TOKEN environment variable must be set");
 
     let actor_id = "apify/instagram-profile-scraper";
     let url = format!(

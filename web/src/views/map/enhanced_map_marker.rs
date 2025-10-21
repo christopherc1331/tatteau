@@ -24,7 +24,7 @@ pub fn EnhancedMapMarker(
         } else {
             location.artist_count.to_string()
         };
-        
+
         format!(
             "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='56' viewBox='0 0 40 56'%3E%3Cdefs%3E%3Cfilter id='shadow' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeDropShadow dx='0' dy='2' stdDeviation='2' flood-color='%23000' flood-opacity='0.3'/%3E%3C/filter%3E%3C/defs%3E%3Cpath fill='{}' stroke='%23ffffff' stroke-width='2' filter='url(%23shadow)' d='M20 10C13.5 10 8 15.5 8 22c0 10.5 12 30 12 30s12-19.5 12-30c0-6.5-5.5-12-12-12zm0 16c-2.2 0-4-1.8-4-4s1.8-4 4-4 4 1.8 4 4-1.8 4-4 4z'/%3E%3Ccircle cx='30' cy='{}' r='10' fill='%23ffffff' stroke='%236b7280' stroke-width='1'/%3E%3Ctext x='30' y='{}' text-anchor='middle' font-family='Arial, sans-serif' font-size='11' font-weight='bold' fill='%23111827'%3E{}%3C/text%3E%3C/svg%3E",
             fill_color,
@@ -45,7 +45,7 @@ pub fn EnhancedMapMarker(
     } else {
         (32.0, 48.0)
     };
-    
+
     let icon_anchor = if location.artist_count > 0 {
         (20.0, 52.0)
     } else {
@@ -80,7 +80,7 @@ pub fn EnhancedMapPopup(
                 <h3>{location.location.name.clone()}</h3>
                 <p class="popup-address">{location.location.address}</p>
             </div>
-            
+
             <div class="popup-stats">
                 <div class="stat">
                     <span class="stat-value">{location.artist_count}</span>
@@ -116,7 +116,7 @@ pub fn EnhancedMapPopup(
                     view! {}.into_any()
                 }}
             </div>
-            
+
             // Artist thumbnails section
             {if !location.artists.is_empty() {
                 view! {
@@ -146,7 +146,7 @@ pub fn EnhancedMapPopup(
             } else {
                 view! {}.into_any()
             }}
-            
+
             {if !location.styles.is_empty() {
                 view! {
                     <div class="popup-styles">

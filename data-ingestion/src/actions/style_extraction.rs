@@ -1,8 +1,8 @@
 use base64::Engine;
 use indicatif::{ProgressBar, ProgressStyle};
-use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sqlx::PgPool;
 use std::{collections::HashMap, env, sync::Arc};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -220,7 +220,7 @@ pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
         .expect("ARTIST_BATCH_LIMIT must be a valid number");
 
     let concurrent_artists: usize = env::var("CONCURRENT_ARTISTS")
-        .unwrap_or_else(|_| "6".to_string())  // Increased from 3 to compensate for slower Apify requests
+        .unwrap_or_else(|_| "6".to_string()) // Increased from 3 to compensate for slower Apify requests
         .parse()
         .expect("CONCURRENT_ARTISTS must be a valid number");
 
@@ -253,7 +253,11 @@ pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
     println!("   • Confidence threshold: {}", confidence_threshold);
     println!("   • Vision batch size: {}", batch_size);
     println!("   • Max posts per artist: {}", max_posts);
-    println!("   • Available styles: {} across {} categories", total_styles, available_styles.len());
+    println!(
+        "   • Available styles: {} across {} categories",
+        total_styles,
+        available_styles.len()
+    );
     println!("   • Using Apify Instagram scraper");
 
     let progress = Arc::new(ProgressBar::new(artists.len() as u64));
@@ -283,8 +287,15 @@ pub async fn extract_styles(pool: &PgPool) -> Result<(), Box<dyn std::error::Err
 
         join_set.spawn(async move {
             progress_clone.set_message(format!("Processing {}", artist_name));
-            let result =
-                process_single_artist(&pool_clone, artist, max_posts, batch_size, confidence_threshold, &styles_clone).await;
+            let result = process_single_artist(
+                &pool_clone,
+                artist,
+                max_posts,
+                batch_size,
+                confidence_threshold,
+                &styles_clone,
+            )
+            .await;
             drop(permit);
             progress_clone.inc(1);
             result
@@ -347,9 +358,15 @@ async fn process_single_artist(
 
             // Mark as failed in database
             if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
-                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+                println!(
+                    "⚠️  Error marking artist {} as failed: {}",
+                    artist.name, db_err
+                );
             } else {
-                println!("❌ [{} - ID: {}] Marked as extraction failed (invalid username)", artist.name, artist.id);
+                println!(
+                    "❌ [{} - ID: {}] Marked as extraction failed (invalid username)",
+                    artist.name, artist.id
+                );
             }
 
             return Ok((artist, 0, 0, 0.0));
@@ -380,9 +397,15 @@ async fn process_single_artist(
 
             // Mark as failed in database before returning error
             if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
-                println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+                println!(
+                    "⚠️  Error marking artist {} as failed: {}",
+                    artist.name, db_err
+                );
             } else {
-                println!("❌ [{} - ID: {}] Marked as extraction failed", artist.name, artist.id);
+                println!(
+                    "❌ [{} - ID: {}] Marked as extraction failed",
+                    artist.name, artist.id
+                );
             }
 
             return Err(Box::from(error_msg) as Box<dyn std::error::Error + Send + Sync>);
@@ -394,9 +417,15 @@ async fn process_single_artist(
 
         // Mark as failed in database
         if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
-            println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+            println!(
+                "⚠️  Error marking artist {} as failed: {}",
+                artist.name, db_err
+            );
         } else {
-            println!("❌ [{} - ID: {}] Marked as extraction failed (no posts)", artist.name, artist.id);
+            println!(
+                "❌ [{} - ID: {}] Marked as extraction failed (no posts)",
+                artist.name, artist.id
+            );
         }
 
         return Ok((artist, 0, 0, 0.0));
@@ -430,9 +459,15 @@ async fn process_single_artist(
 
         // Mark as failed in database
         if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
-            println!("⚠️  Error marking artist {} as failed: {}", artist.name, db_err);
+            println!(
+                "⚠️  Error marking artist {} as failed: {}",
+                artist.name, db_err
+            );
         } else {
-            println!("❌ [{} - ID: {}] Marked as extraction failed (no images)", artist.name, artist.id);
+            println!(
+                "❌ [{} - ID: {}] Marked as extraction failed (no images)",
+                artist.name, artist.id
+            );
         }
 
         return Ok((artist, 0, 0, 0.0));
@@ -473,7 +508,8 @@ async fn process_single_artist(
             let mut all_artist_styles = HashMap::new();
 
             for result in style_results {
-                let artist_image_id = insert_artist_image(pool, &result.shortcode, artist.id, result.timestamp).await;
+                let artist_image_id =
+                    insert_artist_image(pool, &result.shortcode, artist.id, result.timestamp).await;
 
                 match artist_image_id {
                     Ok(artist_image_id) => {
@@ -495,7 +531,9 @@ async fn process_single_artist(
                                             pool,
                                             artist_image_id,
                                             &style_ids,
-                                        ).await {
+                                        )
+                                        .await
+                                        {
                                             println!(
                                                 "Error saving styles for image {}: {}",
                                                 result.shortcode, e
@@ -565,7 +603,10 @@ async fn process_single_artist(
             Ok((artist, posts_processed, styles_found, api_cost))
         }
         Err(error_msg) => {
-            println!("❌ Error processing posts for {}: {}", artist.name, error_msg);
+            println!(
+                "❌ Error processing posts for {}: {}",
+                artist.name, error_msg
+            );
 
             if let Err(db_err) = mark_artist_styles_extraction_failed(pool, artist.id).await {
                 println!(
@@ -573,7 +614,10 @@ async fn process_single_artist(
                     artist.name, db_err
                 );
             } else {
-                println!("❌ [{} - ID: {}] Marked as extraction failed (OpenAI error)", artist.name, artist.id);
+                println!(
+                    "❌ [{} - ID: {}] Marked as extraction failed (OpenAI error)",
+                    artist.name, artist.id
+                );
             }
 
             Err(Box::from(error_msg) as Box<dyn std::error::Error + Send + Sync>)
@@ -623,10 +667,7 @@ async fn process_artist_posts(
             // Build classification rule for this type
             classification_rules.push(format!(
                 "   {}: {}\n   Confidence: {} | Cardinality: {}",
-                style_type,
-                metadata.guidance,
-                metadata.threshold_hint,
-                metadata.cardinality
+                style_type, metadata.guidance, metadata.threshold_hint, metadata.cardinality
             ));
         }
     }
@@ -860,7 +901,11 @@ Return exactly {} objects (one per image, in order). Analyze all {} images now:"
                                             }
                                         }
 
-                                        batch_results.push(StyleResult { shortcode, styles, timestamp });
+                                        batch_results.push(StyleResult {
+                                            shortcode,
+                                            styles,
+                                            timestamp,
+                                        });
                                     }
 
                                     return BatchResult {

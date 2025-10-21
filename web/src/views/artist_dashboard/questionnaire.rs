@@ -1,23 +1,24 @@
+use crate::db::entities::{ArtistQuestionnaire, QuestionnaireQuestion};
+use crate::server::{
+    delete_artist_questionnaire_question, get_artist_questionnaire_configuration,
+    get_default_questions, update_artist_questionnaire_configuration,
+};
+use crate::utils::auth::use_authenticated_artist_id;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use server_fn::ServerFnError;
 use thaw::*;
-use crate::db::entities::{QuestionnaireQuestion, ArtistQuestionnaire};
-use crate::server::{get_default_questions, get_artist_questionnaire_configuration, update_artist_questionnaire_configuration, delete_artist_questionnaire_question};
-use crate::utils::auth::use_authenticated_artist_id;
 
 #[component]
 pub fn QuestionnaireBuilder() -> impl IntoView {
     let artist_id = use_authenticated_artist_id();
-    
+
     // Load default questions
     let default_questions = Resource::new_blocking(
         move || (),
-        move |_| async move {
-            get_default_questions().await
-        }
+        move |_| async move { get_default_questions().await },
     );
-    
+
     // Load current artist configuration
     let artist_config = Resource::new_blocking(
         move || artist_id.get(),
@@ -26,7 +27,7 @@ pub fn QuestionnaireBuilder() -> impl IntoView {
                 Some(artist_id) => get_artist_questionnaire_configuration(artist_id).await,
                 None => Err(ServerFnError::new("Artist not authenticated".to_string())),
             }
-        }
+        },
     );
 
     view! {
@@ -35,17 +36,17 @@ pub fn QuestionnaireBuilder() -> impl IntoView {
                 <h2>"Questionnaire Configuration"</h2>
                 <p>"Configure which questions clients will see when booking with you."</p>
             </div>
-            
+
             <div class="questionnaire-content">
                 <Suspense fallback=move || view! { <div class="loading">"Loading questions..."</div> }>
                     {move || {
                         let questions_result = default_questions.get();
                         let config_result = artist_config.get();
-                        
+
                         match (questions_result, config_result) {
                             (Some(Ok(questions)), Some(Ok(config))) => {
                                 view! {
-                                    <InteractiveQuestionnaireBuilder 
+                                    <InteractiveQuestionnaireBuilder
                                         questions=questions
                                         config=config
                                         artist_id=artist_id.get().unwrap_or(-1)
@@ -69,7 +70,7 @@ fn InteractiveQuestionnaireBuilder(
     questions: Vec<QuestionnaireQuestion>,
     config: Vec<ArtistQuestionnaire>,
     artist_id: i32,
-    on_config_updated: impl Fn(()) + Clone + Send + Sync + 'static
+    on_config_updated: impl Fn(()) + Clone + Send + Sync + 'static,
 ) -> impl IntoView {
     // Create local state for question configurations
     let (current_config, set_current_config) = RwSignal::new(config).split();
@@ -79,7 +80,7 @@ fn InteractiveQuestionnaireBuilder(
     let (delete_modal_open, set_delete_modal_open) = RwSignal::new(false).split();
     let (question_to_delete, set_question_to_delete) = RwSignal::new(None::<i32>).split();
     let (is_deleting, set_is_deleting) = RwSignal::new(false).split();
-    
+
     // Save configuration to server
     let save_config = {
         let on_updated = on_config_updated.clone();
@@ -89,11 +90,11 @@ fn InteractiveQuestionnaireBuilder(
             let set_is_saving = set_is_saving.clone();
             let set_save_message = set_save_message.clone();
             let set_has_changes = set_has_changes.clone();
-            
+
             spawn_local(async move {
                 set_is_saving.set(true);
                 set_save_message.set(None);
-                
+
                 match update_artist_questionnaire_configuration(artist_id, config_clone).await {
                     Ok(_) => {
                         set_save_message.set(Some("Configuration saved successfully!".to_string()));
@@ -108,7 +109,7 @@ fn InteractiveQuestionnaireBuilder(
             });
         }
     };
-    
+
     // Delete question function
     let delete_question = {
         let on_updated = on_config_updated.clone();
@@ -118,11 +119,11 @@ fn InteractiveQuestionnaireBuilder(
             let set_save_message = set_save_message.clone();
             let set_delete_modal_open = set_delete_modal_open.clone();
             let set_current_config = set_current_config.clone();
-            
+
             spawn_local(async move {
                 set_is_deleting.set(true);
                 set_save_message.set(None);
-                
+
                 match delete_artist_questionnaire_question(artist_id, question_id).await {
                     Ok(_) => {
                         // Remove from local state
@@ -141,26 +142,26 @@ fn InteractiveQuestionnaireBuilder(
             });
         }
     };
-    
+
     view! {
         <div class="questionnaire-form">
             <div class="questions-list">
                 <h3>"Available Questions"</h3>
                 <p class="questions-subtitle">"Toggle questions on/off and configure requirements for your booking form."</p>
-                
+
                 {questions.into_iter().enumerate().map(|(index, question)| {
                     let question_id = question.id;
                     let question_type = question.question_type.clone();
                     let question_text = question.question_text.clone();
                     let options_data = question.options_data.clone();
-                    
+
                     // Find current config for this question
                     let initial_config = current_config.get().into_iter()
                         .find(|c| c.question_id == question_id);
-                    
+
                     let is_enabled = RwSignal::new(initial_config.as_ref().map(|c| c.is_enabled).unwrap_or(false));
                     let is_required = RwSignal::new(initial_config.as_ref().map(|c| c.is_required).unwrap_or(true));
-                    
+
                     // Update handlers
                     let update_enabled = {
                         let set_current_config = set_current_config.clone();
@@ -186,7 +187,7 @@ fn InteractiveQuestionnaireBuilder(
                             set_has_changes.set(true);
                         }
                     };
-                    
+
                     let update_required = {
                         let set_current_config = set_current_config.clone();
                         let set_has_changes = set_has_changes.clone();
@@ -199,42 +200,42 @@ fn InteractiveQuestionnaireBuilder(
                             set_has_changes.set(true);
                         }
                     };
-                    
+
                     // Watch for enabled state changes
                     let update_enabled_clone = update_enabled.clone();
                     Effect::new(move |prev_enabled: Option<bool>| {
                         let current_enabled = is_enabled.get();
-                        
+
                         // Only trigger update if this is not the initial run and the value actually changed
                         if let Some(prev) = prev_enabled {
                             if prev != current_enabled {
                                 update_enabled_clone(current_enabled);
                             }
                         }
-                        
+
                         current_enabled
                     });
-                    
-                    // Watch for required state changes  
+
+                    // Watch for required state changes
                     let update_required_clone = update_required.clone();
                     Effect::new(move |prev_required: Option<bool>| {
                         let current_required = is_required.get();
-                        
+
                         // Only trigger update if this is not the initial run and the value actually changed
                         if let Some(prev) = prev_required {
                             if prev != current_required {
                                 update_required_clone(current_required);
                             }
                         }
-                        
+
                         current_required
                     });
-                    
+
                     view! {
                         <div class="question-config-item">
                             <div class="question-header">
                                 <div class="question-controls">
-                                    <Switch 
+                                    <Switch
                                         checked=is_enabled
                                     />
                                     <div class="question-status-text">
@@ -265,18 +266,18 @@ fn InteractiveQuestionnaireBuilder(
                                     <span class="question-type">{format!("Type: {}", question_type)}</span>
                                 </div>
                             </div>
-                            
+
                             {move || {
                                 if is_enabled.get() {
                                     view! {
                                         <div class="question-options">
                                             <div class="option-row">
                                                 <label>"Required:"</label>
-                                                <Switch 
+                                                <Switch
                                                     checked=is_required
                                                 />
                                             </div>
-                                            
+
                                             {if question_type == "multiselect" {
                                                 view! {
                                                     <div class="option-row">
@@ -314,7 +315,7 @@ fn InteractiveQuestionnaireBuilder(
                     }
                 }).collect::<Vec<_>>()}
             </div>
-            
+
             <div class="save-section">
                 {move || {
                     if let Some(message) = save_message.get() {
@@ -326,8 +327,8 @@ fn InteractiveQuestionnaireBuilder(
                         view! { <div></div> }.into_any()
                     }
                 }}
-                
-                <button 
+
+                <button
                     class="thaw-button thaw-button--primary"
                     disabled=move || !has_changes.get() || is_saving.get()
                     on:click=move |_| {
@@ -337,7 +338,7 @@ fn InteractiveQuestionnaireBuilder(
                 >
                     {move || if is_saving.get() { "Saving..." } else { "Save Configuration" }}
                 </button>
-                
+
                 <p class="status-text">
                     {move || {
                         let enabled_count = current_config.get().len();
@@ -345,7 +346,7 @@ fn InteractiveQuestionnaireBuilder(
                     }}
                 </p>
             </div>
-            
+
             {move || {
                 if delete_modal_open.get() {
                     let close_modal = {
@@ -356,7 +357,7 @@ fn InteractiveQuestionnaireBuilder(
                             set_question_to_delete.set(None);
                         }
                     };
-                    
+
                     let confirm_delete = {
                         let delete_question = delete_question.clone();
                         let question_to_delete = question_to_delete.clone();
@@ -366,13 +367,13 @@ fn InteractiveQuestionnaireBuilder(
                             }
                         }
                     };
-                    
+
                     view! {
                         <div class="modal-overlay">
                             <div class="modal-content">
                                 <div class="modal-header">
                                     <h3>"Delete Question"</h3>
-                                    <button 
+                                    <button
                                         class="modal-close"
                                         on:click=close_modal.clone()
                                     >

@@ -1,5 +1,5 @@
+use crate::utils::timezone::{format_time_range_with_timezone, format_time_with_timezone};
 use leptos::prelude::*;
-use crate::utils::timezone::{format_time_with_timezone, format_time_range_with_timezone};
 
 #[derive(Clone, Debug)]
 pub struct TimeBlockData {
@@ -12,23 +12,20 @@ pub struct TimeBlockData {
 }
 
 #[component]
-pub fn TimeBlock(
-    block: TimeBlockData,
-    total_blocks: usize,
-) -> impl IntoView {
+pub fn TimeBlock(block: TimeBlockData, total_blocks: usize) -> impl IntoView {
     let booking_id = block.booking_id;
     let action_class = match block.action.as_str() {
         "blocked" => "time-block blocked",
         "available" => "time-block available",
         "accepted" => "time-block booking-accepted clickable",
         "pending" => "time-block booking-pending clickable",
-        _ => "time-block available"
+        _ => "time-block available",
     };
 
     let timezone_signal = crate::utils::timezone::get_timezone_abbreviation();
-    
+
     view! {
-        <div class=action_class 
+        <div class=action_class
              on:click=move |e: web_sys::MouseEvent| {
                  e.stop_propagation();
                  if let Some(id) = booking_id {

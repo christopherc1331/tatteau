@@ -1,2 +1,2 @@
-pub mod timezone;
 pub mod auth;
+pub mod timezone;

@@ -1,10 +1,10 @@
+use crate::db::entities::CityCoords;
+use crate::server::{get_cities, get_states_list, get_styles_by_location_filter, StyleWithCount};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
+use std::collections::HashSet;
 use thaw::*;
 use thaw_utils::VecModel;
-use std::collections::HashSet;
-use crate::server::{get_styles_by_location_filter, get_states_list, get_cities, StyleWithCount};
-use crate::db::entities::CityCoords;
 
 #[component]
 pub fn GetMatchedQuiz() -> impl IntoView {
@@ -23,9 +23,10 @@ pub fn GetMatchedQuiz() -> impl IntoView {
     let selected_styles = RwSignal::new(HashSet::<i32>::new());
 
     // Available data
-    let states_resource = Resource::new(|| (), |_| async {
-        get_states_list().await.unwrap_or_default()
-    });
+    let states_resource = Resource::new(
+        || (),
+        |_| async { get_states_list().await.unwrap_or_default() },
+    );
 
     // Fetch cities for selected state
     let cities_resource = Resource::new(
@@ -45,18 +46,25 @@ pub fn GetMatchedQuiz() -> impl IntoView {
         |(state, cities)| async move {
             // Pass selected state and cities
             let states_opt = state.map(|s| vec![s]);
-            let cities_opt = if cities.is_empty() { None } else { Some(cities) };
-            get_styles_by_location_filter(states_opt, cities_opt).await.unwrap_or_default()
+            let cities_opt = if cities.is_empty() {
+                None
+            } else {
+                Some(cities)
+            };
+            get_styles_by_location_filter(states_opt, cities_opt)
+                .await
+                .unwrap_or_default()
         },
     );
 
     let on_submit = move |_| {
-        let styles_vec: Vec<String> = selected_styles.get()
+        let styles_vec: Vec<String> = selected_styles
+            .get()
             .into_iter()
             .filter_map(|id| {
-                styles_resource.get().and_then(|styles| {
-                    styles.iter().find(|s| s.id == id).map(|s| s.name.clone())
-                })
+                styles_resource
+                    .get()
+                    .and_then(|styles| styles.iter().find(|s| s.id == id).map(|s| s.name.clone()))
             })
             .collect();
 

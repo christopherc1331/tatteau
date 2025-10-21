@@ -1,9 +1,9 @@
-use leptos::prelude::*;
-use crate::db::entities::{ArtistImage, Style, Artist};
-use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::favorite_button::FavoriteButton;
+use crate::components::instagram_embed::InstagramEmbed;
 use crate::components::style_tag::StyleTag;
 use crate::components::style_tag_manager::StyleTagManager;
+use crate::db::entities::{Artist, ArtistImage, Style};
+use leptos::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShopInstagramPost {
@@ -30,7 +30,7 @@ pub fn ShopMasonryGallery(
                     if (window.instgrm && window.instgrm.Embeds) {
                         window.instgrm.Embeds.process();
                     }
-                    "#
+                    "#,
                 );
             },
             std::time::Duration::from_millis(500),

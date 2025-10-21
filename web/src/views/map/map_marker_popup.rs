@@ -36,4 +36,3 @@ pub fn MapMarkerPopup(location: LocationInfo) -> impl IntoView {
         </div>
     }
 }
-

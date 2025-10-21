@@ -1,12 +1,11 @@
 use leptos::prelude::*;
-use leptos_router::hooks::{use_params_map, use_query_map, use_navigate};
+use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 
 use crate::{
     components::{
-        loading::LoadingView,
         artist_masonry_gallery::{ArtistMasonryGallery, InstagramPost},
-        ClientBookingModal,
-        StyleTag,
+        loading::LoadingView,
+        ClientBookingModal, StyleTag,
     },
     server::{fetch_artist_data, fetch_artist_images_paginated},
     utils::auth::is_authenticated,
@@ -17,9 +16,10 @@ pub fn ArtistHighlight() -> impl IntoView {
     let params = use_params_map();
     let query = use_query_map();
     let navigate = use_navigate();
-    
+
     let artist_id = Memo::new(move |_| {
-        params.read()
+        params
+            .read()
             .get("id")
             .and_then(|id| id.parse::<i32>().ok())
             .unwrap_or(0)
@@ -64,7 +64,14 @@ pub fn ArtistHighlight() -> impl IntoView {
 
     // Paginated images resource
     let paginated_images = Resource::new(
-        move || (artist_id.get(), selected_styles.get(), current_page.get(), auth_token.get()),
+        move || {
+            (
+                artist_id.get(),
+                selected_styles.get(),
+                current_page.get(),
+                auth_token.get(),
+            )
+        },
         move |(id, styles, page, token)| async move {
             if id > 0 {
                 let style_filter = if styles.is_empty() {
@@ -84,7 +91,7 @@ pub fn ArtistHighlight() -> impl IntoView {
     // Modal state for booking
     let show_booking_modal = RwSignal::new(false);
     let booking_artist_id = RwSignal::new(None::<i32>);
-    
+
     // Update selected styles and page from query params
     Effect::new(move |_| {
         let query_map = query.read();
@@ -147,7 +154,7 @@ pub fn ArtistHighlight() -> impl IntoView {
                             let shop_name = artist_data.location.name.unwrap_or_else(|| "Unknown Shop".to_string());
                             let city = artist_data.location.city.unwrap_or_else(|| "Unknown".to_string());
                             let state = artist_data.location.state.unwrap_or_else(|| "Unknown".to_string());
-                            
+
                             view! {
                                 <div class="artist-highlight-container">
                                     <div class="artist-highlight-header">
@@ -158,15 +165,15 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                         {artist_name.clone()}
                                                     </h1>
                                                     <div class="artist-highlight-shop-info">
-                                                        <a href={format!("/shop/{}", artist_data.location.id)} 
+                                                        <a href={format!("/shop/{}", artist_data.location.id)}
                                                            class="artist-highlight-shop-link">
                                                             {format!("🏪 {} • {}, {}", shop_name, city, state)}
                                                         </a>
                                                     </div>
                                                 </div>
-                                                
+
                                                 <div class="artist-highlight-buttons-container">
-                                                    <button 
+                                                    <button
                                                        on:click={
                                                            let navigate = navigate.clone();
                                                            move |_| {
@@ -186,10 +193,10 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                        class="artist-highlight-book-button">
                                                         "📅 Book Appointment"
                                                     </button>
-                                                    
+
                                                     {artist_data.artist.social_links.and_then(|links| {
                                                         (!links.is_empty()).then(|| view! {
-                                                            <a href={links} target="_blank" 
+                                                            <a href={links} target="_blank"
                                                                class="artist-highlight-social-button">
                                                                 "📱 Instagram"
                                                             </a>
@@ -198,7 +205,7 @@ pub fn ArtistHighlight() -> impl IntoView {
 
                                                     {artist_data.artist.email.and_then(|email| {
                                                         (!email.is_empty()).then(|| view! {
-                                                            <a href={format!("mailto:{}", email)} 
+                                                            <a href={format!("mailto:{}", email)}
                                                                class="artist-highlight-social-button">
                                                                 "✉️ Email"
                                                             </a>
@@ -207,7 +214,7 @@ pub fn ArtistHighlight() -> impl IntoView {
 
                                                     {artist_data.artist.phone.and_then(|phone| {
                                                         (!phone.is_empty()).then(|| view! {
-                                                            <a href={format!("tel:{}", phone)} 
+                                                            <a href={format!("tel:{}", phone)}
                                                                class="artist-highlight-social-button">
                                                                 "📞 Call"
                                                             </a>
@@ -251,26 +258,26 @@ pub fn ArtistHighlight() -> impl IntoView {
                                                     let lat = artist_data.location.lat.unwrap_or(0.0);
                                                     let long = artist_data.location.long.unwrap_or(0.0);
                                                     let encoded_addr = urlencoding::encode(&addr);
-                                                    
+
                                                     view! {
                                                         <div class="artist-highlight-card">
                                                             <h3 class="artist-highlight-card-heading">"📍 Shop Location"</h3>
                                                             <p class="artist-highlight-location-text">
                                                                 {addr.clone()}
                                                             </p>
-                                                            
+
                                                             <div class="artist-highlight-map-container">
                                                                 <iframe
-                                                                    src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}", 
+                                                                    src={format!("https://www.openstreetmap.org/export/embed.html?bbox={},{},{},{}&layer=mapnik&marker={},{}",
                                                                         long - 0.01, lat - 0.01, long + 0.01, lat + 0.01, lat, long)}
                                                                     class="artist-highlight-map-iframe"
                                                                     title="Shop Location Map"
                                                                 ></iframe>
                                                                 <div class="artist-highlight-map-overlay"></div>
                                                             </div>
-                                                            
+
                                                             <div class="artist-highlight-map-link-container">
-                                                                <a href={format!("https://www.google.com/maps/search/?api=1&query={}", encoded_addr)} 
+                                                                <a href={format!("https://www.google.com/maps/search/?api=1&query={}", encoded_addr)}
                                                                    target="_blank"
                                                                    class="artist-highlight-map-link">
                                                                     "Open in Google Maps"
@@ -489,7 +496,7 @@ pub fn ArtistHighlight() -> impl IntoView {
             </Suspense>
 
             // Booking Modal - overlays the artist page
-            <ClientBookingModal 
+            <ClientBookingModal
                 show=show_booking_modal
                 artist_id=booking_artist_id
                 on_close=move || {

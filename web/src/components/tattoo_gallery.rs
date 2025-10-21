@@ -1,12 +1,12 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use leptos_router::hooks::{use_query_map, use_navigate};
+use leptos_router::hooks::{use_navigate, use_query_map};
 use wasm_bindgen::JsCast;
 
 use crate::{
     components::{
         instagram_embed::process_instagram_embeds,
-        instagram_posts_grid::{InstagramPostsGrid, PostWithArtist}
+        instagram_posts_grid::{InstagramPostsGrid, PostWithArtist},
     },
     db::entities::{Artist, ArtistImage, Style},
     server::{get_artist_styles_by_id, MatchedArtist, TattooPost},
@@ -21,7 +21,8 @@ pub fn TattooGallery(
     let query_map = use_query_map();
 
     // Initialize page from query params or default to 0
-    let initial_page = query_map.get_untracked()
+    let initial_page = query_map
+        .get_untracked()
         .get("page")
         .and_then(|p| p.parse::<usize>().ok())
         .unwrap_or(0);
@@ -189,30 +190,30 @@ pub fn TattooGallery(
             }>
                 {
                     let (force_rerender, set_force_rerender) = signal(0);
-                    
+
                     // Watch for page changes and trigger Instagram embed processing
                     Effect::new(move |_| {
                         let _ = current_page.get();
                         set_force_rerender.update(|x| *x += 1);
-                        
+
                         // Trigger Instagram embed processing after a short delay to ensure DOM is updated
                         set_timeout(move || {
                             process_instagram_embeds();
                         }, std::time::Duration::from_millis(100));
                     });
-                    
+
                     move || {
                         let page = current_page.get();
                         let posts = current_page_posts.get();
                         let render_key = force_rerender.get(); // Force reactivity
-                        
+
                         // Use unique container ID to force DOM reconstruction
                         let container_id = format!("gallery-container-{}-{}", page, render_key);
-                        
-                        view! { 
+
+                        view! {
                             <div id=container_id>
-                                <InstagramPostsGrid 
-                                    posts=posts 
+                                <InstagramPostsGrid
+                                    posts=posts
                                     filter_id=format!("page-{}-{}", page, render_key)
                                 />
                             </div>

@@ -1,6 +1,6 @@
+use crate::utils::auth::is_authenticated;
 use leptos::prelude::*;
 use leptos_router::components::A;
-use crate::utils::auth::is_authenticated;
 
 #[component]
 pub fn Navbar() -> impl IntoView {

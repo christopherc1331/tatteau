@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_router::hooks::{use_query_map, use_navigate};
+use leptos_router::hooks::{use_navigate, use_query_map};
 use thaw::*;
 
 #[component]
@@ -9,13 +9,17 @@ pub fn BookingConfirmation() -> impl IntoView {
 
     // Extract booking ID from URL query parameters
     let booking_id = move || {
-        query.get().get("booking_id")
+        query
+            .get()
+            .get("booking_id")
             .and_then(|id| id.parse::<i32>().ok())
     };
 
     // Extract artist name from URL query parameters (optional)
     let artist_name = move || {
-        query.get().get("artist_name")
+        query
+            .get()
+            .get("artist_name")
             .unwrap_or_else(|| "the artist".to_string())
     };
 

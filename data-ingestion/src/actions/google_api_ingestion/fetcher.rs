@@ -76,4 +76,3 @@ pub async fn fetch_data(
         .await
         .expect("Result is valid JSON")
 }
-

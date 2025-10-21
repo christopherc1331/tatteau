@@ -1,5 +1,5 @@
+use crate::utils::timezone::{format_time_range_with_timezone, format_time_with_timezone};
 use leptos::prelude::*;
-use crate::utils::timezone::{format_time_with_timezone, format_time_range_with_timezone};
 
 #[derive(Clone, Debug)]
 pub struct EventItemData {
@@ -12,10 +12,7 @@ pub struct EventItemData {
 }
 
 #[component]
-pub fn EventItem(
-    event: EventItemData,
-    timezone_signal: ReadSignal<String>,
-) -> impl IntoView {
+pub fn EventItem(event: EventItemData, timezone_signal: ReadSignal<String>) -> impl IntoView {
     let time_str = if event.start_time.is_none() && event.end_time.is_none() {
         format_time_with_timezone("All Day", timezone_signal)
     } else if let (Some(start), Some(end)) = (&event.start_time, &event.end_time) {
@@ -25,7 +22,7 @@ pub fn EventItem(
     } else {
         format_time_with_timezone("All Day", timezone_signal)
     };
-    
+
     let booking_id = event.booking_id;
     let event_class = match event.action.as_str() {
         "blocked" => "event-item-container event-item-container--blocked",
@@ -36,7 +33,7 @@ pub fn EventItem(
     };
 
     view! {
-        <div class=event_class 
+        <div class=event_class
              on:click=move |_| {
                  if let Some(id) = booking_id {
                      if let Some(window) = web_sys::window() {
