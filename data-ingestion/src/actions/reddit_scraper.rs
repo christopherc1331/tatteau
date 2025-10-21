@@ -3,11 +3,13 @@
 // Also scrapes shop Instagram bios to discover additional artists
 
 use crate::repository::{self, CityStats, CityToScrape};
+use futures::stream::{FuturesUnordered, StreamExt};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::collections::HashSet;
 use std::env;
+use std::sync::Arc;
 
 // ============================================================================
 // Configuration
@@ -64,6 +66,19 @@ struct RedditPost {
     images: Option<Vec<String>>,
     #[serde(rename = "contentUrl")]
     content_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApifyRunResponse {
+    data: ApifyRunData,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApifyRunData {
+    id: String,
+    #[serde(rename = "defaultDatasetId")]
+    default_dataset_id: String,
+    status: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -193,16 +208,72 @@ async fn scrape_reddit_for_city(
     let posts_with_images = filter_posts_with_images(posts, config.min_images);
     println!("📸 Found {} posts with images", posts_with_images.len());
 
-    // Process each post
+    // Process posts in parallel using 10 concurrent threads
+    println!("⚡ Processing posts in 10 parallel threads...");
+
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let rx = Arc::new(tokio::sync::Mutex::new(rx));
+
+    // Send all posts to the channel
     for post in posts_with_images {
-        match process_reddit_post(&post, city, pool, &mut stats, &mut matched_shops).await {
-            Ok(_) => {}
+        tx.send(post).unwrap();
+    }
+    drop(tx);
+
+    let mut tasks = FuturesUnordered::new();
+    let num_threads = 10;
+
+    for thread_id in 0..num_threads {
+        let pool = pool.clone();
+        let city_owned = city.clone();
+        let rx = Arc::clone(&rx);
+
+        tasks.push(tokio::spawn(async move {
+            let mut local_stats = CityStats {
+                posts_found: 0,
+                artists_added: 0,
+                artists_updated: 0,
+                artists_pending: 0,
+                artists_added_from_shop_bios: 0,
+                shops_scraped: 0,
+            };
+            let mut local_matched_shops: HashSet<i64> = HashSet::new();
+
+            loop {
+                let post = match rx.lock().await.recv().await {
+                    Some(p) => p,
+                    None => break,
+                };
+
+                match process_reddit_post(&post, &city_owned, &pool, &mut local_stats, &mut local_matched_shops).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        let url = post.url.as_deref().unwrap_or("unknown");
+                        eprintln!("⚠️  [Thread {}] Error processing post {}: {}", thread_id, url, e);
+                    }
+                }
+            }
+
+            (local_stats, local_matched_shops)
+        }));
+    }
+
+    // Collect results from all threads
+    while let Some(result) = tasks.next().await {
+        match result {
+            Ok((local_stats, local_matched_shops)) => {
+                stats.artists_added += local_stats.artists_added;
+                stats.artists_updated += local_stats.artists_updated;
+                stats.artists_pending += local_stats.artists_pending;
+                matched_shops.extend(local_matched_shops);
+            }
             Err(e) => {
-                let url = post.url.as_deref().unwrap_or("unknown");
-                eprintln!("⚠️  Error processing post {}: {}", url, e);
+                eprintln!("⚠️  Thread panicked: {}", e);
             }
         }
     }
+
+    println!("✅ Parallel processing complete!");
 
     Ok(CityProcessingResult {
         stats,
@@ -216,20 +287,15 @@ async fn call_apify_reddit_scraper(
 ) -> Result<Vec<RedditPost>, Box<dyn std::error::Error>> {
     let api_token = env::var("APIFY_API_TOKEN")?;
     let actor_id = "harshmaur~reddit-scraper";
-    let url = format!(
-        "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}",
-        actor_id, api_token
-    );
 
     // Use subreddit search URL to search within /r/tattoos for city name
-    // Get 1 comment per post for additional context
     let search_url = format!("https://www.reddit.com/r/tattoos/search/?q={}&sort=top&t=year",
         urlencoding::encode(city));
     let input = serde_json::json!({
         "startUrls": [{"url": search_url}],
         "crawlCommentsPerPost": true,
         "maxPostsCount": config.max_posts,
-        "maxCommentsPerPost": 1,  // Get 1 comment per post for additional context
+        "maxCommentsPerPost": 1,
         "includeNSFW": true,
         "proxy": {
             "useApifyProxy": true,
@@ -237,23 +303,77 @@ async fn call_apify_reddit_scraper(
         }
     });
 
-    println!("🔍 Scraping Reddit posts...");
+    println!("🔍 Starting Reddit scrape for {} (async API)...", city);
     println!("📋 Apify input:");
     println!("{}", serde_json::to_string_pretty(&input).unwrap_or_default());
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(300))
-        .build()?;
+    let client = reqwest::Client::new();
 
-    let response = client.post(&url).json(&input).send().await?;
+    // Step 1: Start the run
+    let start_url = format!(
+        "https://api.apify.com/v2/acts/{}/runs?token={}",
+        actor_id, api_token
+    );
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await?;
-        return Err(format!("Apify Reddit scraper failed: {} - {}", status, error_text).into());
+    println!("🚀 Starting Apify run...");
+    let start_response = client.post(&start_url).json(&input).send().await?;
+
+    if !start_response.status().is_success() {
+        let error_text = start_response.text().await?;
+        return Err(format!("Failed to start Apify run: {}", error_text).into());
     }
 
-    let response_text = response.text().await?;
+    let run_response: ApifyRunResponse = start_response.json().await?;
+    let run_id = run_response.data.id;
+    let dataset_id = run_response.data.default_dataset_id;
+
+    println!("✅ Run started: {}", run_id);
+
+    // Step 2: Poll for completion
+    let status_url = format!(
+        "https://api.apify.com/v2/acts/{}/runs/{}?token={}",
+        actor_id, run_id, api_token
+    );
+
+    println!("⏳ Waiting for run to complete (polling every 10s)...");
+    let mut elapsed = 0;
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        elapsed += 10;
+
+        let status_response = client.get(&status_url).send().await?;
+        let status_data: ApifyRunResponse = status_response.json().await?;
+        let status = status_data.data.status;
+
+        println!("   Status after {}s: {}", elapsed, status);
+
+        match status.as_str() {
+            "SUCCEEDED" => {
+                println!("✅ Run completed successfully!");
+                break;
+            }
+            "FAILED" | "ABORTED" | "TIMED-OUT" => {
+                return Err(format!("Apify run failed with status: {}", status).into());
+            }
+            _ => {
+                // Continue polling (RUNNING, READY, etc.)
+            }
+        }
+
+        if elapsed > 900 {
+            return Err("Apify run exceeded 15 minute timeout".into());
+        }
+    }
+
+    // Step 3: Fetch results
+    let dataset_url = format!(
+        "https://api.apify.com/v2/datasets/{}/items?token={}",
+        dataset_id, api_token
+    );
+
+    println!("📥 Fetching results from dataset...");
+    let dataset_response = client.get(&dataset_url).send().await?;
+    let response_text = dataset_response.text().await?;
 
     // Log raw response for debugging
     println!("📦 Raw Apify response preview (first 500 chars):");

@@ -423,6 +423,7 @@ pub async fn update_openai_api_costs(
 
 // --- City Management ---
 
+#[derive(Clone)]
 pub struct CityToScrape {
     pub city: String,
     pub state: String,
