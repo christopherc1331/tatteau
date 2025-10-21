@@ -125,17 +125,6 @@ pub fn Shop() -> impl IntoView {
 
                             let all_styles_for_filter = shop_data.all_styles.clone();
 
-                            let shop_posts: Vec<ShopInstagramPost> = shop_data.all_images_with_styles
-                                .clone()
-                                .into_iter()
-                                .map(|(image, styles, artist, is_favorited)| ShopInstagramPost {
-                                    image,
-                                    styles,
-                                    artist,
-                                    is_favorited,
-                                })
-                                .collect();
-
                             let address = shop_data.location.address.clone().unwrap_or_else(|| String::new());
                             let artists_clone = shop_data.artists.clone();
 

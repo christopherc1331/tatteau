@@ -158,7 +158,6 @@ pub struct ArtistData {
     pub artist: Artist,
     pub location: Location,
     pub styles: Vec<Style>,
-    pub images_with_styles: Vec<(ArtistImage, Vec<Style>)>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -166,7 +165,6 @@ pub struct ShopData {
     pub location: Location,
     pub artists: Vec<Artist>,
     pub all_styles: Vec<Style>,
-    pub all_images_with_styles: Vec<(ArtistImage, Vec<Style>, Artist, bool)>,
 }
 
 #[cfg_attr(feature = "ssr", instrument(err, level = "info"))]
@@ -185,15 +183,10 @@ pub async fn fetch_artist_data(artist_id: i32) -> Result<ArtistData, ServerFnErr
         .await
         .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
 
-    let images_with_styles = get_artist_images_with_styles(artist_id)
-        .await
-        .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
-
     Ok(ArtistData {
         artist,
         location,
         styles,
-        images_with_styles,
     })
 }
 
@@ -217,15 +210,10 @@ pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<
             .await
             .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
 
-        let all_images_with_styles = get_all_images_with_styles_by_location(location_id, user_id)
-            .await
-            .map_err(|e| ServerFnError::new(format!("Failed to fetch images: {}", e)))?;
-
         Ok(ShopData {
             location,
             artists,
             all_styles,
-            all_images_with_styles,
         })
     }
     #[cfg(not(feature = "ssr"))]
@@ -234,7 +222,6 @@ pub async fn fetch_shop_data(location_id: i32, token: Option<String>) -> Result<
             location: Location::default(),
             artists: vec![],
             all_styles: vec![],
-            all_images_with_styles: vec![],
         })
     }
 }

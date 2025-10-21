@@ -142,8 +142,6 @@ pub fn ArtistHighlight() -> impl IntoView {
                         artist_data.get().map(|data| {
                         data.map(|artist_data| {
                             let artist_styles_for_filter = artist_data.styles.clone();
-                            
-                            let _ = artist_data.images_with_styles; // Unused - only paginated data is rendered
 
                             let artist_name = artist_data.artist.name.unwrap_or_else(|| "Unknown Artist".to_string());
                             let shop_name = artist_data.location.name.unwrap_or_else(|| "Unknown Shop".to_string());
