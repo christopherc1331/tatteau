@@ -346,8 +346,8 @@ pub async fn get_instagram_profile_info(
 
     let input = ApifyInput {
         direct_urls: vec![format!("https://www.instagram.com/{}/", username)],
-        results_type: "posts".to_string(),
-        results_limit: 1, // Minimal posts to get profile info
+        results_type: "details".to_string(),
+        results_limit: 1,
         include_nested_comments: false,
         search_type: "user".to_string(),
         search_limit: 1,

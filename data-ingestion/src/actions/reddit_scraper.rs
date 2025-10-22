@@ -305,7 +305,7 @@ async fn extract_and_store_pending(
         let pending = repository::PendingArtistData {
             reddit_post_url: Some(post_url.to_string()),
             artist_name: artist_data.artist_name.clone(),
-            instagram_handle: artist_data.instagram.clone(),
+            instagram_handle: artist_data.instagram.as_ref().map(|h| normalize_instagram_handle(h)),
             shop_name_mentioned: artist_data.shop.clone(),
             city: city.city.clone(),
             state: city.state.clone(),
@@ -880,7 +880,9 @@ async fn call_apify_reddit_scraper(
     if let Some(first_post) = posts.first() {
         println!("📝 Sample post structure:");
         println!("  - URL: {:?}", first_post.url);
-        println!("  - Title: {:?}", first_post.title.as_ref().map(|s| &s[..std::cmp::min(50, s.len())]));
+        println!("  - Title: {:?}", first_post.title.as_ref().map(|s| {
+            s.chars().take(50).collect::<String>()
+        }));
         println!("  - Has body: {}", first_post.body.as_ref().map_or(false, |b| !b.is_empty()));
         println!("  - Images: {:?}", first_post.images.as_ref().map(|m| m.len()));
     }
@@ -1382,6 +1384,62 @@ If no shop information found, return:
     Ok((shop_name, shop_handle))
 }
 
+async fn extract_shop_names_from_fullname(
+    full_name: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let api_key = env::var("OPENAI_API_KEY")?;
+
+    let prompt = format!(
+        r#"Extract all potential tattoo shop names from this Instagram profile fullName field.
+
+fullName: {}
+
+Return ALL possible shop names that could be used to find this shop in a database.
+For example, "WASABI | Seattle Tattoo Studio" should return both "WASABI" and "Seattle Tattoo Studio".
+
+IMPORTANT: Return ONLY a JSON array of shop name strings:
+["Name1", "Name2", ...]
+
+If no shop name can be extracted, return an empty array: []"#,
+        full_name
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "model": "gpt-4",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant that extracts shop names. Return ONLY a JSON array."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3
+        }))
+        .send()
+        .await?;
+
+    let response_json: serde_json::Value = response.json().await?;
+
+    let content = response_json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("No content in OpenAI response")?;
+
+    println!("      🤖 Shop names extraction from fullName: {}", content);
+
+    // Parse as array of strings
+    let shop_names: Vec<String> = serde_json::from_str(content)?;
+
+    if shop_names.is_empty() {
+        return Err("No shop names extracted from fullName".into());
+    }
+
+    println!("      📋 Extracted {} potential shop names: {:?}", shop_names.len(), shop_names);
+
+    Ok(shop_names)
+}
+
 /// Process a single artist from pending list - artist-first approach
 async fn process_artist_from_pending(
     pool: &PgPool,
@@ -1390,62 +1448,98 @@ async fn process_artist_from_pending(
     state: &str,
     _thread_id: usize,
 ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
-    println!("   👤 Processing artist @{}...", artist_handle);
+    // Normalize handle to remove @, URLs, etc.
+    let normalized_handle = normalize_instagram_handle(artist_handle);
+
+    println!("   👤 Processing artist @{}...", normalized_handle);
 
     // STEP 1: Get artist IG profile/bio via Apify
     println!("      📱 Getting artist IG profile...");
-    let artist_profile = match crate::actions::apify_scraper::get_instagram_profile_info(artist_handle).await {
+    let artist_profile = match crate::actions::apify_scraper::get_instagram_profile_info(&normalized_handle).await {
         Ok(profile) => profile,
         Err(e) => {
             let error_msg = format!("Failed to get artist profile: {}", e);
             println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("artist_profile_not_found")).await?;
+            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("artist_profile_not_found")).await?;
             return Err(error_msg.into());
         }
     };
 
-    // STEP 2: Extract shop info from artist bio via OpenAI
+    // STEP 2: Extract shop IG handle from artist bio via OpenAI
     let artist_bio = artist_profile.bio.ok_or_else(|| "Artist has no bio".to_string())?;
-    println!("      🤖 Extracting shop info from bio...");
+    println!("      🤖 Extracting shop IG handle from bio...");
 
-    let (shop_name, shop_ig_handle) = match extract_shop_info_from_artist_bio(&artist_bio).await {
+    let (_, shop_ig_handle) = match extract_shop_info_from_artist_bio(&artist_bio).await {
         Ok((name, handle)) => (name, handle),
         Err(e) => {
             let error_msg = format!("No shop info in bio: {}", e);
             drop(e); // Drop error before await
             println!("      ⚠️  {}", error_msg);
-            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("no_shop_in_bio")).await?;
+            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("no_shop_in_bio")).await?;
             return Err(error_msg.into());
         }
     };
 
-    // STEP 3: Find shop in locations table by name + city/state
-    println!("      🔍 Looking up shop in database: {} ({}, {})...", shop_name, city, state);
-    let (location_id, matched_shop_name) = match repository::find_shop_by_name_and_city(pool, &shop_name, city, state).await? {
-        Some(result) => result,
-        None => {
-            let error_msg = format!("Shop '{}' not found in locations table", shop_name);
-            println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("shop_not_in_database")).await?;
-            return Err(error_msg.into());
-        }
-    };
+    println!("      📋 Extracted shop IG handle: @{}", shop_ig_handle);
 
-    println!("      ✅ Found shop: {} (location_id: {})", matched_shop_name, location_id);
-
-    // STEP 4: Get shop IG profile/bio via Apify using confirmed shop IG handle
+    // STEP 3: Get shop IG profile to get the actual shop name from fullName
     println!("      📱 Getting shop IG profile (@{})...", shop_ig_handle);
     let shop_profile = match crate::actions::apify_scraper::get_instagram_profile_info(&shop_ig_handle).await {
         Ok(profile) => profile,
         Err(e) => {
             let error_msg = format!("Failed to get shop profile: {}", e);
             println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("shop_instagram_not_found")).await?;
+            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("shop_instagram_not_found")).await?;
             return Err(error_msg.into());
         }
     };
 
-    // STEP 5: Extract artist handles from shop bio via OpenAI
+    // STEP 4: Extract potential shop names from fullName using OpenAI
+    let shop_full_name = shop_profile.full_name.as_deref().unwrap_or(&shop_ig_handle);
+    println!("      🤖 Extracting shop names from fullName: '{}'...", shop_full_name);
+
+    let potential_shop_names = match extract_shop_names_from_fullname(shop_full_name).await {
+        Ok(names) => names,
+        Err(e) => {
+            let error_msg = format!("Failed to extract shop names from fullName: {}", e);
+            drop(e);
+            println!("      ⚠️  {}", error_msg);
+            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("failed_to_parse_fullname")).await?;
+            return Err(error_msg.into());
+        }
+    };
+
+    // STEP 5: Try to find shop in locations table using each potential name
+    println!("      🔍 Looking up shop in database (trying {} potential names)...", potential_shop_names.len());
+
+    let mut location_id = None;
+    let mut matched_shop_name = String::new();
+
+    for shop_name in &potential_shop_names {
+        println!("         Trying: '{}' ({}, {})...", shop_name, city, state);
+        if let Some((id, name)) = repository::find_shop_by_name_and_city(pool, shop_name, city, state).await? {
+            location_id = Some(id);
+            matched_shop_name = name;
+            println!("         ✅ Match found!");
+            break;
+        } else {
+            println!("         ❌ No match");
+        }
+    }
+
+    let location_id = match location_id {
+        Some(id) => id,
+        None => {
+            let error_msg = format!("Shop not found in database. Tried names: {:?}", potential_shop_names);
+            println!("      ❌ {}", error_msg);
+            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("shop_not_in_database")).await?;
+            return Err(error_msg.into());
+        }
+    };
+
+    println!("      ✅ Found shop in database: {} (location_id: {})", matched_shop_name, location_id);
+
+    // STEP 6: Extract artist handles from shop bio via OpenAI
     let shop_bio = shop_profile.bio.ok_or_else(|| "Shop has no bio".to_string())?;
     println!("      🤖 Extracting artist handles from shop bio...");
 
@@ -1455,7 +1549,7 @@ async fn process_artist_from_pending(
             let error_msg = format!("Failed to extract artist handles: {}", e);
             drop(e); // Drop error before await
             println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("failed_to_extract_artists")).await?;
+            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("failed_to_extract_artists")).await?;
             return Err(error_msg.into());
         }
     };
@@ -1463,13 +1557,13 @@ async fn process_artist_from_pending(
     if artist_handles.is_empty() {
         let error_msg = "No artist handles found in shop bio";
         println!("      ⚠️  {}", error_msg);
-        repository::update_pending_artist_status(pool, artist_handle, "failed", Some("no_artists_in_shop_bio")).await?;
+        repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("no_artists_in_shop_bio")).await?;
         return Err(error_msg.into());
     }
 
     println!("      📋 Found {} artists in shop bio", artist_handles.len());
 
-    // STEP 6: Process all artists from shop bio (existing logic)
+    // STEP 7: Process all artists from shop bio
     let mut artists_processed = 0;
 
     for handle in &artist_handles {
@@ -1491,8 +1585,8 @@ async fn process_artist_from_pending(
         }
     }
 
-    // STEP 7: Mark original artist as successfully processed
-    repository::update_pending_artist_status(pool, artist_handle, "success", None).await?;
+    // STEP 8: Mark original artist as successfully processed
+    repository::update_pending_artist_status(pool, &normalized_handle, "success", None).await?;
 
     println!("      ✅ Successfully processed {} artists from shop '{}'", artists_processed, matched_shop_name);
 

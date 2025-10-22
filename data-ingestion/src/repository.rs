@@ -930,10 +930,11 @@ pub async fn get_pending_artists_with_handles(
     state: &str,
 ) -> Result<Vec<PendingArtistWithHandle>, sqlx::Error> {
     let rows = sqlx::query(
-        "SELECT DISTINCT instagram_handle, city, state
+        "SELECT DISTINCT LTRIM(instagram_handle, '@') as instagram_handle, city, state
          FROM reddit_artists_pending
          WHERE status != 'success'
            AND instagram_handle IS NOT NULL
+           AND LTRIM(instagram_handle, '@') != ''
            AND city = $1
            AND state = $2",
     )
@@ -963,7 +964,7 @@ pub async fn find_shop_by_name_and_city(
 ) -> Result<Option<(i64, String)>, sqlx::Error> {
     // Try exact match first (case-insensitive)
     let result = sqlx::query(
-        "SELECT location_id, name
+        "SELECT id, name
          FROM locations
          WHERE LOWER(name) = LOWER($1)
            AND city = $2
@@ -977,12 +978,12 @@ pub async fn find_shop_by_name_and_city(
     .await?;
 
     if let Some(row) = result {
-        return Ok(Some((row.get("location_id"), row.get("name"))));
+        return Ok(Some((row.get("id"), row.get("name"))));
     }
 
     // Fallback to fuzzy match (contains)
     let result = sqlx::query(
-        "SELECT location_id, name
+        "SELECT id, name
          FROM locations
          WHERE LOWER(name) LIKE '%' || LOWER($1) || '%'
            AND city = $2
@@ -996,7 +997,7 @@ pub async fn find_shop_by_name_and_city(
     .await?;
 
     if let Some(row) = result {
-        Ok(Some((row.get("location_id"), row.get("name"))))
+        Ok(Some((row.get("id"), row.get("name"))))
     } else {
         Ok(None)
     }
