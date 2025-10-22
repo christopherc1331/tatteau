@@ -393,3 +393,102 @@ pub async fn get_instagram_profile_info(
 
     Ok(profiles.remove(0))
 }
+
+/// Search for Instagram artist by name
+/// Returns profile info if found and validated
+pub async fn search_instagram_artist(
+    artist_name: &str,
+) -> Result<InstagramProfileInfo, Box<dyn std::error::Error + Send + Sync>> {
+    let api_token =
+        env::var("APIFY_API_TOKEN").expect("APIFY_API_TOKEN environment variable must be set");
+
+    let actor_id = "apify~instagram-scraper";
+    let url = format!(
+        "https://api.apify.com/v2/acts/{}/run-sync-get-dataset-items?token={}&memory=256",
+        actor_id, api_token
+    );
+
+    // Try multiple search query variations
+    let search_queries = vec![
+        format!("{} Artist", artist_name),
+        format!("{} Tattoo Artist", artist_name),
+        format!("{} Tattoo", artist_name),
+    ];
+
+    println!("🔍 Searching Instagram for artist: '{}'", artist_name);
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()?;
+
+    for search_query in search_queries {
+        println!("   Trying search: '{}'...", search_query);
+
+        let input = serde_json::json!({
+            "addParentData": false,
+            "enhanceUserSearchWithFacebookPage": false,
+            "isUserReelFeedURL": false,
+            "isUserTaggedFeedURL": false,
+            "resultsLimit": 5,
+            "resultsType": "details",
+            "search": search_query,
+            "searchLimit": 10,
+            "searchType": "user"
+        });
+
+        let response = match client.post(&url).json(&input).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                println!("      ❌ Request failed: {}", e);
+                continue;
+            }
+        };
+
+        if !response.status().is_success() {
+            println!("      ❌ HTTP {}", response.status());
+            continue;
+        }
+
+        let response_text = match response.text().await {
+            Ok(text) => text,
+            Err(e) => {
+                println!("      ❌ Failed to read response: {}", e);
+                continue;
+            }
+        };
+
+        let profiles: Vec<InstagramProfileInfo> = match serde_json::from_str(&response_text) {
+            Ok(profiles) => profiles,
+            Err(e) => {
+                println!("      ❌ Failed to parse: {}", e);
+                continue;
+            }
+        };
+
+        if profiles.is_empty() {
+            println!("      ❌ No results");
+            continue;
+        }
+
+        // Validate results - look for tattoo-related profiles
+        for profile in profiles {
+            let bio_lower = profile.bio.as_ref().map(|b| b.to_lowercase());
+
+            // Check if bio contains tattoo/artist keywords
+            let is_tattoo_related = bio_lower.as_ref().map_or(false, |bio| {
+                bio.contains("tattoo") || bio.contains("artist") || bio.contains("ink")
+            });
+
+            if is_tattoo_related {
+                println!("      ✅ Found valid artist: @{}", profile.username);
+                return Ok(profile);
+            } else {
+                println!("      ⚠️  Skipping @{} - bio doesn't mention tattoo/artist", profile.username);
+            }
+        }
+
+        println!("      ❌ No valid tattoo artists in results");
+    }
+
+    Err(format!("No Instagram profile found for artist '{}'", artist_name).into())
+}

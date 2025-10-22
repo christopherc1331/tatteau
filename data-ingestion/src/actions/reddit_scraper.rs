@@ -191,10 +191,34 @@ async fn process_city_shop_centric(
 
     // PHASE 3: Process artists in parallel
     println!(
-        "⚡ Phase 3: Processing artists ({} threads)...",
+        "⚡ Phase 3: Processing artists with handles ({} threads)...",
         NUM_SHOP_THREADS
     );
-    let artist_stats = process_artists_parallel(pending_artists, pool).await?;
+    let mut artist_stats = process_artists_parallel(pending_artists, pool).await?;
+
+    // PHASE 2.5: Get pending artists WITHOUT handles but WITH names
+    println!("🔍 Phase 2.5: Identifying artists without handles (name-based search)...");
+    let pending_artists_no_handles =
+        repository::get_pending_artists_without_handles(pool, &city.city, &city.state).await?;
+    println!(
+        "   Found {} pending artists without handles to search for",
+        pending_artists_no_handles.len()
+    );
+
+    // PHASE 3.5: Search Instagram and process found artists
+    if !pending_artists_no_handles.is_empty() {
+        println!(
+            "🔎 Phase 3.5: Searching Instagram and processing artists ({} threads)...",
+            NUM_SHOP_THREADS
+        );
+        let search_stats = process_artists_via_search(pending_artists_no_handles, pool).await?;
+
+        // Combine stats from both phases
+        artist_stats.shops_processed += search_stats.shops_processed;
+        artist_stats.artists_added += search_stats.artists_added;
+        artist_stats.artists_updated += search_stats.artists_updated;
+        artist_stats.artists_pending += search_stats.artists_pending;
+    }
 
     // PHASE 4: Update city stats
     let final_stats = CityStats {
@@ -492,6 +516,131 @@ async fn process_artists_parallel(
     }
 
     println!("✅ Parallel artist processing complete!");
+
+    Ok(final_stats)
+}
+
+async fn process_artists_via_search(
+    artists: Vec<repository::PendingArtistWithName>,
+    pool: &PgPool,
+) -> Result<ShopProcessingStats, Box<dyn std::error::Error>> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let rx = Arc::new(tokio::sync::Mutex::new(rx));
+
+    // Send all artists to channel
+    for artist in artists {
+        tx.send(artist).unwrap();
+    }
+    drop(tx);
+
+    let mut tasks = FuturesUnordered::new();
+
+    for thread_id in 0..NUM_SHOP_THREADS {
+        let pool = pool.clone();
+        let rx = Arc::clone(&rx);
+
+        tasks.push(tokio::spawn(async move {
+            let mut local_stats = ShopProcessingStats {
+                shops_processed: 0,
+                artists_added: 0,
+                artists_updated: 0,
+                artists_pending: 0,
+            };
+
+            loop {
+                let artist = match rx.lock().await.recv().await {
+                    Some(a) => a,
+                    None => break,
+                };
+
+                // STEP 1: Search Instagram for artist by name
+                let profile = match crate::actions::apify_scraper::search_instagram_artist(&artist.artist_name).await {
+                    Ok(profile) => profile,
+                    Err(e) => {
+                        eprintln!(
+                            "   [Thread {}] ❌ {}: {}",
+                            thread_id, artist.artist_name, e
+                        );
+                        continue;
+                    }
+                };
+
+                println!(
+                    "   [Thread {}] ✅ Found @{} for '{}'",
+                    thread_id, profile.username, artist.artist_name
+                );
+
+                // STEP 2: Update pending record with found handle
+                if let Err(e) = repository::update_pending_artist_handle(
+                    &pool,
+                    &artist.artist_name,
+                    &profile.username,
+                    &artist.city,
+                    &artist.state,
+                )
+                .await
+                {
+                    eprintln!(
+                        "   [Thread {}] ⚠️  Failed to update handle for {}: {}",
+                        thread_id, artist.artist_name, e
+                    );
+                    continue;
+                }
+
+                // STEP 3: Process artist using existing flow
+                match process_artist_from_pending(
+                    &pool,
+                    &profile.username,
+                    &artist.city,
+                    &artist.state,
+                    thread_id,
+                )
+                .await
+                {
+                    Ok(artists_processed) => {
+                        local_stats.shops_processed += 1;
+                        local_stats.artists_added += artists_processed as i32;
+                        println!(
+                            "   [Thread {}] ✅ @{}: {} artists from shop",
+                            thread_id, profile.username, artists_processed
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "   [Thread {}] ❌ @{}: {}",
+                            thread_id, profile.username, e
+                        );
+                    }
+                }
+            }
+
+            local_stats
+        }));
+    }
+
+    // Collect results from all threads
+    let mut final_stats = ShopProcessingStats {
+        shops_processed: 0,
+        artists_added: 0,
+        artists_updated: 0,
+        artists_pending: 0,
+    };
+
+    while let Some(result) = tasks.next().await {
+        match result {
+            Ok(local_stats) => {
+                final_stats.shops_processed += local_stats.shops_processed;
+                final_stats.artists_added += local_stats.artists_added;
+                final_stats.artists_updated += local_stats.artists_updated;
+                final_stats.artists_pending += local_stats.artists_pending;
+            }
+            Err(e) => {
+                eprintln!("⚠️  Thread panicked: {}", e);
+            }
+        }
+    }
+
+    println!("✅ Instagram search processing complete!");
 
     Ok(final_stats)
 }
@@ -1390,14 +1539,29 @@ async fn extract_shop_names_from_fullname(
     let api_key = env::var("OPENAI_API_KEY")?;
 
     let prompt = format!(
-        r#"Extract all potential tattoo shop names from this Instagram profile fullName field.
+        r#"Extract all potential tattoo shop names from this Instagram profile fullName field, including FUZZY VARIATIONS that might match database records.
 
 fullName: {}
 
-Return ALL possible shop names that could be used to find this shop in a database.
-For example, "WASABI | Seattle Tattoo Studio" should return both "WASABI" and "Seattle Tattoo Studio".
+Generate ALL possible variations that could be used to find this shop in a database:
 
-IMPORTANT: Return ONLY a JSON array of shop name strings:
+1. Extract base shop name(s) from the fullName
+2. For EACH base name, generate common variations:
+   - Base name only (e.g., "Rabid Hands")
+   - Base + "Tattoo" (e.g., "Rabid Hands Tattoo")
+   - Base + "Tattoos" (e.g., "Rabid Hands Tattoos")
+   - Base + "Tattoo Studio" (e.g., "Rabid Hands Tattoo Studio")
+   - Base + "Tattoo Shop"
+   - Base + "Tattoo & Body Piercing"
+   - Base + "Tattoo & Piercing"
+   - Abbreviation variations ("Company" → "Co", "The " prefix removal)
+
+Examples:
+- "WASABI | Seattle Tattoo Studio" → ["WASABI", "Wasabi Tattoo", "Wasabi Tattoos", "Seattle Tattoo Studio", "Seattle Tattoo"]
+- "Rabid Hands" → ["Rabid Hands", "Rabid Hands Tattoo", "Rabid Hands Tattoos", "Rabid Hands Tattoo Studio"]
+- "Slave to the Needle" → ["Slave to the Needle", "Slave to the Needle Tattoo", "Slave to the Needle Tattoo & Body Piercing", "Slave to the Needle Tattoo & Piercing"]
+
+IMPORTANT: Return ONLY a JSON array of shop name strings (no explanations):
 ["Name1", "Name2", ...]
 
 If no shop name can be extracted, return an empty array: []"#,

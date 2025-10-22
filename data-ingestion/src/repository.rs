@@ -923,6 +923,13 @@ pub struct PendingArtistWithHandle {
     pub state: String,
 }
 
+#[derive(Debug)]
+pub struct PendingArtistWithName {
+    pub artist_name: String,
+    pub city: String,
+    pub state: String,
+}
+
 /// Get distinct pending artists with Instagram handles for a specific city/state
 pub async fn get_pending_artists_with_handles(
     pool: &PgPool,
@@ -947,6 +954,39 @@ pub async fn get_pending_artists_with_handles(
         .into_iter()
         .map(|row| PendingArtistWithHandle {
             instagram_handle: row.get("instagram_handle"),
+            city: row.get("city"),
+            state: row.get("state"),
+        })
+        .collect();
+
+    Ok(artists)
+}
+
+/// Get distinct pending artists WITHOUT Instagram handles but WITH artist names
+pub async fn get_pending_artists_without_handles(
+    pool: &PgPool,
+    city: &str,
+    state: &str,
+) -> Result<Vec<PendingArtistWithName>, sqlx::Error> {
+    let rows = sqlx::query(
+        "SELECT DISTINCT artist_name, city, state
+         FROM reddit_artists_pending
+         WHERE status != 'success'
+           AND instagram_handle IS NULL
+           AND artist_name IS NOT NULL
+           AND artist_name != ''
+           AND city = $1
+           AND state = $2",
+    )
+    .bind(city)
+    .bind(state)
+    .fetch_all(pool)
+    .await?;
+
+    let artists: Vec<PendingArtistWithName> = rows
+        .into_iter()
+        .map(|row| PendingArtistWithName {
+            artist_name: row.get("artist_name"),
             city: row.get("city"),
             state: row.get("state"),
         })
@@ -1020,6 +1060,33 @@ pub async fn update_pending_artist_status(
     .bind(status)
     .bind(error_reason)
     .bind(instagram_handle)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Update pending artist's Instagram handle after finding it via search
+pub async fn update_pending_artist_handle(
+    pool: &PgPool,
+    artist_name: &str,
+    instagram_handle: &str,
+    city: &str,
+    state: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE reddit_artists_pending
+         SET instagram_handle = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE artist_name = $2
+           AND city = $3
+           AND state = $4
+           AND instagram_handle IS NULL",
+    )
+    .bind(instagram_handle)
+    .bind(artist_name)
+    .bind(city)
+    .bind(state)
     .execute(pool)
     .await?;
 
