@@ -97,8 +97,10 @@ struct CityProcessingResult {
 // Main Entry Point
 // ============================================================================
 
+const NUM_SHOP_THREADS: usize = 10;
+
 pub async fn run_reddit_scraper(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Starting Reddit Artist Discovery");
+    println!("🚀 Starting Reddit Artist Discovery (Shop-Centric)");
 
     let config = load_config_from_env();
     let cities = select_cities_to_scrape(pool, &config).await?;
@@ -108,7 +110,7 @@ pub async fn run_reddit_scraper(pool: &PgPool) -> Result<(), Box<dyn std::error:
     for city in cities {
         println!("\n🌆 Processing: {}, {}", city.city, city.state);
 
-        match process_city(&city, pool, &config).await {
+        match process_city_shop_centric(&city, pool, &config).await {
             Ok(_) => println!("✅ Successfully processed {}, {}", city.city, city.state),
             Err(e) => {
                 eprintln!("❌ Failed to process {}, {}: {}", city.city, city.state, e);
@@ -154,32 +156,503 @@ async fn select_cities_to_scrape(
     Ok(cities)
 }
 
-async fn process_city(
+async fn process_city_shop_centric(
     city: &CityToScrape,
     pool: &PgPool,
     config: &Config,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Phase 1: Reddit scraping & artist processing
-    let result = scrape_reddit_for_city(city, pool, config).await?;
+    // PHASE 1: Scrape Reddit → populate pending table
+    println!("📱 Phase 1: Scraping Reddit posts...");
+    let posts_found = scrape_reddit_to_pending(city, pool, config).await?;
+    println!("   Found {} posts", posts_found);
 
-    // Phase 2: Shop Instagram bio scraping
-    let mut final_stats = result.stats;
-    if config.enable_shop_scrape && !result.matched_shops.is_empty() {
-        println!(
-            "🏪 Scraping {} shop Instagram bios...",
-            result.matched_shops.len()
-        );
-        let shop_stats = scrape_shop_instagram_bios(&result.matched_shops, pool, city).await?;
-        final_stats.artists_added_from_shop_bios = shop_stats.artists_added_from_shop_bios;
-        final_stats.artists_updated += shop_stats.artists_updated;
-        final_stats.shops_scraped = shop_stats.shops_scraped;
+    // PHASE 2: Get pending artists with Instagram handles
+    println!("👤 Phase 2: Identifying artists with Instagram handles...");
+    let pending_artists =
+        repository::get_pending_artists_with_handles(pool, &city.city, &city.state).await?;
+    println!(
+        "   Found {} pending artists with IG handles to process",
+        pending_artists.len()
+    );
+
+    if pending_artists.is_empty() {
+        println!("   No artists with handles to process, marking city as complete");
+        let stats = CityStats {
+            posts_found,
+            artists_added: 0,
+            artists_updated: 0,
+            artists_pending: 0,
+            artists_added_from_shop_bios: 0,
+            shops_scraped: 0,
+        };
+        finalize_city_stats(city, &stats, pool).await?;
+        return Ok(());
     }
 
-    // Phase 3: Update city stats
+    // PHASE 3: Process artists in parallel
+    println!(
+        "⚡ Phase 3: Processing artists ({} threads)...",
+        NUM_SHOP_THREADS
+    );
+    let artist_stats = process_artists_parallel(pending_artists, pool).await?;
+
+    // PHASE 4: Update city stats
+    let final_stats = CityStats {
+        posts_found,
+        artists_added: artist_stats.artists_added,
+        artists_updated: artist_stats.artists_updated,
+        artists_pending: artist_stats.artists_pending,
+        artists_added_from_shop_bios: artist_stats.artists_added,
+        shops_scraped: artist_stats.shops_processed,
+    };
     finalize_city_stats(city, &final_stats, pool).await?;
 
     Ok(())
 }
+
+// ============================================================================
+// Shop-Centric Helper Functions
+// ============================================================================
+
+struct ShopProcessingStats {
+    shops_processed: i32,
+    artists_added: i32,
+    artists_updated: i32,
+    artists_pending: i32,
+}
+
+async fn scrape_reddit_to_pending(
+    city: &CityToScrape,
+    pool: &PgPool,
+    config: &Config,
+) -> Result<i32, Box<dyn std::error::Error>> {
+    // Search Reddit posts for this city
+    let posts = call_apify_reddit_scraper(&city.city, config).await?;
+    let posts_found = posts.len() as i32;
+
+    // Filter for posts with images
+    let posts_with_images = filter_posts_with_images(posts, config.min_images);
+    println!("📸 Found {} posts with images", posts_with_images.len());
+
+    // Process each post and store in pending table
+    for post in posts_with_images {
+        match extract_and_store_pending(&post, city, pool).await {
+            Ok(_) => {}
+            Err(e) => {
+                let url = post.url.as_deref().unwrap_or("unknown");
+                eprintln!("⚠️  Error processing post {}: {}", url, e);
+            }
+        }
+    }
+
+    Ok(posts_found)
+}
+
+async fn extract_and_store_pending(
+    post: &RedditPost,
+    city: &CityToScrape,
+    pool: &PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Extract artist info with OpenAI
+    let extracted_artists = extract_artist_info_with_openai(post).await?;
+
+    let post_url = post.url.as_deref().unwrap_or("unknown");
+
+    if extracted_artists.is_empty() {
+        // No info extracted - add to pending
+        let title = post.title.as_deref().unwrap_or("");
+        let body = post.body.as_deref().unwrap_or("");
+        let post_context = format!("Title: {}\nBody: {}", title, body);
+
+        let pending = repository::PendingArtistData {
+            reddit_post_url: Some(post_url.to_string()),
+            artist_name: None,
+            instagram_handle: None,
+            shop_name_mentioned: None,
+            city: city.city.clone(),
+            state: city.state.clone(),
+            post_context: Some(post_context),
+            match_type: "no_artist_info_extracted".to_string(),
+        };
+
+        repository::insert_reddit_artist_pending(pool, &pending).await?;
+        return Ok(());
+    }
+
+    // Store each extracted artist in pending
+    for artist_data in extracted_artists {
+        let context_parts: Vec<String> = vec![
+            artist_data
+                .artist_name
+                .as_ref()
+                .map(|n| format!("Name: {}", n)),
+            artist_data
+                .instagram
+                .as_ref()
+                .map(|ig| format!("Instagram: {}", ig)),
+            artist_data.shop.as_ref().map(|s| format!("Shop: {}", s)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        let post_context = if !context_parts.is_empty() {
+            Some(context_parts.join(", "))
+        } else {
+            None
+        };
+
+        let pending = repository::PendingArtistData {
+            reddit_post_url: Some(post_url.to_string()),
+            artist_name: artist_data.artist_name.clone(),
+            instagram_handle: artist_data.instagram.clone(),
+            shop_name_mentioned: artist_data.shop.clone(),
+            city: city.city.clone(),
+            state: city.state.clone(),
+            post_context,
+            match_type: "pending".to_string(),
+        };
+
+        repository::insert_reddit_artist_pending(pool, &pending).await?;
+    }
+
+    Ok(())
+}
+
+async fn process_shops_parallel(
+    shops: Vec<String>,
+    pool: &PgPool,
+    city: &CityToScrape,
+    _config: &Config,
+) -> Result<ShopProcessingStats, Box<dyn std::error::Error>> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let rx = Arc::new(tokio::sync::Mutex::new(rx));
+
+    // Send all shops to channel
+    for shop in shops {
+        tx.send(shop).unwrap();
+    }
+    drop(tx);
+
+    let mut tasks = FuturesUnordered::new();
+
+    for thread_id in 0..NUM_SHOP_THREADS {
+        let pool = pool.clone();
+        let city_owned = city.clone();
+        let rx = Arc::clone(&rx);
+
+        tasks.push(tokio::spawn(async move {
+            let mut local_stats = ShopProcessingStats {
+                shops_processed: 0,
+                artists_added: 0,
+                artists_updated: 0,
+                artists_pending: 0,
+            };
+
+            loop {
+                let shop = match rx.lock().await.recv().await {
+                    Some(s) => s,
+                    None => break,
+                };
+
+                match process_single_shop(&shop, &city_owned, &pool).await {
+                    Ok(stats) => {
+                        local_stats.shops_processed += 1;
+                        local_stats.artists_added += stats.artists_added;
+                        local_stats.artists_updated += stats.artists_updated;
+                        println!(
+                            "   [Thread {}] ✅ {}: {} added, {} updated",
+                            thread_id, shop, stats.artists_added, stats.artists_updated
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("   [Thread {}] ❌ {}: {}", thread_id, shop, e);
+                    }
+                }
+            }
+
+            local_stats
+        }));
+    }
+
+    // Collect results from all threads
+    let mut final_stats = ShopProcessingStats {
+        shops_processed: 0,
+        artists_added: 0,
+        artists_updated: 0,
+        artists_pending: 0,
+    };
+
+    while let Some(result) = tasks.next().await {
+        match result {
+            Ok(local_stats) => {
+                final_stats.shops_processed += local_stats.shops_processed;
+                final_stats.artists_added += local_stats.artists_added;
+                final_stats.artists_updated += local_stats.artists_updated;
+                final_stats.artists_pending += local_stats.artists_pending;
+            }
+            Err(e) => {
+                eprintln!("⚠️  Thread panicked: {}", e);
+            }
+        }
+    }
+
+    println!("✅ Parallel shop processing complete!");
+
+    Ok(final_stats)
+}
+
+// ============================================================================
+// Artist-First Processing (NEW)
+// ============================================================================
+
+async fn process_artists_parallel(
+    artists: Vec<repository::PendingArtistWithHandle>,
+    pool: &PgPool,
+) -> Result<ShopProcessingStats, Box<dyn std::error::Error>> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let rx = Arc::new(tokio::sync::Mutex::new(rx));
+
+    // Send all artists to channel
+    for artist in artists {
+        tx.send(artist).unwrap();
+    }
+    drop(tx);
+
+    let mut tasks = FuturesUnordered::new();
+
+    for thread_id in 0..NUM_SHOP_THREADS {
+        let pool = pool.clone();
+        let rx = Arc::clone(&rx);
+
+        tasks.push(tokio::spawn(async move {
+            let mut local_stats = ShopProcessingStats {
+                shops_processed: 0,
+                artists_added: 0,
+                artists_updated: 0,
+                artists_pending: 0,
+            };
+
+            loop {
+                let artist = match rx.lock().await.recv().await {
+                    Some(a) => a,
+                    None => break,
+                };
+
+                match process_artist_from_pending(
+                    &pool,
+                    &artist.instagram_handle,
+                    &artist.city,
+                    &artist.state,
+                    thread_id,
+                )
+                .await
+                {
+                    Ok(artists_processed) => {
+                        local_stats.shops_processed += 1; // shops discovered
+                        local_stats.artists_added += artists_processed as i32;
+                        println!(
+                            "   [Thread {}] ✅ @{}: {} artists from shop",
+                            thread_id, artist.instagram_handle, artists_processed
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "   [Thread {}] ❌ @{}: {}",
+                            thread_id, artist.instagram_handle, e
+                        );
+                    }
+                }
+            }
+
+            local_stats
+        }));
+    }
+
+    // Collect results from all threads
+    let mut final_stats = ShopProcessingStats {
+        shops_processed: 0,
+        artists_added: 0,
+        artists_updated: 0,
+        artists_pending: 0,
+    };
+
+    while let Some(result) = tasks.next().await {
+        match result {
+            Ok(local_stats) => {
+                final_stats.shops_processed += local_stats.shops_processed;
+                final_stats.artists_added += local_stats.artists_added;
+                final_stats.artists_updated += local_stats.artists_updated;
+                final_stats.artists_pending += local_stats.artists_pending;
+            }
+            Err(e) => {
+                eprintln!("⚠️  Thread panicked: {}", e);
+            }
+        }
+    }
+
+    println!("✅ Parallel artist processing complete!");
+
+    Ok(final_stats)
+}
+
+// ============================================================================
+// Shop-Centric Processing (OLD - kept for reference)
+// ============================================================================
+
+struct SingleShopStats {
+    artists_added: i32,
+    artists_updated: i32,
+}
+
+async fn process_single_shop(
+    shop_name: &str,
+    city: &CityToScrape,
+    pool: &PgPool,
+) -> Result<SingleShopStats, Box<dyn std::error::Error + Send + Sync>> {
+    // STEP 6: Find shop in locations table
+    let location_id = match repository::find_location_by_shop_fuzzy(pool, shop_name, &city.state).await? {
+        Some(id) => id,
+        None => {
+            repository::update_pending_by_shop(
+                pool,
+                shop_name,
+                "failed",
+                "shop_not_in_database",
+                Some("Shop not found in locations table"),
+            ).await?;
+            return Err("Shop not in database".to_string().into());
+        }
+    };
+
+    // STEP 7-8: Lookup Instagram profile using direct URL approach
+    let profile_info = match crate::actions::apify_scraper::lookup_shop_instagram(shop_name, Some(&city.city)).await {
+        Ok(profile) => profile,
+        Err(e) => {
+            {
+                let error_msg = e.to_string();
+                eprintln!("      ❌ Error looking up Instagram profile: {}", error_msg);
+                repository::update_pending_by_shop(
+                    pool,
+                    shop_name,
+                    "failed",
+                    "shop_instagram_not_found",
+                    Some(&format!("Could not find shop on Instagram: {}", error_msg)),
+                )
+                .await?;
+            }
+            return Err("Shop IG not found".to_string().into());
+        }
+    };
+
+    // STEP 9: Extract handles from bio
+    let bio = profile_info.bio.ok_or_else(|| "No bio found".to_string())?;
+    let artist_handles = extract_handles_from_bio(&bio)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
+
+    if artist_handles.is_empty() {
+        repository::update_pending_by_shop(
+            pool,
+            shop_name,
+            "failed",
+            "no_artists_in_bio",
+            Some("Shop Instagram found but no artist handles in bio"),
+        )
+        .await?;
+        return Err("No artists in bio".into());
+    }
+
+    // STEP 10-14: Process each artist
+    let mut artists_added = 0;
+    let mut artists_updated = 0;
+    for handle in artist_handles {
+        match process_artist_handle(&handle, location_id, pool).await {
+            Ok(ProcessResult::Added) => artists_added += 1,
+            Ok(ProcessResult::Updated) => artists_updated += 1,
+            Ok(ProcessResult::Skipped) => {}
+            Err(e) => eprintln!("      ⚠️  Error processing @{}: {}", handle, e),
+        }
+    }
+
+    // STEP 15: Mark success only if at least 1 artist processed
+    if artists_added > 0 || artists_updated > 0 {
+        let notes = format!(
+            "Found shop (location_id: {}), added {}, updated {}",
+            location_id, artists_added, artists_updated
+        );
+        repository::update_pending_by_shop(pool, shop_name, "processed", "success", Some(&notes))
+            .await?;
+    } else {
+        repository::update_pending_by_shop(
+            pool,
+            shop_name,
+            "failed",
+            "no_artists_matched",
+            Some("Artists found in bio but none could be matched or created"),
+        )
+        .await?;
+    }
+
+    Ok(SingleShopStats {
+        artists_added,
+        artists_updated,
+    })
+}
+
+enum ProcessResult {
+    Added,
+    Updated,
+    Skipped,
+}
+
+async fn process_artist_handle(
+    handle: &str,
+    location_id: i64,
+    pool: &PgPool,
+) -> Result<ProcessResult, Box<dyn std::error::Error + Send + Sync>> {
+    // STEP 10-11: Check if artist exists by handle
+    if let Some(_artist) =
+        repository::find_artist_by_instagram_at_location(pool, handle, location_id).await?
+    {
+        // Artist exists with this handle - skip
+        return Ok(ProcessResult::Skipped);
+    }
+
+    // STEP 13: Get artist profile from Instagram
+    let profile = crate::actions::apify_scraper::get_instagram_profile_info(handle)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
+    let artist_name = profile.full_name.clone();
+
+    // Check if artist exists by name
+    if let Some(name) = &artist_name {
+        if let Some(artist) =
+            repository::find_artist_by_name_fuzzy(pool, name, location_id).await?
+        {
+            // STEP 12: Artist exists without IG - UPDATE
+            repository::update_artist_instagram(pool, artist.id, handle, artist.social_links)
+                .await?;
+            println!("      ✏️  Updated {} with @{}", name, handle);
+            return Ok(ProcessResult::Updated);
+        }
+    }
+
+    // STEP 14: Artist doesn't exist - INSERT
+    let instagram_url = format!("https://instagram.com/{}", handle);
+    let _artist_id = repository::insert_artist_with_instagram(
+        pool,
+        artist_name.as_deref(),
+        location_id,
+        handle,
+        &instagram_url,
+    )
+    .await?;
+    println!("      ➕ Created artist (@{})", handle);
+
+    Ok(ProcessResult::Added)
+}
+
 
 // ============================================================================
 // Phase 1: Reddit Scraping & Artist Processing
@@ -769,103 +1242,10 @@ async fn add_to_pending_review(
 }
 
 // ============================================================================
-// Phase 2: Shop Instagram Bio Scraping
+// Helper Functions
 // ============================================================================
 
-async fn scrape_shop_instagram_bios(
-    matched_shops: &HashSet<i64>,
-    pool: &PgPool,
-    city: &CityToScrape,
-) -> Result<CityStats, Box<dyn std::error::Error>> {
-    let mut stats = CityStats {
-        posts_found: 0,
-        artists_added: 0,
-        artists_updated: 0,
-        artists_pending: 0,
-        artists_added_from_shop_bios: 0,
-        shops_scraped: 0,
-    };
-
-    for shop_id in matched_shops {
-        match process_shop_bio(*shop_id, pool, city, &mut stats).await {
-            Ok(_) => stats.shops_scraped += 1,
-            Err(e) => eprintln!("⚠️  Error processing shop {}: {}", shop_id, e),
-        }
-    }
-
-    Ok(stats)
-}
-
-async fn process_shop_bio(
-    shop_id: i64,
-    pool: &PgPool,
-    city: &CityToScrape,
-    stats: &mut CityStats,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Get shop details
-    let shop_name = get_shop_name(pool, shop_id).await?;
-
-    // Search for shop's Instagram profile
-    let shop_profile = search_for_shop_instagram(&shop_name, &city.city).await?;
-
-    if let Some(profile) = shop_profile {
-        // Get full profile with bio
-        let profile_info =
-            crate::actions::apify_scraper::get_instagram_profile_info(&profile.username).await?;
-
-        if let Some(bio) = profile_info.bio {
-            // Parse bio for artist handles
-            let artist_handles = extract_handles_from_bio(&bio).await?;
-
-            println!(
-                "   Found {} artist handles in @{}'s bio",
-                artist_handles.len(),
-                profile.username
-            );
-
-            // Process each artist handle
-            for handle in artist_handles {
-                match process_artist_from_shop_bio(&handle, shop_id, pool, stats).await {
-                    Ok(_) => {}
-                    Err(e) => eprintln!("      ⚠️  Error processing @{}: {}", handle, e),
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn get_shop_name(pool: &PgPool, shop_id: i64) -> Result<String, Box<dyn std::error::Error>> {
-    let result = sqlx::query("SELECT name FROM locations WHERE id = $1")
-        .bind(shop_id)
-        .fetch_one(pool)
-        .await?;
-
-    Ok(result.get("name"))
-}
-
-async fn search_for_shop_instagram(
-    shop_name: &str,
-    city: &str,
-) -> Result<Option<crate::actions::apify_scraper::InstagramSearchResult>, Box<dyn std::error::Error>>
-{
-    let query = format!("{} {} tattoo", shop_name, city);
-    let results = crate::actions::apify_scraper::search_instagram_profiles(&query).await?;
-
-    // Filter for profiles with "tattoo" in bio
-    let filtered = results.into_iter().find(|r| {
-        if let Some(bio) = &r.bio {
-            bio.to_lowercase().contains("tattoo")
-        } else {
-            false
-        }
-    });
-
-    Ok(filtered)
-}
-
-async fn extract_handles_from_bio(bio: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+async fn extract_handles_from_bio(bio: &str) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
     let api_key = env::var("OPENAI_API_KEY")?;
 
     let prompt = format!(
@@ -875,10 +1255,10 @@ Look for patterns like @username or instagram.com/username.
 Bio text:
 {}
 
-Return a JSON array of Instagram handles (just the username, without @ or URLs):
+IMPORTANT: Return ONLY a JSON array (not an object), like this:
 ["handle1", "handle2", ...]
 
-If no handles found, return empty array []."#,
+If no handles found, return: []"#,
         bio
     );
 
@@ -890,7 +1270,7 @@ If no handles found, return empty array []."#,
         .json(&serde_json::json!({
             "model": "gpt-4",
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant that extracts Instagram handles from bios. Always return valid JSON."},
+                {"role": "system", "content": "You are a helpful assistant that extracts Instagram handles from bios. Return ONLY a JSON array, nothing else."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.3
@@ -904,84 +1284,220 @@ If no handles found, return empty array []."#,
         .as_str()
         .ok_or("No content in OpenAI response")?;
 
-    let handles: Vec<String> = serde_json::from_str(content).unwrap_or_else(|_| Vec::new());
+    println!("      🤖 OpenAI response: {}", content);
+
+    // Try to parse as direct array first
+    let handles: Vec<String> = match serde_json::from_str(content) {
+        Ok(h) => h,
+        Err(e) => {
+            // Try to parse as object with InstagramHandles field
+            if let Ok(obj) = serde_json::from_str::<serde_json::Value>(content) {
+                if let Some(handles_array) = obj.get("InstagramHandles").or_else(|| obj.get("handles")) {
+                    serde_json::from_value(handles_array.clone()).unwrap_or_else(|_| Vec::new())
+                } else {
+                    println!("      ⚠️  Failed to parse handles from OpenAI response: {}", e);
+                    Vec::new()
+                }
+            } else {
+                println!("      ⚠️  Failed to parse OpenAI response as JSON: {}", e);
+                Vec::new()
+            }
+        }
+    };
+
+    println!("      📋 Extracted {} handles: {:?}", handles.len(), handles);
 
     Ok(handles)
 }
 
-async fn process_artist_from_shop_bio(
-    handle: &str,
-    shop_id: i64,
+async fn extract_shop_info_from_artist_bio(
+    bio: &str,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let api_key = env::var("OPENAI_API_KEY")?;
+
+    let prompt = format!(
+        r#"Extract the tattoo shop name and Instagram handle from this artist's Instagram bio.
+
+Artist bio text:
+{}
+
+IMPORTANT: Return ONLY a JSON object with two fields:
+{{
+  "shopName": "the shop name",
+  "shopInstagramHandle": "the_instagram_handle_without_at_symbol"
+}}
+
+If no shop information found, return:
+{{
+  "shopName": "",
+  "shopInstagramHandle": ""
+}}"#,
+        bio
+    );
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "model": "gpt-4",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant that extracts shop information from artist bios. Return ONLY a JSON object."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3
+        }))
+        .send()
+        .await?;
+
+    let response_json: serde_json::Value = response.json().await?;
+
+    let content = response_json["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or("No content in OpenAI response")?;
+
+    println!("      🤖 Shop extraction OpenAI response: {}", content);
+
+    // Parse the JSON response
+    let shop_info: serde_json::Value = serde_json::from_str(content)?;
+
+    let shop_name = shop_info["shopName"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    let shop_handle = shop_info["shopInstagramHandle"]
+        .as_str()
+        .unwrap_or("")
+        .trim_start_matches('@')
+        .to_string();
+
+    if shop_name.is_empty() || shop_handle.is_empty() {
+        return Err("No shop information found in artist bio".into());
+    }
+
+    println!("      📋 Extracted shop: {} (@{})", shop_name, shop_handle);
+
+    Ok((shop_name, shop_handle))
+}
+
+/// Process a single artist from pending list - artist-first approach
+async fn process_artist_from_pending(
     pool: &PgPool,
-    stats: &mut CityStats,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let instagram_url = format!("https://instagram.com/{}", handle);
+    artist_handle: &str,
+    city: &str,
+    state: &str,
+    _thread_id: usize,
+) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+    println!("   👤 Processing artist @{}...", artist_handle);
 
-    // Check if artist exists at this shop
-    if let Some(artist) =
-        repository::find_artist_by_instagram_at_location(pool, handle, shop_id).await?
-    {
-        // Artist exists - check if needs Instagram URL
-        if !has_valid_instagram_url(&artist.social_links) {
-            repository::update_artist_add_instagram(
-                pool,
-                artist.id,
-                handle,
-                &instagram_url,
-                artist.social_links.clone(),
-            )
-            .await?;
-            stats.artists_updated += 1;
-            println!("      ✏️  Updated @{}", handle);
+    // STEP 1: Get artist IG profile/bio via Apify
+    println!("      📱 Getting artist IG profile...");
+    let artist_profile = match crate::actions::apify_scraper::get_instagram_profile_info(artist_handle).await {
+        Ok(profile) => profile,
+        Err(e) => {
+            let error_msg = format!("Failed to get artist profile: {}", e);
+            println!("      ❌ {}", error_msg);
+            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("artist_profile_not_found")).await?;
+            return Err(error_msg.into());
         }
-    } else {
-        // Artist doesn't exist - get name from Instagram and try to match
-        let profile_info =
-            crate::actions::apify_scraper::get_instagram_profile_info(handle).await?;
+    };
 
-        if let Some(name) = profile_info.full_name {
-            let (first, last) = parse_name_components(&name);
+    // STEP 2: Extract shop info from artist bio via OpenAI
+    let artist_bio = artist_profile.bio.ok_or_else(|| "Artist has no bio".to_string())?;
+    println!("      🤖 Extracting shop info from bio...");
 
-            // Try to find by name
-            if let Some(artist) =
-                repository::find_artist_by_name_at_location(pool, &first, &last, shop_id).await?
-            {
-                // Found by name - update with Instagram
-                repository::update_artist_add_instagram(
-                    pool,
-                    artist.id,
-                    handle,
-                    &instagram_url,
-                    artist.social_links.clone(),
-                )
-                .await?;
-                stats.artists_updated += 1;
-                println!("      ✏️  Matched and updated @{}", handle);
-            } else {
-                // Not found by name - create new artist
-                let artist_id = repository::insert_artist_with_instagram(
-                    pool,
-                    Some(&name),
-                    shop_id,
-                    handle,
-                    &instagram_url,
-                )
-                .await?;
-                stats.artists_added_from_shop_bios += 1;
-                println!("      ➕ Created new artist {} (@{})", artist_id, handle);
+    let (shop_name, shop_ig_handle) = match extract_shop_info_from_artist_bio(&artist_bio).await {
+        Ok((name, handle)) => (name, handle),
+        Err(e) => {
+            let error_msg = format!("No shop info in bio: {}", e);
+            drop(e); // Drop error before await
+            println!("      ⚠️  {}", error_msg);
+            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("no_shop_in_bio")).await?;
+            return Err(error_msg.into());
+        }
+    };
+
+    // STEP 3: Find shop in locations table by name + city/state
+    println!("      🔍 Looking up shop in database: {} ({}, {})...", shop_name, city, state);
+    let (location_id, matched_shop_name) = match repository::find_shop_by_name_and_city(pool, &shop_name, city, state).await? {
+        Some(result) => result,
+        None => {
+            let error_msg = format!("Shop '{}' not found in locations table", shop_name);
+            println!("      ❌ {}", error_msg);
+            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("shop_not_in_database")).await?;
+            return Err(error_msg.into());
+        }
+    };
+
+    println!("      ✅ Found shop: {} (location_id: {})", matched_shop_name, location_id);
+
+    // STEP 4: Get shop IG profile/bio via Apify using confirmed shop IG handle
+    println!("      📱 Getting shop IG profile (@{})...", shop_ig_handle);
+    let shop_profile = match crate::actions::apify_scraper::get_instagram_profile_info(&shop_ig_handle).await {
+        Ok(profile) => profile,
+        Err(e) => {
+            let error_msg = format!("Failed to get shop profile: {}", e);
+            println!("      ❌ {}", error_msg);
+            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("shop_instagram_not_found")).await?;
+            return Err(error_msg.into());
+        }
+    };
+
+    // STEP 5: Extract artist handles from shop bio via OpenAI
+    let shop_bio = shop_profile.bio.ok_or_else(|| "Shop has no bio".to_string())?;
+    println!("      🤖 Extracting artist handles from shop bio...");
+
+    let artist_handles = match extract_handles_from_bio(&shop_bio).await {
+        Ok(handles) => handles,
+        Err(e) => {
+            let error_msg = format!("Failed to extract artist handles: {}", e);
+            drop(e); // Drop error before await
+            println!("      ❌ {}", error_msg);
+            repository::update_pending_artist_status(pool, artist_handle, "failed", Some("failed_to_extract_artists")).await?;
+            return Err(error_msg.into());
+        }
+    };
+
+    if artist_handles.is_empty() {
+        let error_msg = "No artist handles found in shop bio";
+        println!("      ⚠️  {}", error_msg);
+        repository::update_pending_artist_status(pool, artist_handle, "failed", Some("no_artists_in_shop_bio")).await?;
+        return Err(error_msg.into());
+    }
+
+    println!("      📋 Found {} artists in shop bio", artist_handles.len());
+
+    // STEP 6: Process all artists from shop bio (existing logic)
+    let mut artists_processed = 0;
+
+    for handle in &artist_handles {
+        match process_artist_handle(handle, location_id, pool).await {
+            Ok(ProcessResult::Added) => {
+                println!("         ✅ Added artist @{}", handle);
+                artists_processed += 1;
             }
-        } else {
-            // No name from Instagram - skip
-            println!("      ⏭️  Skipping @{} (no name in profile)", handle);
+            Ok(ProcessResult::Updated) => {
+                println!("         ✅ Updated artist @{}", handle);
+                artists_processed += 1;
+            }
+            Ok(ProcessResult::Skipped) => {
+                println!("         ⏭️  Skipped artist @{} (already up to date)", handle);
+            }
+            Err(e) => {
+                println!("         ⚠️  Failed to process @{}: {}", handle, e);
+            }
         }
     }
 
-    Ok(())
-}
+    // STEP 7: Mark original artist as successfully processed
+    repository::update_pending_artist_status(pool, artist_handle, "success", None).await?;
 
-// ============================================================================
-// Phase 3: Finalize Stats
-// ============================================================================
+    println!("      ✅ Successfully processed {} artists from shop '{}'", artists_processed, matched_shop_name);
+
+    Ok(artists_processed)
+}
 
 async fn finalize_city_stats(
     city: &CityToScrape,
@@ -1003,10 +1519,6 @@ async fn finalize_city_stats(
 
     Ok(())
 }
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
 
 fn normalize_instagram_handle(handle: &str) -> String {
     let handle = handle.trim().trim_start_matches('@');
