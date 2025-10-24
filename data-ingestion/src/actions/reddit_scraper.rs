@@ -65,7 +65,7 @@ struct RedditPost {
     #[serde(rename = "postUrl")]
     url: Option<String>,
     #[serde(rename = "dataType")]
-    data_type: Option<String>, // "post" or "comment"
+    data_type: Option<String>,
     title: Option<String>,
     body: Option<String>,
     images: Option<Vec<String>>,
@@ -562,7 +562,7 @@ async fn process_artists_via_search(
                 };
 
                 // STEP 1: Search Instagram for artist by name
-                let profile = match crate::actions::apify_scraper::search_instagram_artist(
+                let profile = match crate::services::apify::search_instagram_artist(
                     &artist.artist_name,
                 )
                 .await
@@ -783,7 +783,7 @@ async fn process_artist_handle(
     }
 
     // STEP 13: Get artist profile from Instagram
-    let profile = crate::actions::apify_scraper::get_instagram_profile_info(&handle)
+    let profile = crate::services::apify::get_instagram_profile(&handle)
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
 
@@ -1052,12 +1052,10 @@ async fn call_apify_reddit_scraper(
         .into_iter()
         .filter(|item| {
             // Must be a post (not comment)
-            item.data_type.as_deref() == Some("post") &&
-            // Must have a postUrl
-            item.url.is_some() &&
-            // Must have images OR contentUrl (gallery)
-            (item.images.as_ref().map_or(false, |imgs| !imgs.is_empty()) ||
-             item.content_url.is_some())
+            item.data_type.as_deref() == Some("post")
+                && item.url.is_some()
+                && (item.images.as_ref().map_or(false, |imgs| !imgs.is_empty())
+                    || item.content_url.is_some())
         })
         .collect();
 
@@ -1542,16 +1540,21 @@ async fn extract_shop_info_from_artist_bio(
 Artist bio text:
 {}
 
-IMPORTANT: Return ONLY a JSON object with two fields:
-{{
-  "shopName": "the shop name",
-  "shopInstagramHandle": "the_instagram_handle_without_at_symbol"
-}}
+IMPORTANT RULES:
+1. shopName should ONLY be populated if the bio mentions an actual business/shop name (e.g., "Konoha Tattoo Madrid", "Mike's Tattoo & Piercing")
+2. If the bio ONLY mentions an Instagram handle like @konohatattoomadrid without a business name, leave shopName EMPTY
+3. The Instagram handle is what comes after @ symbols (e.g., @konohatattoomadrid -> "konohatattoomadrid")
+4. DO NOT duplicate the Instagram handle as the shop name
 
-If no shop information found, return:
+Examples:
+- Bio: "Artist at @konohatattoomadrid" -> {{"shopName": "", "shopInstagramHandle": "konohatattoomadrid"}}
+- Bio: "Artist at Konoha Tattoo Madrid @konohatattoomadrid" -> {{"shopName": "Konoha Tattoo Madrid", "shopInstagramHandle": "konohatattoomadrid"}}
+- Bio: "Tattoo artist" -> {{"shopName": "", "shopInstagramHandle": ""}}
+
+Return ONLY a JSON object with two fields:
 {{
-  "shopName": "",
-  "shopInstagramHandle": ""
+  "shopName": "actual business name or empty string",
+  "shopInstagramHandle": "handle_without_at_symbol_or_empty_string"
 }}"#,
         bio
     );
@@ -1591,11 +1594,17 @@ If no shop information found, return:
         .trim_start_matches('@')
         .to_string();
 
-    if shop_name.is_empty() || shop_handle.is_empty() {
-        return Err("No shop information found in artist bio".into());
+    // We need at least the Instagram handle to proceed
+    // Shop name can be extracted later from the Instagram profile
+    if shop_handle.is_empty() {
+        return Err("No shop Instagram handle found in artist bio".into());
     }
 
-    println!("      📋 Extracted shop: {} (@{})", shop_name, shop_handle);
+    if shop_name.is_empty() {
+        println!("      📋 Extracted shop IG handle: @{} (name will be fetched from profile)", shop_handle);
+    } else {
+        println!("      📋 Extracted shop: {} (@{})", shop_name, shop_handle);
+    }
 
     Ok((shop_name, shop_handle))
 }
@@ -1843,7 +1852,7 @@ async fn process_artist_from_pending(
     // STEP 1: Get artist IG profile/bio via Apify
     println!("      📱 Getting artist IG profile...");
     let artist_profile =
-        match crate::actions::apify_scraper::get_instagram_profile_info(&normalized_handle).await {
+        match crate::services::apify::get_instagram_profile(&normalized_handle).await {
             Ok(profile) => profile,
             Err(e) => {
                 let error_msg = format!("Failed to get artist profile: {}", e);
@@ -1861,12 +1870,14 @@ async fn process_artist_from_pending(
 
     // STEP 2: Extract shop IG handle from artist bio via OpenAI
     let artist_bio = artist_profile
-        .bio
+        .biography
         .ok_or_else(|| "Artist has no bio".to_string())?;
     println!("      🤖 Extracting shop IG handle from bio...");
 
-    let (_, shop_ig_handle) = match extract_shop_info_from_artist_bio(&artist_bio).await {
-        Ok((name, handle)) => (name, handle),
+    // Extract shop info - we only need the handle; name will be fetched from profile
+    let (_shop_name, shop_ig_handle) = match extract_shop_info_from_artist_bio(&artist_bio).await
+    {
+        Ok(result) => result,
         Err(e) => {
             let error_msg = format!("No shop info in bio: {}", e);
             drop(e); // Drop error before await
@@ -1882,26 +1893,23 @@ async fn process_artist_from_pending(
         }
     };
 
-    println!("      📋 Extracted shop IG handle: @{}", shop_ig_handle);
-
     // STEP 3: Get shop IG profile to get the actual shop name from fullName
     println!("      📱 Getting shop IG profile (@{})...", shop_ig_handle);
-    let shop_profile =
-        match crate::actions::apify_scraper::get_instagram_profile_info(&shop_ig_handle).await {
-            Ok(profile) => profile,
-            Err(e) => {
-                let error_msg = format!("Failed to get shop profile: {}", e);
-                println!("      ❌ {}", error_msg);
-                repository::update_pending_artist_status(
-                    pool,
-                    &normalized_handle,
-                    "failed",
-                    Some("shop_instagram_not_found"),
-                )
-                .await?;
-                return Err(error_msg.into());
-            }
-        };
+    let shop_profile = match crate::services::apify::get_instagram_profile(&shop_ig_handle).await {
+        Ok(profile) => profile,
+        Err(e) => {
+            let error_msg = format!("Failed to get shop profile: {}", e);
+            println!("      ❌ {}", error_msg);
+            repository::update_pending_artist_status(
+                pool,
+                &normalized_handle,
+                "failed",
+                Some("shop_instagram_not_found"),
+            )
+            .await?;
+            return Err(error_msg.into());
+        }
+    };
 
     // STEP 4: Extract potential shop names from fullName using OpenAI
     let shop_full_name = shop_profile.full_name.as_deref().unwrap_or(&shop_ig_handle);
@@ -2004,50 +2012,127 @@ async fn process_artist_from_pending(
         }
     };
 
+    // STEP 5.5: Add the ORIGINAL artist to the shop first (before looking at shop bio)
+    // This ensures we add the artist whose bio led us to find the shop
+    println!(
+        "      ➕ Adding original artist @{} to shop...",
+        normalized_handle
+    );
+    let mut artists_processed = 0;
+
+    match process_artist_handle(&normalized_handle, location_id, pool).await {
+        Ok(ProcessResult::Added) => {
+            println!("      ✅ Added original artist @{}", normalized_handle);
+            artists_processed += 1;
+        }
+        Ok(ProcessResult::Updated) => {
+            println!("      ✅ Updated original artist @{}", normalized_handle);
+            artists_processed += 1;
+        }
+        Ok(ProcessResult::Skipped) => {
+            println!(
+                "      ⏭️  Original artist @{} already exists",
+                normalized_handle
+            );
+        }
+        Err(e) => {
+            println!("      ⚠️  Failed to add original artist: {}", e);
+            // Continue anyway - we can still try to add artists from shop bio
+        }
+    }
+
     // STEP 6: Extract artist handles from shop bio via OpenAI
-    let shop_bio = shop_profile
-        .bio
-        .ok_or_else(|| "Shop has no bio".to_string())?;
+    let shop_bio = match &shop_profile.biography {
+        Some(bio) if !bio.is_empty() => bio,
+        _ => {
+            println!("      ⚠️  Shop has no bio - skipping additional artist extraction");
+            // Mark success if we added the original artist
+            if artists_processed > 0 {
+                repository::update_pending_artist_status(pool, &normalized_handle, "success", None)
+                    .await?;
+                println!(
+                    "      ✅ Successfully processed {} artist (original artist)",
+                    artists_processed
+                );
+                return Ok(artists_processed);
+            } else {
+                let error_msg = "Shop has no bio and original artist already existed";
+                println!("      ⚠️  {}", error_msg);
+                repository::update_pending_artist_status(
+                    pool,
+                    &normalized_handle,
+                    "failed",
+                    Some("shop_no_bio_artist_exists"),
+                )
+                .await?;
+                return Err(error_msg.into());
+            }
+        }
+    };
+
     println!("      🤖 Extracting artist handles from shop bio...");
 
-    let artist_handles = match extract_handles_from_bio(&shop_bio).await {
+    let artist_handles = match extract_handles_from_bio(shop_bio).await {
         Ok(handles) => handles,
         Err(e) => {
-            let error_msg = format!("Failed to extract artist handles: {}", e);
-            drop(e); // Drop error before await
+            println!("      ⚠️  Failed to extract artist handles: {}", e);
+            // If we added the original artist, still mark as success
+            if artists_processed > 0 {
+                repository::update_pending_artist_status(pool, &normalized_handle, "success", None)
+                    .await?;
+                println!(
+                    "      ✅ Successfully processed {} artist (original artist only)",
+                    artists_processed
+                );
+                return Ok(artists_processed);
+            } else {
+                let error_msg = format!("Failed to extract artist handles: {}", e);
+                drop(e);
+                println!("      ❌ {}", error_msg);
+                repository::update_pending_artist_status(
+                    pool,
+                    &normalized_handle,
+                    "failed",
+                    Some("failed_to_extract_artists"),
+                )
+                .await?;
+                return Err(error_msg.into());
+            }
+        }
+    };
+
+    if artist_handles.is_empty() {
+        println!("      ⚠️  No artist handles found in shop bio");
+        // If we added the original artist, still mark as success
+        if artists_processed > 0 {
+            repository::update_pending_artist_status(pool, &normalized_handle, "success", None)
+                .await?;
+            println!(
+                "      ✅ Successfully processed {} artist (original artist only)",
+                artists_processed
+            );
+            return Ok(artists_processed);
+        } else {
+            let error_msg =
+                "No artist handles found in shop bio and original artist already existed";
             println!("      ❌ {}", error_msg);
             repository::update_pending_artist_status(
                 pool,
                 &normalized_handle,
                 "failed",
-                Some("failed_to_extract_artists"),
+                Some("no_artists_in_shop_bio"),
             )
             .await?;
             return Err(error_msg.into());
         }
-    };
-
-    if artist_handles.is_empty() {
-        let error_msg = "No artist handles found in shop bio";
-        println!("      ⚠️  {}", error_msg);
-        repository::update_pending_artist_status(
-            pool,
-            &normalized_handle,
-            "failed",
-            Some("no_artists_in_shop_bio"),
-        )
-        .await?;
-        return Err(error_msg.into());
     }
 
     println!(
-        "      📋 Found {} artists in shop bio",
+        "      📋 Found {} additional artists in shop bio",
         artist_handles.len()
     );
 
     // STEP 7: Process all artists from shop bio
-    let mut artists_processed = 0;
-
     for handle in &artist_handles {
         match process_artist_handle(handle, location_id, pool).await {
             Ok(ProcessResult::Added) => {
