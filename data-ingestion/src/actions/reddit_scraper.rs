@@ -3,7 +3,9 @@
 // Also scrapes shop Instagram bios to discover additional artists
 
 use crate::repository::{self, CityStats, CityToScrape};
-use crate::services::google_places::{is_tattoo_shop, parse_places_to_locations, search_text_with_location, LocationBounds};
+use crate::services::google_places::{
+    is_tattoo_shop, parse_places_to_locations, search_text_with_location, LocationBounds,
+};
 use futures::stream::{FuturesUnordered, StreamExt};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -63,7 +65,7 @@ struct RedditPost {
     #[serde(rename = "postUrl")]
     url: Option<String>,
     #[serde(rename = "dataType")]
-    data_type: Option<String>,  // "post" or "comment"
+    data_type: Option<String>, // "post" or "comment"
     title: Option<String>,
     body: Option<String>,
     images: Option<Vec<String>>,
@@ -332,7 +334,10 @@ async fn extract_and_store_pending(
         let pending = repository::PendingArtistData {
             reddit_post_url: Some(post_url.to_string()),
             artist_name: artist_data.artist_name.clone(),
-            instagram_handle: artist_data.instagram.as_ref().map(|h| normalize_instagram_handle(h)),
+            instagram_handle: artist_data
+                .instagram
+                .as_ref()
+                .map(|h| normalize_instagram_handle(h)),
             shop_name_mentioned: artist_data.shop.clone(),
             city: city.city.clone(),
             state: city.state.clone(),
@@ -557,13 +562,14 @@ async fn process_artists_via_search(
                 };
 
                 // STEP 1: Search Instagram for artist by name
-                let profile = match crate::actions::apify_scraper::search_instagram_artist(&artist.artist_name).await {
+                let profile = match crate::actions::apify_scraper::search_instagram_artist(
+                    &artist.artist_name,
+                )
+                .await
+                {
                     Ok(profile) => profile,
                     Err(e) => {
-                        eprintln!(
-                            "   [Thread {}] ❌ {}: {}",
-                            thread_id, artist.artist_name, e
-                        );
+                        eprintln!("   [Thread {}] ❌ {}: {}", thread_id, artist.artist_name, e);
                         continue;
                     }
                 };
@@ -609,10 +615,7 @@ async fn process_artists_via_search(
                         );
                     }
                     Err(e) => {
-                        eprintln!(
-                            "   [Thread {}] ❌ @{}: {}",
-                            thread_id, profile.username, e
-                        );
+                        eprintln!("   [Thread {}] ❌ @{}: {}", thread_id, profile.username, e);
                     }
                 }
             }
@@ -663,39 +666,44 @@ async fn process_single_shop(
     pool: &PgPool,
 ) -> Result<SingleShopStats, Box<dyn std::error::Error + Send + Sync>> {
     // STEP 6: Find shop in locations table
-    let location_id = match repository::find_location_by_shop_fuzzy(pool, shop_name, &city.state).await? {
-        Some(id) => id,
-        None => {
-            repository::update_pending_by_shop(
-                pool,
-                shop_name,
-                "failed",
-                "shop_not_in_database",
-                Some("Shop not found in locations table"),
-            ).await?;
-            return Err("Shop not in database".to_string().into());
-        }
-    };
-
-    // STEP 7-8: Lookup Instagram profile using direct URL approach
-    let profile_info = match crate::actions::apify_scraper::lookup_shop_instagram(shop_name, Some(&city.city)).await {
-        Ok(profile) => profile,
-        Err(e) => {
-            {
-                let error_msg = e.to_string();
-                eprintln!("      ❌ Error looking up Instagram profile: {}", error_msg);
+    let location_id =
+        match repository::find_location_by_shop_fuzzy(pool, shop_name, &city.state).await? {
+            Some(id) => id,
+            None => {
                 repository::update_pending_by_shop(
                     pool,
                     shop_name,
                     "failed",
-                    "shop_instagram_not_found",
-                    Some(&format!("Could not find shop on Instagram: {}", error_msg)),
+                    "shop_not_in_database",
+                    Some("Shop not found in locations table"),
                 )
                 .await?;
+                return Err("Shop not in database".to_string().into());
             }
-            return Err("Shop IG not found".to_string().into());
-        }
-    };
+        };
+
+    // STEP 7-8: Lookup Instagram profile using direct URL approach
+    let profile_info =
+        match crate::actions::apify_scraper::lookup_shop_instagram(shop_name, Some(&city.city))
+            .await
+        {
+            Ok(profile) => profile,
+            Err(e) => {
+                {
+                    let error_msg = e.to_string();
+                    eprintln!("      ❌ Error looking up Instagram profile: {}", error_msg);
+                    repository::update_pending_by_shop(
+                        pool,
+                        shop_name,
+                        "failed",
+                        "shop_instagram_not_found",
+                        Some(&format!("Could not find shop on Instagram: {}", error_msg)),
+                    )
+                    .await?;
+                }
+                return Err("Shop IG not found".to_string().into());
+            }
+        };
 
     // STEP 9: Extract handles from bio
     let bio = profile_info.bio.ok_or_else(|| "No bio found".to_string())?;
@@ -790,8 +798,7 @@ async fn process_artist_handle(
 
     // Check if artist exists by name
     if let Some(name) = &artist_name {
-        if let Some(artist) =
-            repository::find_artist_by_name_fuzzy(pool, name, location_id).await?
+        if let Some(artist) = repository::find_artist_by_name_fuzzy(pool, name, location_id).await?
         {
             // STEP 12: Artist exists without IG - UPDATE
             repository::update_artist_instagram(pool, artist.id, &handle, artist.social_links)
@@ -815,7 +822,6 @@ async fn process_artist_handle(
 
     Ok(ProcessResult::Added)
 }
-
 
 // ============================================================================
 // Phase 1: Reddit Scraping & Artist Processing
@@ -881,11 +887,22 @@ async fn scrape_reddit_for_city(
                     None => break,
                 };
 
-                match process_reddit_post(&post, &city_owned, &pool, &mut local_stats, &mut local_matched_shops).await {
+                match process_reddit_post(
+                    &post,
+                    &city_owned,
+                    &pool,
+                    &mut local_stats,
+                    &mut local_matched_shops,
+                )
+                .await
+                {
                     Ok(_) => {}
                     Err(e) => {
                         let url = post.url.as_deref().unwrap_or("unknown");
-                        eprintln!("⚠️  [Thread {}] Error processing post {}: {}", thread_id, url, e);
+                        eprintln!(
+                            "⚠️  [Thread {}] Error processing post {}: {}",
+                            thread_id, url, e
+                        );
                     }
                 }
             }
@@ -925,13 +942,15 @@ async fn call_apify_reddit_scraper(
     let actor_id = "harshmaur~reddit-scraper";
 
     // Use subreddit search URL to search within /r/tattoos for city name
-    let search_url = format!("https://www.reddit.com/r/tattoos/search/?q={}&sort=top&t=year",
-        urlencoding::encode(city));
+    let search_url = format!(
+        "https://www.reddit.com/r/tattoos/search/?q={}&sort=top&t=year",
+        urlencoding::encode(city)
+    );
     let input = serde_json::json!({
         "startUrls": [{"url": search_url}],
         "crawlCommentsPerPost": true,
         "maxPostsCount": config.max_posts,
-        "maxCommentsPerPost": 1,
+        "maxCommentsPerPost": 0,
         "includeNSFW": true,
         "proxy": {
             "useApifyProxy": true,
@@ -941,7 +960,10 @@ async fn call_apify_reddit_scraper(
 
     println!("🔍 Starting Reddit scrape for {} (async API)...", city);
     println!("📋 Apify input:");
-    println!("{}", serde_json::to_string_pretty(&input).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&input).unwrap_or_default()
+    );
 
     let client = reqwest::Client::new();
 
@@ -1013,13 +1035,15 @@ async fn call_apify_reddit_scraper(
 
     // Log raw response for debugging
     println!("📦 Raw Apify response preview (first 500 chars):");
-    println!("{}", &response_text[..std::cmp::min(500, response_text.len())]);
+    println!(
+        "{}",
+        &response_text[..std::cmp::min(500, response_text.len())]
+    );
 
-    let all_items: Vec<RedditPost> = serde_json::from_str(&response_text)
-        .map_err(|e| {
-            eprintln!("Failed to parse response. Full response: {}", response_text);
-            format!("Failed to parse Reddit response: {}", e)
-        })?;
+    let all_items: Vec<RedditPost> = serde_json::from_str(&response_text).map_err(|e| {
+        eprintln!("Failed to parse response. Full response: {}", response_text);
+        format!("Failed to parse Reddit response: {}", e)
+    })?;
 
     let total_items = all_items.len();
 
@@ -1037,17 +1061,31 @@ async fn call_apify_reddit_scraper(
         })
         .collect();
 
-    println!("📥 Retrieved {} posts with images from Reddit (filtered from {} total items)", posts.len(), total_items);
+    println!(
+        "📥 Retrieved {} posts with images from Reddit (filtered from {} total items)",
+        posts.len(),
+        total_items
+    );
 
     // Log sample post structure
     if let Some(first_post) = posts.first() {
         println!("📝 Sample post structure:");
         println!("  - URL: {:?}", first_post.url);
-        println!("  - Title: {:?}", first_post.title.as_ref().map(|s| {
-            s.chars().take(50).collect::<String>()
-        }));
-        println!("  - Has body: {}", first_post.body.as_ref().map_or(false, |b| !b.is_empty()));
-        println!("  - Images: {:?}", first_post.images.as_ref().map(|m| m.len()));
+        println!(
+            "  - Title: {:?}",
+            first_post
+                .title
+                .as_ref()
+                .map(|s| { s.chars().take(50).collect::<String>() })
+        );
+        println!(
+            "  - Has body: {}",
+            first_post.body.as_ref().map_or(false, |b| !b.is_empty())
+        );
+        println!(
+            "  - Images: {:?}",
+            first_post.images.as_ref().map(|m| m.len())
+        );
     }
 
     Ok(posts)
@@ -1079,7 +1117,10 @@ fn filter_posts_with_images(posts: Vec<RedditPost>, min_images: i32) -> Vec<Redd
                 } else {
                     filtered_out_too_few += 1;
                     let url = post.url.as_deref().unwrap_or("unknown");
-                    println!("  ⊘ Filtered out (only {} images, need {}): {}", image_count, min_images, url);
+                    println!(
+                        "  ⊘ Filtered out (only {} images, need {}): {}",
+                        image_count, min_images, url
+                    );
                     false
                 }
             }
@@ -1089,7 +1130,10 @@ fn filter_posts_with_images(posts: Vec<RedditPost>, min_images: i32) -> Vec<Redd
     if filtered_out_too_few > 0 {
         println!("🔍 Minimum image filtering:");
         println!("  - Posts before filtering: {}", total);
-        println!("  - Filtered out (too few images): {}", filtered_out_too_few);
+        println!(
+            "  - Filtered out (too few images): {}",
+            filtered_out_too_few
+        );
         println!("  - Posts with ≥{} images: {}", min_images, result.len());
     }
 
@@ -1126,7 +1170,10 @@ async fn process_reddit_post(
 
         repository::insert_reddit_artist_pending(pool, &pending).await?;
         stats.artists_pending += 1;
-        println!("📋 Added to pending review (no info extracted): {}", post_url);
+        println!(
+            "📋 Added to pending review (no info extracted): {}",
+            post_url
+        );
         return Ok(());
     }
 
@@ -1221,15 +1268,7 @@ async fn process_extracted_artist(
         process_artist_without_instagram(artist_data, city, post_url, pool, stats).await?;
     } else {
         // Scenario D: Nothing useful extracted - add to pending for manual review
-        add_to_pending_review(
-            pool,
-            artist_data,
-            city,
-            post_url,
-            "no_useful_info",
-            stats,
-        )
-        .await?;
+        add_to_pending_review(pool, artist_data, city, post_url, "no_useful_info", stats).await?;
     }
 
     Ok(())
@@ -1374,8 +1413,14 @@ async fn add_to_pending_review(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Build context string from what we extracted
     let context_parts: Vec<String> = vec![
-        artist_data.artist_name.as_ref().map(|n| format!("Name: {}", n)),
-        artist_data.instagram.as_ref().map(|ig| format!("Instagram: {}", ig)),
+        artist_data
+            .artist_name
+            .as_ref()
+            .map(|n| format!("Name: {}", n)),
+        artist_data
+            .instagram
+            .as_ref()
+            .map(|ig| format!("Instagram: {}", ig)),
         artist_data.shop.as_ref().map(|s| format!("Shop: {}", s)),
     ]
     .into_iter()
@@ -1410,7 +1455,9 @@ async fn add_to_pending_review(
 // Helper Functions
 // ============================================================================
 
-async fn extract_handles_from_bio(bio: &str) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+async fn extract_handles_from_bio(
+    bio: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
     let api_key = env::var("OPENAI_API_KEY")?;
 
     let prompt = format!(
@@ -1457,10 +1504,15 @@ If no handles found, return: []"#,
         Err(e) => {
             // Try to parse as object with InstagramHandles field
             if let Ok(obj) = serde_json::from_str::<serde_json::Value>(content) {
-                if let Some(handles_array) = obj.get("InstagramHandles").or_else(|| obj.get("handles")) {
+                if let Some(handles_array) =
+                    obj.get("InstagramHandles").or_else(|| obj.get("handles"))
+                {
                     serde_json::from_value(handles_array.clone()).unwrap_or_else(|_| Vec::new())
                 } else {
-                    println!("      ⚠️  Failed to parse handles from OpenAI response: {}", e);
+                    println!(
+                        "      ⚠️  Failed to parse handles from OpenAI response: {}",
+                        e
+                    );
                     Vec::new()
                 }
             } else {
@@ -1470,7 +1522,11 @@ If no handles found, return: []"#,
         }
     };
 
-    println!("      📋 Extracted {} handles: {:?}", handles.len(), handles);
+    println!(
+        "      📋 Extracted {} handles: {:?}",
+        handles.len(),
+        handles
+    );
 
     Ok(handles)
 }
@@ -1527,10 +1583,7 @@ If no shop information found, return:
     // Parse the JSON response
     let shop_info: serde_json::Value = serde_json::from_str(content)?;
 
-    let shop_name = shop_info["shopName"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let shop_name = shop_info["shopName"].as_str().unwrap_or("").to_string();
 
     let shop_handle = shop_info["shopInstagramHandle"]
         .as_str()
@@ -1613,7 +1666,11 @@ If no shop name can be extracted, return an empty array: []"#,
         return Err("No shop names extracted from fullName".into());
     }
 
-    println!("      📋 Extracted {} potential shop names: {:?}", shop_names.len(), shop_names);
+    println!(
+        "      📋 Extracted {} potential shop names: {:?}",
+        shop_names.len(),
+        shop_names
+    );
 
     Ok(shop_names)
 }
@@ -1638,7 +1695,10 @@ async fn lookup_and_create_shop_via_google(
 
     // STEP 2: Search Google Places for shop name + "tattoo" in state
     let search_query = format!("{} tattoo", shop_name);
-    println!("      📍 Searching Google Places: '{}' in {}", search_query, state);
+    println!(
+        "      📍 Searching Google Places: '{}' in {}",
+        search_query, state
+    );
 
     let result = match search_text_with_location(&search_query, &state_bounds, 5).await {
         Ok(res) => res,
@@ -1657,10 +1717,14 @@ async fn lookup_and_create_shop_via_google(
         }
     };
 
-    println!("      📊 Google Places returned {} raw results", places.len());
+    println!(
+        "      📊 Google Places returned {} raw results",
+        places.len()
+    );
 
     // Filter to only tattoo shops (body_art_service or art_studio)
-    let tattoo_places: Vec<&Value> = places.iter()
+    let tattoo_places: Vec<&Value> = places
+        .iter()
         .filter(|place| is_tattoo_shop(place))
         .collect();
 
@@ -1668,26 +1732,33 @@ async fn lookup_and_create_shop_via_google(
 
     // STEP 4: Conservative approach - only proceed if exactly 1 tattoo shop
     if tattoo_places.len() != 1 {
-        println!("      ⚠️  Ambiguous results ({} tattoo shops) - skipping for safety", tattoo_places.len());
+        println!(
+            "      ⚠️  Ambiguous results ({} tattoo shops) - skipping for safety",
+            tattoo_places.len()
+        );
         return Ok(None);
     }
 
     // STEP 5: Verify the single result has similar name (similarity >= 0.7)
     let matched_place = tattoo_places[0];
-    let result_name = matched_place.get("displayName")
+    let result_name = matched_place
+        .get("displayName")
         .and_then(|d| d.get("text"))
         .and_then(|t| t.as_str())
         .unwrap_or("");
 
-    let similarity = jaro_winkler(
-        &shop_name.to_lowercase(),
-        &result_name.to_lowercase()
+    let similarity = jaro_winkler(&shop_name.to_lowercase(), &result_name.to_lowercase());
+
+    println!(
+        "      📏 Name similarity: '{}' vs '{}' = {:.3}",
+        shop_name, result_name, similarity
     );
 
-    println!("      📏 Name similarity: '{}' vs '{}' = {:.3}", shop_name, result_name, similarity);
-
     if similarity < 0.7 {
-        println!("      ⚠️  Name similarity too low ({:.3} < 0.7) - skipping for safety", similarity);
+        println!(
+            "      ⚠️  Name similarity too low ({:.3} < 0.7) - skipping for safety",
+            similarity
+        );
         return Ok(None);
     }
 
@@ -1703,7 +1774,10 @@ async fn lookup_and_create_shop_via_google(
     }
 
     let location = &locations[0];
-    println!("      ✅ Found exactly 1 tattoo shop with similar name: {} at {}", location.name, location.address);
+    println!(
+        "      ✅ Found exactly 1 tattoo shop with similar name: {} at {}",
+        location.name, location.address
+    );
 
     // STEP 6: Insert into locations table
     match repository::upsert_locations(pool, &locations).await {
@@ -1715,12 +1789,11 @@ async fn lookup_and_create_shop_via_google(
     }
 
     // STEP 7: Query back to get the database id
-    let location_id = match sqlx::query_scalar::<_, i64>(
-        "SELECT id FROM locations WHERE _id = $1"
-    )
-    .bind(&location._id)
-    .fetch_one(pool)
-    .await {
+    let location_id = match sqlx::query_scalar::<_, i64>("SELECT id FROM locations WHERE _id = $1")
+        .bind(&location._id)
+        .fetch_one(pool)
+        .await
+    {
         Ok(id) => {
             println!("      ✅ Created shop (location_id: {})", id);
             id
@@ -1769,18 +1842,27 @@ async fn process_artist_from_pending(
 
     // STEP 1: Get artist IG profile/bio via Apify
     println!("      📱 Getting artist IG profile...");
-    let artist_profile = match crate::actions::apify_scraper::get_instagram_profile_info(&normalized_handle).await {
-        Ok(profile) => profile,
-        Err(e) => {
-            let error_msg = format!("Failed to get artist profile: {}", e);
-            println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("artist_profile_not_found")).await?;
-            return Err(error_msg.into());
-        }
-    };
+    let artist_profile =
+        match crate::actions::apify_scraper::get_instagram_profile_info(&normalized_handle).await {
+            Ok(profile) => profile,
+            Err(e) => {
+                let error_msg = format!("Failed to get artist profile: {}", e);
+                println!("      ❌ {}", error_msg);
+                repository::update_pending_artist_status(
+                    pool,
+                    &normalized_handle,
+                    "failed",
+                    Some("artist_profile_not_found"),
+                )
+                .await?;
+                return Err(error_msg.into());
+            }
+        };
 
     // STEP 2: Extract shop IG handle from artist bio via OpenAI
-    let artist_bio = artist_profile.bio.ok_or_else(|| "Artist has no bio".to_string())?;
+    let artist_bio = artist_profile
+        .bio
+        .ok_or_else(|| "Artist has no bio".to_string())?;
     println!("      🤖 Extracting shop IG handle from bio...");
 
     let (_, shop_ig_handle) = match extract_shop_info_from_artist_bio(&artist_bio).await {
@@ -1789,7 +1871,13 @@ async fn process_artist_from_pending(
             let error_msg = format!("No shop info in bio: {}", e);
             drop(e); // Drop error before await
             println!("      ⚠️  {}", error_msg);
-            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("no_shop_in_bio")).await?;
+            repository::update_pending_artist_status(
+                pool,
+                &normalized_handle,
+                "failed",
+                Some("no_shop_in_bio"),
+            )
+            .await?;
             return Err(error_msg.into());
         }
     };
@@ -1798,19 +1886,29 @@ async fn process_artist_from_pending(
 
     // STEP 3: Get shop IG profile to get the actual shop name from fullName
     println!("      📱 Getting shop IG profile (@{})...", shop_ig_handle);
-    let shop_profile = match crate::actions::apify_scraper::get_instagram_profile_info(&shop_ig_handle).await {
-        Ok(profile) => profile,
-        Err(e) => {
-            let error_msg = format!("Failed to get shop profile: {}", e);
-            println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("shop_instagram_not_found")).await?;
-            return Err(error_msg.into());
-        }
-    };
+    let shop_profile =
+        match crate::actions::apify_scraper::get_instagram_profile_info(&shop_ig_handle).await {
+            Ok(profile) => profile,
+            Err(e) => {
+                let error_msg = format!("Failed to get shop profile: {}", e);
+                println!("      ❌ {}", error_msg);
+                repository::update_pending_artist_status(
+                    pool,
+                    &normalized_handle,
+                    "failed",
+                    Some("shop_instagram_not_found"),
+                )
+                .await?;
+                return Err(error_msg.into());
+            }
+        };
 
     // STEP 4: Extract potential shop names from fullName using OpenAI
     let shop_full_name = shop_profile.full_name.as_deref().unwrap_or(&shop_ig_handle);
-    println!("      🤖 Extracting shop names from fullName: '{}'...", shop_full_name);
+    println!(
+        "      🤖 Extracting shop names from fullName: '{}'...",
+        shop_full_name
+    );
 
     let potential_shop_names = match extract_shop_names_from_fullname(shop_full_name).await {
         Ok(names) => names,
@@ -1818,20 +1916,31 @@ async fn process_artist_from_pending(
             let error_msg = format!("Failed to extract shop names from fullName: {}", e);
             drop(e);
             println!("      ⚠️  {}", error_msg);
-            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("failed_to_parse_fullname")).await?;
+            repository::update_pending_artist_status(
+                pool,
+                &normalized_handle,
+                "failed",
+                Some("failed_to_parse_fullname"),
+            )
+            .await?;
             return Err(error_msg.into());
         }
     };
 
     // STEP 5: Try to find shop in locations table using each potential name
-    println!("      🔍 Looking up shop in database (trying {} potential names)...", potential_shop_names.len());
+    println!(
+        "      🔍 Looking up shop in database (trying {} potential names)...",
+        potential_shop_names.len()
+    );
 
     let mut location_id = None;
     let mut matched_shop_name = String::new();
 
     for shop_name in &potential_shop_names {
         println!("         Trying: '{}' ({}, {})...", shop_name, city, state);
-        if let Some((id, name)) = repository::find_shop_by_name_and_city(pool, shop_name, city, state).await? {
+        if let Some((id, name)) =
+            repository::find_shop_by_name_and_city(pool, shop_name, city, state).await?
+        {
             location_id = Some(id);
             matched_shop_name = name;
             println!("         ✅ Match found!");
@@ -1843,17 +1952,25 @@ async fn process_artist_from_pending(
 
     let location_id = match location_id {
         Some(id) => {
-            println!("      ✅ Found shop in database: {} (location_id: {})", matched_shop_name, id);
+            println!(
+                "      ✅ Found shop in database: {} (location_id: {})",
+                matched_shop_name, id
+            );
             id
         }
         None => {
             // Shop not in database - try Google Places lookup
-            println!("      ⚠️  Shop not found in database (tried names: {:?})", potential_shop_names);
+            println!(
+                "      ⚠️  Shop not found in database (tried names: {:?})",
+                potential_shop_names
+            );
 
             // Try each potential shop name with Google Places
             let mut google_location_id = None;
             for shop_name in &potential_shop_names {
-                if let Ok(Some(id)) = lookup_and_create_shop_via_google(pool, shop_name, state).await {
+                if let Ok(Some(id)) =
+                    lookup_and_create_shop_via_google(pool, shop_name, state).await
+                {
                     google_location_id = Some(id);
                     matched_shop_name = shop_name.clone();
                     break;
@@ -1862,13 +1979,25 @@ async fn process_artist_from_pending(
 
             match google_location_id {
                 Some(id) => {
-                    println!("      ✅ Created shop via Google Places: {} (location_id: {})", matched_shop_name, id);
+                    println!(
+                        "      ✅ Created shop via Google Places: {} (location_id: {})",
+                        matched_shop_name, id
+                    );
                     id
                 }
                 None => {
-                    let error_msg = format!("Shop not found in database or Google Places. Tried names: {:?}", potential_shop_names);
+                    let error_msg = format!(
+                        "Shop not found in database or Google Places. Tried names: {:?}",
+                        potential_shop_names
+                    );
                     println!("      ❌ {}", error_msg);
-                    repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("shop_not_found")).await?;
+                    repository::update_pending_artist_status(
+                        pool,
+                        &normalized_handle,
+                        "failed",
+                        Some("shop_not_found"),
+                    )
+                    .await?;
                     return Err(error_msg.into());
                 }
             }
@@ -1876,7 +2005,9 @@ async fn process_artist_from_pending(
     };
 
     // STEP 6: Extract artist handles from shop bio via OpenAI
-    let shop_bio = shop_profile.bio.ok_or_else(|| "Shop has no bio".to_string())?;
+    let shop_bio = shop_profile
+        .bio
+        .ok_or_else(|| "Shop has no bio".to_string())?;
     println!("      🤖 Extracting artist handles from shop bio...");
 
     let artist_handles = match extract_handles_from_bio(&shop_bio).await {
@@ -1885,7 +2016,13 @@ async fn process_artist_from_pending(
             let error_msg = format!("Failed to extract artist handles: {}", e);
             drop(e); // Drop error before await
             println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("failed_to_extract_artists")).await?;
+            repository::update_pending_artist_status(
+                pool,
+                &normalized_handle,
+                "failed",
+                Some("failed_to_extract_artists"),
+            )
+            .await?;
             return Err(error_msg.into());
         }
     };
@@ -1893,11 +2030,20 @@ async fn process_artist_from_pending(
     if artist_handles.is_empty() {
         let error_msg = "No artist handles found in shop bio";
         println!("      ⚠️  {}", error_msg);
-        repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("no_artists_in_shop_bio")).await?;
+        repository::update_pending_artist_status(
+            pool,
+            &normalized_handle,
+            "failed",
+            Some("no_artists_in_shop_bio"),
+        )
+        .await?;
         return Err(error_msg.into());
     }
 
-    println!("      📋 Found {} artists in shop bio", artist_handles.len());
+    println!(
+        "      📋 Found {} artists in shop bio",
+        artist_handles.len()
+    );
 
     // STEP 7: Process all artists from shop bio
     let mut artists_processed = 0;
@@ -1913,7 +2059,10 @@ async fn process_artist_from_pending(
                 artists_processed += 1;
             }
             Ok(ProcessResult::Skipped) => {
-                println!("         ⏭️  Skipped artist {} (already up to date)", handle);
+                println!(
+                    "         ⏭️  Skipped artist {} (already up to date)",
+                    handle
+                );
             }
             Err(e) => {
                 println!("         ⚠️  Failed to process {}: {}", handle, e);
@@ -1924,7 +2073,10 @@ async fn process_artist_from_pending(
     // STEP 8: Mark original artist as successfully processed
     repository::update_pending_artist_status(pool, &normalized_handle, "success", None).await?;
 
-    println!("      ✅ Successfully processed {} artists from shop '{}'", artists_processed, matched_shop_name);
+    println!(
+        "      ✅ Successfully processed {} artists from shop '{}'",
+        artists_processed, matched_shop_name
+    );
 
     Ok(artists_processed)
 }
