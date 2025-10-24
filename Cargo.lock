@@ -786,6 +786,7 @@ dependencies = [
  "serde_json",
  "shared-types",
  "sqlx",
+ "strsim 0.11.1",
  "tokio",
  "tokio-macros",
  "url",

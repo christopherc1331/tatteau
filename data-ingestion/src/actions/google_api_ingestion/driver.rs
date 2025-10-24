@@ -1,7 +1,5 @@
-use super::fetcher::fetch_data;
-use super::parser::{parse_data, ParsedLocationData};
 use crate::repository::{fetch_county_boundaries, mark_county_ingested, upsert_locations};
-use serde_json::Value;
+use crate::services::google_places::{parse_places_to_locations, search_text_in_rectangle, LocationBounds};
 use shared_types::CountyBoundary;
 use sqlx::PgPool;
 
@@ -39,30 +37,52 @@ async fn process_county(
     limit_results_to: i8,
     max_iter: i8,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Convert CountyBoundary to LocationBounds for service module
+    let bounds = LocationBounds {
+        low_lat: county_boundary.low_lat as f32,
+        low_long: county_boundary.low_long as f32,
+        high_lat: county_boundary.high_lat as f32,
+        high_long: county_boundary.high_long as f32,
+    };
+
     let mut current_token: Option<String> = None;
     let mut curr_iter = 0;
     while curr_iter < max_iter {
         curr_iter += 1;
 
-        let res: Value = fetch_data(county_boundary, limit_results_to, &current_token).await;
-        let parsed_data_opt: Option<ParsedLocationData> = parse_data(&res);
-        if let Some(parsed_data) = parsed_data_opt {
-            let ParsedLocationData {
-                next_token,
-                location_info,
-                filtered_count,
-            } = parsed_data;
-            println!(
-                "Found {} and filtered {} results out of {}",
-                location_info.len(),
-                filtered_count,
-                limit_results_to
-            );
+        // Use service module for Google Places API call
+        let res = search_text_in_rectangle(
+            "Tattoo",
+            &bounds,
+            limit_results_to,
+            current_token.as_deref(),
+        )
+        .await?;
 
-            current_token = next_token.map(|s| s.to_string());
-            let _ = upsert_locations(pool, &location_info).await;
-            println!("Inserted {} locations", location_info.len());
-        }
+        // Parse response to LocationInfo with filtering
+        let location_info = parse_places_to_locations(&res);
+        let total_results = res
+            .get("places")
+            .and_then(|p| p.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let filtered_count = total_results - location_info.len();
+
+        println!(
+            "Found {} and filtered {} results out of {}",
+            location_info.len(),
+            filtered_count,
+            limit_results_to
+        );
+
+        // Extract next page token
+        current_token = res
+            .get("nextPageToken")
+            .and_then(|t| t.as_str())
+            .map(|s| s.to_string());
+
+        let _ = upsert_locations(pool, &location_info).await;
+        println!("Inserted {} locations", location_info.len());
 
         if current_token.is_none() {
             break;

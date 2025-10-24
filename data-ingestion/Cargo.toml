@@ -2,6 +2,7 @@
 name = "data-ingestion"
 version = "0.1.0"
 edition = "2021"
+default-run = "data-ingestion"
 
 [dependencies]
 reqwest = { version = "0.12.15", features = ["json", "rustls-tls"] }
@@ -25,3 +26,4 @@ futures = "0.3.31"
 indicatif = "0.18.0"
 url = "2.5.4"
 base64 = "0.22.0"
+strsim = "0.11"

@@ -3,13 +3,16 @@
 // Also scrapes shop Instagram bios to discover additional artists
 
 use crate::repository::{self, CityStats, CityToScrape};
+use crate::services::google_places::{is_tattoo_shop, parse_places_to_locations, search_text_with_location, LocationBounds};
 use futures::stream::{FuturesUnordered, StreamExt};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Row};
+use serde_json::Value;
+use sqlx::PgPool;
 use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
+use strsim::jaro_winkler;
 
 // ============================================================================
 // Configuration
@@ -760,19 +763,30 @@ async fn process_artist_handle(
     location_id: i64,
     pool: &PgPool,
 ) -> Result<ProcessResult, Box<dyn std::error::Error + Send + Sync>> {
+    // Normalize handle to remove @ symbol
+    let handle = normalize_instagram_handle(handle);
+
     // STEP 10-11: Check if artist exists by handle
     if let Some(_artist) =
-        repository::find_artist_by_instagram_at_location(pool, handle, location_id).await?
+        repository::find_artist_by_instagram_at_location(pool, &handle, location_id).await?
     {
         // Artist exists with this handle - skip
         return Ok(ProcessResult::Skipped);
     }
 
     // STEP 13: Get artist profile from Instagram
-    let profile = crate::actions::apify_scraper::get_instagram_profile_info(handle)
+    let profile = crate::actions::apify_scraper::get_instagram_profile_info(&handle)
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
-    let artist_name = profile.full_name.clone();
+
+    // Normalize empty string to None (some profiles return "" instead of null)
+    let artist_name = profile.full_name.clone().and_then(|name| {
+        if name.trim().is_empty() {
+            None
+        } else {
+            Some(name)
+        }
+    });
 
     // Check if artist exists by name
     if let Some(name) = &artist_name {
@@ -780,7 +794,7 @@ async fn process_artist_handle(
             repository::find_artist_by_name_fuzzy(pool, name, location_id).await?
         {
             // STEP 12: Artist exists without IG - UPDATE
-            repository::update_artist_instagram(pool, artist.id, handle, artist.social_links)
+            repository::update_artist_instagram(pool, artist.id, &handle, artist.social_links)
                 .await?;
             println!("      ✏️  Updated {} with @{}", name, handle);
             return Ok(ProcessResult::Updated);
@@ -793,7 +807,7 @@ async fn process_artist_handle(
         pool,
         artist_name.as_deref(),
         location_id,
-        handle,
+        &handle,
         &instagram_url,
     )
     .await?;
@@ -1604,6 +1618,142 @@ If no shop name can be extracted, return an empty array: []"#,
     Ok(shop_names)
 }
 
+/// Lookup shop via Google Places API and insert into database if found
+/// Returns location_id if shop found and inserted, None otherwise
+async fn lookup_and_create_shop_via_google(
+    pool: &PgPool,
+    shop_name: &str,
+    state: &str,
+) -> Result<Option<i64>, Box<dyn std::error::Error + Send + Sync>> {
+    println!("      🔍 Shop not in database - trying Google Places lookup...");
+
+    // STEP 1: Get state boundary from database
+    let state_bounds = match get_state_boundary(pool, state).await {
+        Ok(bounds) => bounds,
+        Err(e) => {
+            println!("      ❌ Failed to get state boundary for {}: {}", state, e);
+            return Ok(None);
+        }
+    };
+
+    // STEP 2: Search Google Places for shop name + "tattoo" in state
+    let search_query = format!("{} tattoo", shop_name);
+    println!("      📍 Searching Google Places: '{}' in {}", search_query, state);
+
+    let result = match search_text_with_location(&search_query, &state_bounds, 5).await {
+        Ok(res) => res,
+        Err(e) => {
+            println!("      ❌ Google Places API error: {}", e);
+            return Ok(None);
+        }
+    };
+
+    // STEP 3: Filter to only tattoo shops
+    let places = match result.get("places").and_then(|p| p.as_array()) {
+        Some(p) => p,
+        None => {
+            println!("      ❌ No places found in Google response");
+            return Ok(None);
+        }
+    };
+
+    println!("      📊 Google Places returned {} raw results", places.len());
+
+    // Filter to only tattoo shops (body_art_service or art_studio)
+    let tattoo_places: Vec<&Value> = places.iter()
+        .filter(|place| is_tattoo_shop(place))
+        .collect();
+
+    println!("      🏪 {} are tattoo shops", tattoo_places.len());
+
+    // STEP 4: Conservative approach - only proceed if exactly 1 tattoo shop
+    if tattoo_places.len() != 1 {
+        println!("      ⚠️  Ambiguous results ({} tattoo shops) - skipping for safety", tattoo_places.len());
+        return Ok(None);
+    }
+
+    // STEP 5: Verify the single result has similar name (similarity >= 0.7)
+    let matched_place = tattoo_places[0];
+    let result_name = matched_place.get("displayName")
+        .and_then(|d| d.get("text"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("");
+
+    let similarity = jaro_winkler(
+        &shop_name.to_lowercase(),
+        &result_name.to_lowercase()
+    );
+
+    println!("      📏 Name similarity: '{}' vs '{}' = {:.3}", shop_name, result_name, similarity);
+
+    if similarity < 0.7 {
+        println!("      ⚠️  Name similarity too low ({:.3} < 0.7) - skipping for safety", similarity);
+        return Ok(None);
+    }
+
+    // Parse the single matching place to LocationInfo
+    let single_place_result = serde_json::json!({
+        "places": [matched_place]
+    });
+    let locations = parse_places_to_locations(&single_place_result);
+
+    if locations.is_empty() {
+        println!("      ❌ Failed to parse matched place");
+        return Ok(None);
+    }
+
+    let location = &locations[0];
+    println!("      ✅ Found exactly 1 tattoo shop with similar name: {} at {}", location.name, location.address);
+
+    // STEP 6: Insert into locations table
+    match repository::upsert_locations(pool, &locations).await {
+        Ok(_) => println!("      💾 Inserted shop into database"),
+        Err(e) => {
+            println!("      ❌ Failed to insert location: {}", e);
+            return Ok(None);
+        }
+    }
+
+    // STEP 7: Query back to get the database id
+    let location_id = match sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM locations WHERE _id = $1"
+    )
+    .bind(&location._id)
+    .fetch_one(pool)
+    .await {
+        Ok(id) => {
+            println!("      ✅ Created shop (location_id: {})", id);
+            id
+        }
+        Err(e) => {
+            println!("      ❌ Failed to retrieve location id: {}", e);
+            return Ok(None);
+        }
+    };
+
+    Ok(Some(location_id))
+}
+
+/// Get state boundary bounding box from database
+async fn get_state_boundary(
+    pool: &PgPool,
+    state: &str,
+) -> Result<LocationBounds, Box<dyn std::error::Error + Send + Sync>> {
+    let row = sqlx::query!(
+        "SELECT low_long, low_lat, high_long, high_lat FROM state_boundaries WHERE state_name = $1",
+        state
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(LocationBounds {
+        low_long: row.low_long,
+        low_lat: row.low_lat,
+        high_long: row.high_long,
+        high_lat: row.high_lat,
+    })
+}
+
 /// Process a single artist from pending list - artist-first approach
 async fn process_artist_from_pending(
     pool: &PgPool,
@@ -1692,16 +1842,38 @@ async fn process_artist_from_pending(
     }
 
     let location_id = match location_id {
-        Some(id) => id,
+        Some(id) => {
+            println!("      ✅ Found shop in database: {} (location_id: {})", matched_shop_name, id);
+            id
+        }
         None => {
-            let error_msg = format!("Shop not found in database. Tried names: {:?}", potential_shop_names);
-            println!("      ❌ {}", error_msg);
-            repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("shop_not_in_database")).await?;
-            return Err(error_msg.into());
+            // Shop not in database - try Google Places lookup
+            println!("      ⚠️  Shop not found in database (tried names: {:?})", potential_shop_names);
+
+            // Try each potential shop name with Google Places
+            let mut google_location_id = None;
+            for shop_name in &potential_shop_names {
+                if let Ok(Some(id)) = lookup_and_create_shop_via_google(pool, shop_name, state).await {
+                    google_location_id = Some(id);
+                    matched_shop_name = shop_name.clone();
+                    break;
+                }
+            }
+
+            match google_location_id {
+                Some(id) => {
+                    println!("      ✅ Created shop via Google Places: {} (location_id: {})", matched_shop_name, id);
+                    id
+                }
+                None => {
+                    let error_msg = format!("Shop not found in database or Google Places. Tried names: {:?}", potential_shop_names);
+                    println!("      ❌ {}", error_msg);
+                    repository::update_pending_artist_status(pool, &normalized_handle, "failed", Some("shop_not_found")).await?;
+                    return Err(error_msg.into());
+                }
+            }
         }
     };
-
-    println!("      ✅ Found shop in database: {} (location_id: {})", matched_shop_name, location_id);
 
     // STEP 6: Extract artist handles from shop bio via OpenAI
     let shop_bio = shop_profile.bio.ok_or_else(|| "Shop has no bio".to_string())?;
@@ -1733,18 +1905,18 @@ async fn process_artist_from_pending(
     for handle in &artist_handles {
         match process_artist_handle(handle, location_id, pool).await {
             Ok(ProcessResult::Added) => {
-                println!("         ✅ Added artist @{}", handle);
+                println!("         ✅ Added artist {}", handle);
                 artists_processed += 1;
             }
             Ok(ProcessResult::Updated) => {
-                println!("         ✅ Updated artist @{}", handle);
+                println!("         ✅ Updated artist {}", handle);
                 artists_processed += 1;
             }
             Ok(ProcessResult::Skipped) => {
-                println!("         ⏭️  Skipped artist @{} (already up to date)", handle);
+                println!("         ⏭️  Skipped artist {} (already up to date)", handle);
             }
             Err(e) => {
-                println!("         ⚠️  Failed to process @{}: {}", handle, e);
+                println!("         ⚠️  Failed to process {}: {}", handle, e);
             }
         }
     }

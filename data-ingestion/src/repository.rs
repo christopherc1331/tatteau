@@ -47,7 +47,7 @@ pub async fn upsert_locations(
         .bind(&li.state)
         .bind(&li.country_code)
         .bind(&li.postal_code)
-        .bind(li.is_open)
+        .bind(if li.is_open { 1i16 } else { 0i16 })
         .bind(&li.address)
         .bind(&li._id)
         .bind(&li.category)
@@ -890,8 +890,13 @@ pub async fn update_artist_instagram(
     let new_social_links = match &existing_social_links {
         None => instagram_url.clone(),
         Some(s) if s.is_empty() => instagram_url.clone(),
-        Some(links) if links.contains("instagram.com/") && !links.contains("instagram.com/") => {
+        Some(links) if links.contains("instagram.com/") && !links.contains(&format!("instagram.com/{}", handle_clean)) => {
+            // Replace the existing Instagram URL with the new one (updating the handle)
             links.replace("instagram.com/", &format!("instagram.com/{}", handle_clean))
+        }
+        Some(links) if links.contains(&format!("instagram.com/{}", handle_clean)) => {
+            // Already has this exact handle - don't append duplicates
+            links.clone()
         }
         Some(links) => format!("{},{}", links, instagram_url),
     };

@@ -5,6 +5,7 @@ use sqlx::PgPool;
 
 pub mod actions;
 pub mod repository;
+pub mod services;
 
 enum IngestAction {
     Scrape,
