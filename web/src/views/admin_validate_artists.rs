@@ -7,6 +7,9 @@ use thaw::*;
 #[component]
 pub fn AdminValidateArtists() -> impl IntoView {
     let navigate = use_navigate();
+    let navigate_for_list = StoredValue::new(navigate.clone());
+    let current_page = RwSignal::new(0i64);
+    let page_size = 10i64;
     let artists = RwSignal::new(Vec::<ArtistValidationData>::new());
     let total_count = RwSignal::new(0i64);
     let loading = RwSignal::new(false);
@@ -47,7 +50,7 @@ pub fn AdminValidateArtists() -> impl IntoView {
         error_message.set(None);
 
         spawn_local(async move {
-            match get_non_validated_artists(token).await {
+            match get_non_validated_artists(current_page.get(), page_size, token).await {
                 Ok(response) => {
                     artists.set(response.artists);
                     total_count.set(response.total_count);
@@ -96,12 +99,34 @@ pub fn AdminValidateArtists() -> impl IntoView {
         });
     };
 
+    let total_pages = Memo::new(move |_| {
+        let count = total_count.get();
+        ((count + page_size - 1) / page_size).max(1)
+    });
+
+    let go_to_prev_page = move |_| {
+        if current_page.get() > 0 {
+            current_page.set(current_page.get() - 1);
+            fetch_artists();
+        }
+    };
+
+    let go_to_next_page = move |_| {
+        if current_page.get() < total_pages.get() - 1 {
+            current_page.set(current_page.get() + 1);
+            fetch_artists();
+        }
+    };
+
     view! {
         <div class="admin-validate-artists">
             <div class="admin-validate-header">
                 <button
                     class="admin-back-button"
-                    on:click=move |_| navigate("/admin/dashboard", Default::default())
+                    on:click={
+                        let navigate = navigate.clone();
+                        move |_| navigate("/admin/dashboard", Default::default())
+                    }
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="15 18 9 12 15 6"></polyline>
@@ -127,6 +152,7 @@ pub fn AdminValidateArtists() -> impl IntoView {
                             key=|artist| artist.id
                             children=move |artist: ArtistValidationData| {
                                 let artist_id = artist.id;
+                                let artist_id_for_nav = artist_id;
                                 let artist_name = artist.name.clone().unwrap_or_else(|| "Unknown Artist".to_string());
                                 let instagram_handle_opt = artist.instagram_handle.clone();
                                 let instagram_handle_display = instagram_handle_opt.clone().unwrap_or_default();
@@ -136,7 +162,7 @@ pub fn AdminValidateArtists() -> impl IntoView {
                                 view! {
                                     <div class="admin-artist-card">
                                         <div class="admin-artist-info">
-                                            <h3>{artist_name}</h3>
+                                            <h3>{artist_name.clone()}</h3>
                                             <Show when=move || instagram_handle_opt.is_some()>
                                                 <p class="admin-artist-instagram">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -157,6 +183,17 @@ pub fn AdminValidateArtists() -> impl IntoView {
                                             <p class="admin-artist-created">"Created: " {created_at}</p>
                                         </div>
                                         <div class="admin-artist-actions">
+                                            <Button
+                                                class="admin-artist-profile-button"
+                                                appearance=ButtonAppearance::Secondary
+                                                on_click=move |_| {
+                                                    navigate_for_list.with_value(|nav| {
+                                                        nav(&format!("/artist/{}", artist_id_for_nav), Default::default());
+                                                    });
+                                                }
+                                            >
+                                                "View Artist Profile"
+                                            </Button>
                                             <label class="admin-checkbox-validate">
                                                 <input
                                                     type="checkbox"
@@ -176,6 +213,24 @@ pub fn AdminValidateArtists() -> impl IntoView {
                             <p>"No artists to validate. Great job!"</p>
                         </div>
                     </Show>
+
+                    <div class="admin-pagination">
+                        <Button
+                            on_click=go_to_prev_page
+                            disabled=Signal::derive(move || current_page.get() == 0)
+                        >
+                            "Previous"
+                        </Button>
+                        <span class="admin-page-info">
+                            "Page " {move || current_page.get() + 1} " of " {move || total_pages.get()}
+                        </span>
+                        <Button
+                            on_click=go_to_next_page
+                            disabled=Signal::derive(move || current_page.get() >= total_pages.get() - 1)
+                        >
+                            "Next"
+                        </Button>
+                    </div>
                 }
             >
                 <div class="admin-loading">

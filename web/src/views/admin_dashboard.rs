@@ -5,7 +5,6 @@ use thaw::*;
 #[component]
 pub fn AdminDashboard() -> impl IntoView {
     let navigate = use_navigate();
-    let navigate_clone = navigate.clone();
 
     view! {
         <div class="admin-dashboard">
@@ -17,8 +16,11 @@ pub fn AdminDashboard() -> impl IntoView {
             <div class="admin-dashboard-grid">
                 <div
                     class="admin-card"
-                    on:click=move |_| {
-                        navigate("/admin/validate-posts", Default::default());
+                    on:click={
+                        let navigate = navigate.clone();
+                        move |_| {
+                            navigate("/admin/validate-posts", Default::default());
+                        }
                     }
                 >
                     <div class="admin-card-icon">
@@ -34,8 +36,11 @@ pub fn AdminDashboard() -> impl IntoView {
 
                 <div
                     class="admin-card"
-                    on:click=move |_| {
-                        navigate_clone("/admin/validate-artists", Default::default());
+                    on:click={
+                        let navigate = navigate.clone();
+                        move |_| {
+                            navigate("/admin/validate-artists", Default::default());
+                        }
                     }
                 >
                     <div class="admin-card-icon">

@@ -3516,6 +3516,12 @@ pub struct PostValidationResponse {
     pub total_count: i64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UnvalidatedPostsResponse {
+    pub posts: Vec<(ArtistImage, Vec<Style>, Option<Artist>, bool)>,
+    pub total_count: i64,
+}
+
 /// Fetches non-validated posts for admin validation (paginated)
 #[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 #[server]
@@ -3608,6 +3614,113 @@ pub async fn get_non_validated_posts(
     }
 }
 
+/// Fetches unvalidated posts in gallery format for admin with pagination
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn get_unvalidated_posts_for_gallery(
+    page: i64,
+    page_size: i64,
+    token: String,
+) -> Result<UnvalidatedPostsResponse, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use sqlx::Row;
+
+        // Verify admin role
+        let (_user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
+        }
+
+        let pool = crate::db::pool::get_pool();
+        let offset = page * page_size;
+
+        // Get total count
+        let total_count: i64 = sqlx::query("SELECT COUNT(*) as count FROM artists_images WHERE validated = FALSE OR validated IS NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to count: {}", e)))?
+            .get("count");
+
+        // Fetch paginated unvalidated images with artist info
+        let rows = sqlx::query(
+            "SELECT ai.id, ai.short_code, ai.artist_id, ai.post_date, ai.validated,
+                    a.id as a_id, a.name, a.location_id, a.social_links, a.instagram_handle,
+                    a.email, a.phone, a.years_experience, a.styles_extracted, a.shop_validated
+             FROM artists_images ai
+             LEFT JOIN artists a ON ai.artist_id = a.id
+             WHERE ai.validated = FALSE OR ai.validated IS NULL
+             ORDER BY ai.id DESC
+             LIMIT $1 OFFSET $2"
+        )
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch posts: {}", e)))?;
+
+        let mut posts = Vec::new();
+        for row in rows {
+            let image = ArtistImage {
+                id: row.try_get::<i64, _>("id").unwrap_or(0) as i32,
+                short_code: row.get("short_code"),
+                artist_id: row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
+                post_date: row.try_get("post_date").ok(),
+                validated: row.try_get("validated").ok(),
+            };
+
+            let artist = if row.try_get::<i64, _>("a_id").is_ok() {
+                Some(Artist {
+                    id: row.try_get::<i64, _>("a_id").unwrap_or(0) as i32,
+                    name: row.get("name"),
+                    location_id: row.try_get::<i64, _>("location_id").unwrap_or(0) as i32,
+                    social_links: row.get("social_links"),
+                    instagram_handle: row.get("instagram_handle"),
+                    email: row.get("email"),
+                    phone: row.get("phone"),
+                    years_experience: row.try_get::<i64, _>("years_experience").ok().map(|v| v as i32),
+                    styles_extracted: row.try_get::<i64, _>("styles_extracted").ok().map(|v| v as i32),
+                    shop_validated: row.try_get("shop_validated").ok(),
+                })
+            } else {
+                None
+            };
+
+            // Get styles for this image
+            let style_rows = sqlx::query(
+                "SELECT s.id, s.name
+                 FROM styles s
+                 JOIN artists_images_styles ais ON s.id = ais.style_id
+                 WHERE ais.artists_images_id = $1"
+            )
+            .bind(image.id)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch styles: {}", e)))?;
+
+            let styles: Vec<Style> = style_rows
+                .into_iter()
+                .map(|r| Style {
+                    id: r.try_get::<i64, _>("id").unwrap_or(0) as i32,
+                    name: r.get("name"),
+                })
+                .collect();
+
+            posts.push((image, styles, artist, false)); // is_favorited = false for admin
+        }
+
+        Ok(UnvalidatedPostsResponse { posts, total_count })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
 /// Marks a post as validated (admin only)
 #[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 #[server]
@@ -3663,6 +3776,8 @@ pub struct ArtistValidationResponse {
 #[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
 #[server]
 pub async fn get_non_validated_artists(
+    page: i64,
+    page_size: i64,
     token: String,
 ) -> Result<ArtistValidationResponse, ServerFnError> {
     #[cfg(feature = "ssr")]
@@ -3680,6 +3795,7 @@ pub async fn get_non_validated_artists(
         }
 
         let pool = crate::db::pool::get_pool();
+        let offset = page * page_size;
 
         // Get total count of non-validated artists
         let total_count: i64 = sqlx::query(
@@ -3692,15 +3808,18 @@ pub async fn get_non_validated_artists(
         .map_err(|e| ServerFnError::new(format!("Failed to count non-validated artists: {}", e)))?
         .get("count");
 
-        // Fetch non-validated artists
+        // Fetch paginated non-validated artists
         let rows = sqlx::query(
             "SELECT a.id, a.name, a.instagram_handle, a.created_at, l.name as location_name
              FROM artists a
              LEFT JOIN locations l ON a.location_id = l.id
              WHERE a.created_at >= '2025-10-24'
              AND (a.shop_validated = FALSE OR a.shop_validated IS NULL)
-             ORDER BY a.created_at DESC"
+             ORDER BY a.created_at DESC
+             LIMIT $1 OFFSET $2"
         )
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(pool)
         .await
         .map_err(|e| ServerFnError::new(format!("Failed to fetch non-validated artists: {}", e)))?;

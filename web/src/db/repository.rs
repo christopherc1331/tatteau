@@ -383,6 +383,7 @@ pub async fn get_artists_by_location(location_id: i32) -> DbResult<Vec<Artist>> 
                 .try_get::<i64, _>("styles_extracted")
                 .ok()
                 .map(|v| v as i32),
+            shop_validated: row.try_get("shop_validated").ok(),
         })
         .collect();
 
@@ -471,6 +472,7 @@ pub async fn get_all_images_with_styles_by_location(
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
             post_date: image_row.try_get("post_date").ok(),
+            validated: image_row.try_get("validated").ok(),
         };
 
         let artist = Artist {
@@ -489,6 +491,7 @@ pub async fn get_all_images_with_styles_by_location(
                 .try_get::<i64, _>("styles_extracted")
                 .ok()
                 .map(|v| v as i32),
+            shop_validated: image_row.try_get("shop_validated").ok(),
         };
 
         let is_favorited: bool = image_row.get("is_favorited");
@@ -1878,6 +1881,7 @@ pub async fn get_shop_images_paginated(
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
             post_date: image_row.try_get("post_date").ok(),
+            validated: image_row.try_get("validated").ok(),
         };
 
         let artist = Artist {
@@ -1896,6 +1900,7 @@ pub async fn get_shop_images_paginated(
                 .try_get::<i64, _>("styles_extracted")
                 .ok()
                 .map(|v| v as i32),
+            shop_validated: image_row.try_get("shop_validated").ok(),
         };
 
         let is_favorited: bool = image_row.get("is_favorited");
@@ -2073,6 +2078,7 @@ pub async fn get_artist_images_paginated(
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
             post_date: image_row.try_get("post_date").ok(),
+            validated: image_row.try_get("validated").ok(),
         };
 
         let is_favorited: bool = image_row.get("is_favorited");
