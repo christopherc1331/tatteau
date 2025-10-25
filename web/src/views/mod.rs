@@ -1,4 +1,7 @@
+pub mod admin_dashboard;
 pub mod admin_login;
+pub mod admin_validate_artists;
+pub mod admin_validate_posts;
 pub mod artist_dashboard;
 pub mod artist_highlight;
 pub mod artist_login_prompt;

@@ -3314,7 +3314,14 @@ pub async fn add_style_to_image(
         .await;
 
         match result {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                // Mark the image as validated when styles are updated
+                let _ = sqlx::query("UPDATE artists_images SET validated = TRUE WHERE id = $1")
+                    .bind(image_id)
+                    .execute(pool)
+                    .await;
+                Ok(())
+            }
             Err(e) => Err(ServerFnError::new(format!(
                 "Failed to add style to image: {}",
                 e
@@ -3360,7 +3367,14 @@ pub async fn remove_style_from_image(
         .await;
 
         match result {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                // Mark the image as validated when styles are updated
+                let _ = sqlx::query("UPDATE artists_images SET validated = TRUE WHERE id = $1")
+                    .bind(image_id)
+                    .execute(pool)
+                    .await;
+                Ok(())
+            }
             Err(e) => Err(ServerFnError::new(format!(
                 "Failed to remove style from image: {}",
                 e
@@ -3483,5 +3497,268 @@ pub async fn get_image_style_metadata(image_id: i64) -> Result<ImageStyleMetadat
             llm_recommended_styles: vec![],
             admin_corrected_count: 0,
         })
+    }
+}
+
+// Admin Post Validation
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PostValidationData {
+    pub image_id: i64,
+    pub short_code: String,
+    pub artist_id: i64,
+    pub artist_name: Option<String>,
+    pub current_styles: Vec<Style>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PostValidationResponse {
+    pub posts: Vec<PostValidationData>,
+    pub total_count: i64,
+}
+
+/// Fetches non-validated posts for admin validation (paginated)
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn get_non_validated_posts(
+    page: i64,
+    page_size: i64,
+    token: String,
+) -> Result<PostValidationResponse, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use sqlx::Row;
+
+        // Verify admin role
+        let (_user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
+        }
+
+        let pool = crate::db::pool::get_pool();
+        let offset = page * page_size;
+
+        // Get total count of non-validated posts
+        let total_count: i64 = sqlx::query("SELECT COUNT(*) as count FROM artists_images WHERE validated = FALSE OR validated IS NULL")
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to count non-validated posts: {}", e)))?
+            .get("count");
+
+        // Fetch paginated non-validated posts
+        let rows = sqlx::query(
+            "SELECT ai.id, ai.short_code, ai.artist_id, a.name as artist_name
+             FROM artists_images ai
+             LEFT JOIN artists a ON ai.artist_id = a.id
+             WHERE ai.validated = FALSE OR ai.validated IS NULL
+             ORDER BY ai.id ASC
+             LIMIT $1 OFFSET $2"
+        )
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch non-validated posts: {}", e)))?;
+
+        let mut posts = Vec::new();
+        for row in rows {
+            let image_id: i64 = row.get("id");
+            let short_code: String = row.get("short_code");
+            let artist_id: i64 = row.get("artist_id");
+            let artist_name: Option<String> = row.get("artist_name");
+
+            // Get current styles for this image
+            let style_rows = sqlx::query(
+                "SELECT s.id, s.name
+                 FROM styles s
+                 JOIN artists_images_styles ais ON s.id = ais.style_id
+                 WHERE ais.artists_images_id = $1
+                 ORDER BY s.name"
+            )
+            .bind(image_id)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to fetch styles for image: {}", e)))?;
+
+            let current_styles: Vec<Style> = style_rows
+                .into_iter()
+                .map(|r| Style {
+                    id: r.get::<i64, _>("id") as i32,
+                    name: r.get("name"),
+                })
+                .collect();
+
+            posts.push(PostValidationData {
+                image_id,
+                short_code,
+                artist_id,
+                artist_name,
+                current_styles,
+            });
+        }
+
+        Ok(PostValidationResponse { posts, total_count })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+/// Marks a post as validated (admin only)
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn mark_post_as_validated(
+    image_id: i64,
+    token: String,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        // Verify admin role
+        let (_user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
+        }
+
+        let pool = crate::db::pool::get_pool();
+
+        sqlx::query("UPDATE artists_images SET validated = TRUE WHERE id = $1")
+            .bind(image_id)
+            .execute(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to mark post as validated: {}", e)))?;
+
+        Ok(())
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+// Admin Artist Shop Validation
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ArtistValidationData {
+    pub id: i64,
+    pub name: Option<String>,
+    pub instagram_handle: Option<String>,
+    pub location_name: Option<String>,
+    pub created_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ArtistValidationResponse {
+    pub artists: Vec<ArtistValidationData>,
+    pub total_count: i64,
+}
+
+/// Fetches non-validated artists for shop validation (created after 2025-10-24)
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn get_non_validated_artists(
+    token: String,
+) -> Result<ArtistValidationResponse, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        use sqlx::Row;
+
+        // Verify admin role
+        let (_user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
+        }
+
+        let pool = crate::db::pool::get_pool();
+
+        // Get total count of non-validated artists
+        let total_count: i64 = sqlx::query(
+            "SELECT COUNT(*) as count FROM artists
+             WHERE created_at >= '2025-10-24'
+             AND (shop_validated = FALSE OR shop_validated IS NULL)"
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to count non-validated artists: {}", e)))?
+        .get("count");
+
+        // Fetch non-validated artists
+        let rows = sqlx::query(
+            "SELECT a.id, a.name, a.instagram_handle, a.created_at, l.name as location_name
+             FROM artists a
+             LEFT JOIN locations l ON a.location_id = l.id
+             WHERE a.created_at >= '2025-10-24'
+             AND (a.shop_validated = FALSE OR a.shop_validated IS NULL)
+             ORDER BY a.created_at DESC"
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ServerFnError::new(format!("Failed to fetch non-validated artists: {}", e)))?;
+
+        let artists: Vec<ArtistValidationData> = rows
+            .into_iter()
+            .map(|row| ArtistValidationData {
+                id: row.get("id"),
+                name: row.get("name"),
+                instagram_handle: row.get("instagram_handle"),
+                location_name: row.get("location_name"),
+                created_at: row.get::<Option<chrono::NaiveDateTime>, _>("created_at")
+                    .map(|dt| dt.to_string()),
+            })
+            .collect();
+
+        Ok(ArtistValidationResponse {
+            artists,
+            total_count,
+        })
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
+    }
+}
+
+/// Marks an artist as shop validated (admin only)
+#[cfg_attr(feature = "ssr", instrument(skip(token), err, level = "info"))]
+#[server]
+pub async fn mark_artist_shop_validated(
+    artist_id: i64,
+    token: String,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        // Verify admin role
+        let (_user_id, user_type) = extract_user_from_token(&token)
+            .ok_or_else(|| ServerFnError::new("Invalid or expired token".to_string()))?;
+
+        if user_type != "admin" {
+            return Err(ServerFnError::new(
+                "Unauthorized: Admin access required".to_string(),
+            ));
+        }
+
+        let pool = crate::db::pool::get_pool();
+
+        sqlx::query("UPDATE artists SET shop_validated = TRUE WHERE id = $1")
+            .bind(artist_id)
+            .execute(pool)
+            .await
+            .map_err(|e| ServerFnError::new(format!("Failed to mark artist as validated: {}", e)))?;
+
+        Ok(())
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new("Not available on client".to_string()))
     }
 }

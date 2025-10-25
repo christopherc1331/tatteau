@@ -22,6 +22,7 @@ pub struct Artist {
     pub phone: Option<String>,
     pub years_experience: Option<i32>,
     pub styles_extracted: Option<i32>,
+    pub shop_validated: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -37,6 +38,7 @@ pub struct ArtistImage {
     pub short_code: String,
     pub artist_id: i32,
     pub post_date: Option<i64>,
+    pub validated: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

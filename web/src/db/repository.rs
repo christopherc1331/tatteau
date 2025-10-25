@@ -216,6 +216,7 @@ pub async fn get_artist_by_id(artist_id: i32) -> DbResult<Artist> {
             .try_get::<i64, _>("styles_extracted")
             .ok()
             .map(|v| v as i32),
+        shop_validated: row.try_get("shop_validated").ok(),
     })
 }
 
@@ -294,6 +295,7 @@ pub async fn get_artist_images_with_styles(
             short_code: image_row.get("short_code"),
             artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
             post_date: image_row.try_get("post_date").ok(),
+            validated: image_row.try_get("validated").ok(),
         };
         let img_id = img.id;
 

@@ -156,6 +156,7 @@ pub async fn get_user_favorites_with_details(
                 short_code: image_row.get("short_code"),
                 artist_id: image_row.try_get::<i64, _>("artist_id").unwrap_or(0) as i32,
                 post_date: image_row.try_get("post_date").ok(),
+                validated: image_row.try_get("validated").ok(),
             };
 
             // Get artist details
@@ -183,6 +184,7 @@ pub async fn get_user_favorites_with_details(
                     .try_get::<i64, _>("styles_extracted")
                     .ok()
                     .map(|v| v as i32),
+                shop_validated: row.try_get("shop_validated").ok(),
             });
 
             // Get styles for this image

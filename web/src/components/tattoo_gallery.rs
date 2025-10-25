@@ -61,6 +61,7 @@ pub fn TattooGallery(
                 phone: None,
                 years_experience: None,
                 styles_extracted: None,
+                shop_validated: None,
             };
 
             // Create ArtistImage from post data
@@ -69,6 +70,7 @@ pub fn TattooGallery(
                 artist_id: post.artist_id as i32,
                 short_code: post.short_code,
                 post_date: None,
+                validated: None,
             };
 
             PostWithArtist {
