@@ -8,6 +8,7 @@ use thaw::ssr::SSRMountStyleProvider;
 use thaw::*;
 
 use crate::components::{masonry_gallery::MasonryGallery, ArtistAuthGuard, ErrorBoundary, Navbar};
+use crate::views::admin_login::AdminLoginPage;
 use crate::views::artist_dashboard::{
     ArtistCalendar, ArtistHome, ArtistRecurring, ArtistRequests, ArtistSettings, BookingDetails,
     QuestionnaireBuilder,
@@ -81,6 +82,7 @@ pub fn App() -> impl IntoView {
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("login") view=LoginPage/>
                         <Route path=StaticSegment("signup") view=SignupPage/>
+                        <Route path=(StaticSegment("admin"), StaticSegment("login")) view=AdminLoginPage/>
                         <Route path=StaticSegment("explore") view=ExplorePage/>
                         <Route path=StaticSegment("favorites") view=FavoritesPage/>
                         // <Route path=StaticSegment("artist-login-required") view=ArtistLoginPrompt/>
